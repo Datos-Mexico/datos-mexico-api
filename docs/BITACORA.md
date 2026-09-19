@@ -78,3 +78,10 @@ Formato: fecha · qué se hizo · evidencia · pendiente inmediato.
   binding de rate limiting de Workers).
 - Pendiente inmediato: los 32 endpoints CONSAR restantes conforme a
   `docs/legacy/consar-endpoints.md` (extracción en curso).
+- Endpoints 3-15 (recursos, comisiones, flujos, traspasos, PEA) EN LÍNEA con
+  paridad de datos 52/52 rutas (incluye 404/422 con el mismo `detail`) y
+  documentación 15/34. Piezas clave: `redondear()` replica round() de Python
+  (empates a par sobre el valor exacto del double); `parseFecha()` replica los
+  mensajes de `_parse_fecha`; los errores de validación de chanfana llegan a
+  Hono como HTTPException con cuerpo `{errors:[…]}` y se traducen a la lista
+  422 de FastAPI (`type/loc/msg/input`).

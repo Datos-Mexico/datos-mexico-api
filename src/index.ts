@@ -1,10 +1,15 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { fromHono } from "chanfana";
+import { ZodError } from "zod";
+import { HTTPException } from "hono/http-exception";
 import { DESCRIPCION, TITULO, VERSION } from "./descripcion";
 import type { Context } from "hono";
 import { Salud } from "./endpoints/salud";
 import { Afores, TiposRecurso } from "./consar/catalogos";
+import { RecursosComposicion, RecursosImssVsIssste, RecursosPorAfore, RecursosPorComponente, RecursosSerie, RecursosTotales } from "./consar/recursos";
+import { ComisionesSerie, ComisionesSnapshot, FlujosSerie, FlujosSnapshot, PeaCotizantesSerie, TraspasosSerie, TraspasosSnapshot } from "./consar/flujos";
+import { ErrorHttp, respuestaError } from "./lib/errores";
 
 export type Env = {
   DB_CONSAR: D1Database;
@@ -20,6 +25,7 @@ const openapi = fromHono(app, {
   openapi_url: "/openapi.json",
   openapiVersion: "3.1",
   generateOperationIds: true,
+  raiseOnError: true,
   schema: {
     info: {
       title: TITULO,
@@ -35,6 +41,44 @@ const openapi = fromHono(app, {
 openapi.get("/health", Salud);
 openapi.get("/api/v1/consar/afores", Afores);
 openapi.get("/api/v1/consar/tipos-recurso", TiposRecurso);
+openapi.get("/api/v1/consar/recursos/totales", RecursosTotales);
+openapi.get("/api/v1/consar/recursos/por-afore", RecursosPorAfore);
+openapi.get("/api/v1/consar/recursos/por-componente", RecursosPorComponente);
+openapi.get("/api/v1/consar/recursos/imss-vs-issste", RecursosImssVsIssste);
+openapi.get("/api/v1/consar/recursos/composicion", RecursosComposicion);
+openapi.get("/api/v1/consar/recursos/serie", RecursosSerie);
+openapi.get("/api/v1/consar/comisiones/serie", ComisionesSerie);
+openapi.get("/api/v1/consar/comisiones/snapshot", ComisionesSnapshot);
+openapi.get("/api/v1/consar/flujos/serie", FlujosSerie);
+openapi.get("/api/v1/consar/flujos/snapshot", FlujosSnapshot);
+openapi.get("/api/v1/consar/traspasos/serie", TraspasosSerie);
+openapi.get("/api/v1/consar/traspasos/snapshot", TraspasosSnapshot);
+openapi.get("/api/v1/consar/pea-cotizantes/serie", PeaCotizantesSerie);
 app.get("/", (c) => c.redirect("/docs", 302));
+
+app.onError(async (err, c) => {
+  if (err instanceof ErrorHttp) return respuestaError(err.status, err.detail);
+  // chanfana envuelve los errores de validación en una HTTPException de Hono cuyo cuerpo
+  // trae {errors:[{code,message,path}]}. Se traduce a la forma de FastAPI (422, lista type/loc/msg/input).
+  if (err instanceof HTTPException && err.res) {
+    type CuerpoChanfana = { errors?: { message: string; path: string[] }[] };
+    let cuerpo: CuerpoChanfana | null = null;
+    try { cuerpo = (await err.res.clone().json()) as CuerpoChanfana; } catch { cuerpo = null; }
+    if (cuerpo?.errors) {
+      const detalles = cuerpo.errors.map((e) => {
+        const faltante = /received undefined|required/i.test(e.message);
+        return { type: faltante ? "missing" : "value_error", loc: e.path, msg: faltante ? "Field required" : e.message, input: null };
+      });
+      return respuestaError(422, detalles);
+    }
+    return err.res;
+  }
+  if (err instanceof ZodError) {
+    const detalles = err.issues.map((i) => ({ type: "value_error", loc: i.path.map(String), msg: i.message, input: null }));
+    return respuestaError(422, detalles);
+  }
+  console.error(err);
+  return respuestaError(500, "Internal Server Error");
+});
 
 export default app;
