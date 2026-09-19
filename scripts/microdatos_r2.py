@@ -62,7 +62,7 @@ def procesar(tabla, periodo, esperado, tipos):
     pq.write_table(tabla_pa, parq, compression='zstd')
     t2 = time.time()
     clave = f'enoe/microdatos/{tabla}/{periodo}.parquet'
-    r = subprocess.run(['npx', 'wrangler', 'r2', 'object', 'put', f'datosmexico-datos/{clave}', '--file', str(parq), '--content-type', 'application/vnd.apache.parquet'], cwd=RAIZ, capture_output=True, text=True)
+    r = subprocess.run(['npx', 'wrangler', 'r2', 'object', 'put', f'datosmexico-datos/{clave}', '--remote', '--file', str(parq), '--content-type', 'application/vnd.apache.parquet'], cwd=RAIZ, capture_output=True, text=True)
     if r.returncode or 'Upload complete' not in (r.stdout + r.stderr):
         raise RuntimeError(f'subida falló {clave}: {(r.stdout + r.stderr)[-300:]}')
     t3 = time.time()

@@ -475,3 +475,26 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
   el vigilante corta la copia y el conteo coincide con lo esperado para el
   grupo, se acepta (la publicación vuelve a verificar trimestre por
   trimestre). Se relanza sdem con el ajuste al terminar el grupo en curso.
+
+## 2026-09-19 · Microdatos ENOE: pipeline terminado y CORRECCIÓN de destino
+- Las cinco tablas quedaron procesadas: viv 79, hog 80, sdem 80, coe1 80,
+  coe2 80 trimestres (399 Parquet, 2.4 GB con zstd frente a ~54 GB en
+  Postgres). Verificación contra Neon (conteo por trimestre, tabla por
+  tabla) en `data/enoe/microdatos/verificacion.log`.
+- Hallazgo grave y corregido a tiempo: `wrangler r2 object put` SIN
+  `--remote` escribe en el almacén local de wrangler
+  (`.wrangler/state/v3/r2`) e imprime el mismo "Upload complete"; por eso
+  el listado del bucket en Cloudflare no mostraba ningún Parquet (solo la
+  tabla Iceberg de prueba, que sí se escribió por la API). Los 399 archivos
+  siguen en `data/enoe/microdatos/<tabla>/`. Corrección: `--remote` en los
+  dos scripts del pipeline y `scripts/microdatos_subir_remoto.py`, que sube
+  todo con `--remote`, compara tamaños con el manifiesto y verifica al final
+  con la API de Cloudflare que cada clave existe en el bucket con el tamaño
+  correcto (`subida-remota.log`).
+- Regla nueva para el observatorio: toda orden de wrangler que toque datos
+  (d1 execute, r2 object) lleva `--remote` explícito y se verifica por un
+  canal distinto (API o conteo remoto), nunca solo por el mensaje de éxito.
+- Verificación final contra Neon (trimestre por trimestre, sin faltantes ni
+  sobrantes ni conteos distintos): viv 9,843,149 · hog 10,037,505 · sdem
+  31,498,811 · coe1 25,066,601 · coe2 25,066,601 = **101,512,667 filas**, las
+  mismas que el legacy publica como «101.5 millones».
