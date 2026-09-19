@@ -468,3 +468,10 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
   Banco de Indicadores del INEGI: nacional, 32 entidades y, en los 594 que el
   INEGI publica por municipio, los 2,478 municipios; última actualización del
   INEGI 2026-09-18». Pendiente de F8: fase 3, refresco periódico.
+- Pipeline (17:15 UTC): coe2 y coe1 completos en R2 (80 trimestres cada
+  una); sdem en curso. Patrón de los congelamientos de Neon: ocurren casi
+  siempre al FINAL de la copia (ya llegaron todas las filas del grupo y no
+  llega el cierre), lo que obligaba a repetir 25 min de copia. Ajuste: si
+  el vigilante corta la copia y el conteo coincide con lo esperado para el
+  grupo, se acepta (la publicación vuelve a verificar trimestre por
+  trimestre). Se relanza sdem con el ajuste al terminar el grupo en curso.
