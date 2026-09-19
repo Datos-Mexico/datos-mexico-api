@@ -11,7 +11,9 @@ Mediciones del 2026-09-19: el cómputo de Neon entrega ~1 MB/s de CSV en total, 
 varios en paralelo (el cuello es el CPU del cómputo formateando las filas), y la conexión por el
 pooler se congela (servidor en ClientWrite, cliente en poll) tras ~20 min de una misma copia; por
 eso se usa el host directo (sin «-pooler»), un solo flujo, copias acotadas a GRUPO trimestres y
-un vigilante que reinicia la copia si pasan 180 s sin datos.
+un vigilante que reinicia la copia si pasan 180 s sin datos. El congelamiento ocurre casi siempre
+al final de la copia (ya llegaron todas las filas): si el conteo del grupo coincide con lo esperado
+se acepta sin repetir la copia.
 Uso: data/.venv/bin/python scripts/microdatos_r2_tabla.py <tabla> [<tabla> ...]
 """
 import csv, gzip, io, json, pathlib, subprocess, sys, time
@@ -23,7 +25,7 @@ PG_DIRECTO = m.PG.replace('-pooler', '')
 GRUPO = 10
 SIN_DATOS_MAX = 180
 
-def repartir(tabla, real, grupo):
+def repartir(tabla, real, grupo, esperado_total=None):
     """Copia los trimestres de `grupo` en una sola consulta y los reparte en un CSV por trimestre."""
     d = m.BASE / tabla; d.mkdir(exist_ok=True)
     t0 = time.time(); salidas = {}; escritores = {}; n = 0; idx = None; cab = None
@@ -49,7 +51,13 @@ def repartir(tabla, real, grupo):
     finally:
         parar.set(); proc.wait()
         for f in salidas.values(): f.close()
-    if proc.returncode: raise RuntimeError(f'psql terminó con código {proc.returncode} tras {n} filas')
+    if proc.returncode:
+        # Neon suele congelarse justo al final de la copia (llegaron todas las filas y no llega el cierre):
+        # si el conteo coincide con lo esperado para el grupo se acepta; publicar() vuelve a verificar por trimestre.
+        if esperado_total is not None and n == esperado_total:
+            print(f"{time.strftime('%H:%M:%S')} {tabla} copia cortada al final con todas las filas ({n}); se acepta", flush=True)
+        else:
+            raise RuntimeError(f'psql terminó con código {proc.returncode} tras {n} filas (esperadas {esperado_total})')
     print(f"{time.strftime('%H:%M:%S')} {tabla} grupo {grupo[0]}..{grupo[-1]}: {n} filas en {time.time()-t0:.0f}s", flush=True)
     return sorted(salidas)
 
@@ -77,7 +85,7 @@ def main(tabla):
     for k in range(0, len(pend), GRUPO):
         grupo = pend[k:k + GRUPO]
         for intento in range(4):
-            try: hechos_grupo = repartir(tabla, real, grupo); break
+            try: hechos_grupo = repartir(tabla, real, grupo, sum(esperados[p] for p in grupo)); break
             except Exception as e:
                 print(f"{time.strftime('%H:%M:%S')} ERROR {tabla} grupo {grupo[0]} intento {intento+1}: {e}", flush=True); time.sleep(20)
         else: continue
