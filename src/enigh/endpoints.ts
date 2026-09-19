@@ -292,8 +292,8 @@ export class ActividadNoagro extends OpenAPIRoute {
   };
   async handle(c: AppContext) {
     const comun = await actividadComun(c, "noagro");
-    // ::bigint en Postgres trunca hacia cero la suma de numeric(15,2)
-    const tri = (await fila<{ sum_ventas_trim: number; sum_ingreso_trim: number }>(c.env.DB_ENIGH, "SELECT CAST(COALESCE(SUM(ventas_tri), 0) AS INTEGER) AS sum_ventas_trim, CAST(COALESCE(SUM(ing_tri), 0) AS INTEGER) AS sum_ingreso_trim FROM noagro"))!;
+    // ::bigint en Postgres REDONDEA la suma numeric(15,2) al entero más cercano
+    const tri = (await fila<{ sum_ventas_trim: number; sum_ingreso_trim: number }>(c.env.DB_ENIGH, "SELECT CAST(ROUND(COALESCE(SUM(ventas_tri), 0)) AS INTEGER) AS sum_ventas_trim, CAST(ROUND(COALESCE(SUM(ing_tri), 0)) AS INTEGER) AS sum_ingreso_trim FROM noagro"))!;
     const mean_ventas = comun.n_muestra > 0 ? tri.sum_ventas_trim / comun.n_muestra : 0.0;
     return { n_hogares_muestra: comun.n_muestra, n_hogares_expandido: comun.n_exp, pct_del_universo: comun.pct_del_universo, sum_ventas_trim: tri.sum_ventas_trim, sum_ingreso_trim: tri.sum_ingreso_trim, mean_ventas_por_hogar: redondear(mean_ventas, 2), por_decil: comun.por_decil, top_entidades: comun.top_entidades, note: NOTE_NOAGRO };
   }
@@ -309,7 +309,7 @@ export class ActividadJcf extends OpenAPIRoute {
     responses: { ...ok("Hogares con ingresos por Jóvenes Construyendo el Futuro (327 hogares muestra).", ActividadJcfResponse), ...RESP_429 },
   };
   async handle(c: AppContext) {
-    const sm = (await fila<{ n_muestra: number; sum_ing_tri: number | null }>(c.env.DB_ENIGH, "SELECT COUNT(DISTINCT folioviv || '|' || foliohog || '|' || numren) AS n_muestra, CAST(SUM(ing_tri) AS INTEGER) AS sum_ing_tri FROM ingresos_jcf"))!;
+    const sm = (await fila<{ n_muestra: number; sum_ing_tri: number | null }>(c.env.DB_ENIGH, "SELECT COUNT(DISTINCT folioviv || '|' || foliohog || '|' || numren) AS n_muestra, CAST(ROUND(SUM(ing_tri)) AS INTEGER) AS sum_ing_tri FROM ingresos_jcf"))!;
     const ex = (await fila<{ n_expandido: number }>(c.env.DB_ENIGH, "SELECT COALESCE(SUM(p.factor), 0) AS n_expandido FROM (SELECT DISTINCT folioviv, foliohog, numren FROM ingresos_jcf) j JOIN poblacion p USING (folioviv, foliohog, numren)"))!;
     const ent = await filas<{ clave: string; nombre: string; benef_muestra: number; benef_expandido: number }>(c.env.DB_ENIGH, `
 SELECT h.entidad AS clave, e.descripcion AS nombre,

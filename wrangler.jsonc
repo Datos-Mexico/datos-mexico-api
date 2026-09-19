@@ -8,6 +8,7 @@
   "routes": [ { "pattern": "api.datosmexico.org", "custom_domain": true } ],
   "observability": { "enabled": true },
   "ratelimits": [
+    { "name": "RL_20", "namespace_id": "5020", "simple": { "limit": 20, "period": 60 } },
     { "name": "RL_30", "namespace_id": "5030", "simple": { "limit": 30, "period": 60 } },
     { "name": "RL_60", "namespace_id": "5060", "simple": { "limit": 60, "period": 60 } }
   ],

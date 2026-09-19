@@ -13,6 +13,7 @@ import { ActivoNetoAgregado, ActivoNetoSerie, ActivoNetoSnapshot, RendimientosSe
 import { CuentasSerie, CuentasSistema, CuentasSnapshot, MedidasSerie, MedidasSnapshot, MetricasCuenta, MetricasSensibilidad } from "./consar/medidas_cuentas";
 import { PreciosComparativo, PreciosGestionComparativo, PreciosGestionSerie, PreciosGestionSnapshot, PreciosSerie, PreciosSnapshot } from "./consar/precios";
 import { ActividadAgro, ActividadJcf, ActividadNoagro, EnighMetadataEndpoint, EnighValidaciones, GastosByRubro, HogaresByDecil, HogaresByEntidad, HogaresSummaryEndpoint, PoblacionDemographics } from "./enigh/endpoints";
+import { ActividadCdmxVsNacional, AportesVsJubilaciones, Bancarizacion, DecilServidoresCdmx, GastosCdmxVsNacional, IngresoCdmxVsNacional, TopVsBottom } from "./comparativo/endpoints";
 import { ErrorHttp, respuestaError } from "./lib/errores";
 import { limitarPeticiones } from "./lib/limites";
 
@@ -20,6 +21,7 @@ export type Env = {
   DB_CONSAR: D1Database;
   DB_ENIGH: D1Database;
   DB_CDMX: D1Database;
+  RL_20: RateLimit;
   RL_30: RateLimit;
   RL_60: RateLimit;
 };
@@ -93,6 +95,13 @@ openapi.get("/api/v1/enigh/gastos/by-rubro", GastosByRubro);
 openapi.get("/api/v1/enigh/actividad/agro", ActividadAgro);
 openapi.get("/api/v1/enigh/actividad/noagro", ActividadNoagro);
 openapi.get("/api/v1/enigh/actividad/jcf", ActividadJcf);
+openapi.get("/api/v1/comparativo/ingreso/cdmx-vs-nacional", IngresoCdmxVsNacional);
+openapi.get("/api/v1/comparativo/decil-servidores-cdmx", DecilServidoresCdmx);
+openapi.get("/api/v1/comparativo/aportes-vs-jubilaciones-actuales", AportesVsJubilaciones);
+openapi.get("/api/v1/comparativo/actividad-cdmx-vs-nacional", ActividadCdmxVsNacional);
+openapi.get("/api/v1/comparativo/gastos/cdmx-vs-nacional", GastosCdmxVsNacional);
+openapi.get("/api/v1/comparativo/bancarizacion", Bancarizacion);
+openapi.get("/api/v1/comparativo/top-vs-bottom", TopVsBottom);
 app.get("/", (c) => c.redirect("/docs", 302));
 
 app.onError(async (err, c) => {

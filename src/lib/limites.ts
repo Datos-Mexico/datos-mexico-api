@@ -4,7 +4,8 @@ import type { MiddlewareHandler } from "hono";
 import type { Env } from "../index";
 import { respuestaError } from "./errores";
 
-// Rutas con cupo de 30 por minuto; todo lo demás bajo /api/v1 usa 60 por minuto.
+// Rutas con cupo de 20 o 30 por minuto; todo lo demás bajo /api/v1 usa 60 por minuto.
+const RUTAS_20 = new Set(["/api/v1/comparativo/decil-servidores-cdmx", "/api/v1/comparativo/aportes-vs-jubilaciones-actuales", "/api/v1/comparativo/gastos/cdmx-vs-nacional", "/api/v1/comparativo/top-vs-bottom"]);
 const RUTAS_30 = new Set([
   "/api/v1/consar/recursos/totales", "/api/v1/consar/recursos/por-afore", "/api/v1/consar/recursos/por-componente",
   "/api/v1/consar/recursos/imss-vs-issste", "/api/v1/consar/recursos/composicion", "/api/v1/consar/recursos/serie",
@@ -15,12 +16,13 @@ const RUTAS_30 = new Set([
   "/api/v1/consar/precios-gestion/comparativo",
   "/api/v1/enigh/validaciones", "/api/v1/enigh/hogares/by-decil", "/api/v1/enigh/hogares/by-entidad", "/api/v1/enigh/poblacion/demographics",
   "/api/v1/enigh/gastos/by-rubro", "/api/v1/enigh/actividad/agro", "/api/v1/enigh/actividad/noagro", "/api/v1/enigh/actividad/jcf",
+  "/api/v1/comparativo/ingreso/cdmx-vs-nacional", "/api/v1/comparativo/actividad-cdmx-vs-nacional", "/api/v1/comparativo/bancarizacion",
 ]);
 
 export const limitarPeticiones: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
   const ruta = new URL(c.req.url).pathname;
   const ip = c.req.header("cf-connecting-ip") ?? "desconocida";
-  const limitador = RUTAS_30.has(ruta) ? c.env.RL_30 : c.env.RL_60;
+  const limitador = RUTAS_20.has(ruta) ? c.env.RL_20 : RUTAS_30.has(ruta) ? c.env.RL_30 : c.env.RL_60;
   if (limitador) {
     const { success } = await limitador.limit({ key: `${ip}:${ruta}` });
     if (!success) return respuestaError(429, "Rate limit exceeded. Try again later.");

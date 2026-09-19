@@ -150,3 +150,27 @@ Formato: fecha · qué se hizo · evidencia · pendiente inmediato.
   manual que replica los 422 de Pydantic (`lib/validacion.ts`: pattern, int
   parsing, ge/le, con `ctx`). Summary de FastAPI derivado del nombre de la
   función («Enigh Metadata», etc.). Paridad pendiente de la carga.
+
+## 2026-09-19 · F4 ENIGH y COMPARATIVO — COMPLETOS
+- BUG DE CARGA DETECTADO Y CORREGIDO: el convertidor CSV→SQL escribía «09» como
+  número → SQLite lo guardaba como 9 (claves de entidad, folios con ceros a la
+  izquierda, ubica_geo). Ahora las columnas TEXT del DDL se citan SIEMPRE
+  (`csv_a_sql.py` lee los tipos del DDL). Se vaciaron y recargaron enigh y cdmx
+  (loader genérico `scripts/cargar_d1.sh <schema> [prioritarias]`: verifica
+  conteo antes/después, nunca duplica, parte cada archivo en trozos de 8 MB;
+  D1 se queda sin memoria con archivos grandes y con INSERT de 500 filas anchas:
+  lote = min(500, 5000/columnas) y ≤ 90 KB por sentencia).
+- CONSAR no estaba afectado (sus textos no son numéricos; la fidelidad por
+  valores lo confirmó).
+- ENIGH: paridad de DATOS 24/24 rutas (incluye 404 y 422 con `ctx` de Pydantic)
+  y de DOCUMENTACIÓN 10/10. `::bigint` sobre numeric REDONDEA en Postgres →
+  `CAST(ROUND(x) AS INTEGER)`.
+- COMPARATIVO: 7 endpoints (`src/comparativo/endpoints.ts`), paridad de DATOS
+  7/7 y de DOCUMENTACIÓN 7/7. `percentile_cont` reproducido en
+  `lib/estadistica.ts` (posición (n−1)·p + interpolación lineal, igual que
+  Postgres); `f"{x:,.0f}"`/`f"{x:.1f}"` en `lib/formato.ts`. Binding RL_20 para
+  los cupos de 20/min. Campos `dict` libres se documentan como
+  `z.record(z.string(), z.unknown())` (mismo JSON Schema que Pydantic `dict`).
+- CDMX: datos cargados 10/10 tablas (recarga limpia). Contrato en
+  `docs/legacy/cdmx-endpoints.md` (32 endpoints; 9 son escritura admin y NO se
+  migran). Pendiente: implementar los 23 GET.
