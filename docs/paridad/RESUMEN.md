@@ -1,6 +1,6 @@
 # Resumen de paridad — api.datosmexico.org (Cloudflare) contra api.datos-itam.org (legacy)
 
-Generado: 2026-09-19 11:45 UTC. Cada fila enlaza el reporte detallado. «Datos»: misma respuesta JSON petición a petición (números con tolerancia relativa 1e-9, códigos HTTP y mensajes de error incluidos). «Docs»: mismo summary, description, operationId, tags, parámetros y forma de la respuesta 200 en el OpenAPI. «Fidelidad»: la base D1 reproduce la de Neon tabla por tabla (conteos, sumas, rangos de fecha, distintos).
+Generado: 2026-09-19 14:40 UTC. Cada fila enlaza el reporte detallado. «Datos»: misma respuesta JSON petición a petición (números con tolerancia relativa 1e-9, códigos HTTP y mensajes de error incluidos). «Docs»: mismo summary, description, operationId, tags, parámetros y forma de la respuesta 200 en el OpenAPI. «Fidelidad»: la base D1 reproduce la de Neon tabla por tabla (conteos, sumas, rangos de fecha, distintos).
 
 | Bloque | Datos | Docs | Fidelidad D1 |
 |---|---|---|---|
@@ -17,7 +17,7 @@ Generado: 2026-09-19 11:45 UTC. Cada fila enlaza el reporte detallado. «Datos»
 | CDMX export | (ver CDMX servidores) | [1/1 rutas con documentación equivalente.](cdmx-export-docs.md) | — |
 | ENOE | [41/41 rutas idénticas.](enoe-datos.md) | [17/17 rutas con documentación equivalente.](enoe-docs.md) | [11/11 tablas con fidelidad verificada por valores (sumas, rangos de fecha, distintos).](enoe-fidelidad-datos.md) |
 | ENOE microdatos | [21/21 rutas idénticas (ignorando `tiempo_query_ms`, que es una medición).](enoe-microdatos-datos.md) | (incluidas en ENOE) | Parquet por trimestre en R2 con conteo verificado contra Neon (`data/enoe/microdatos/manifiesto.jsonl`). |
-| INEGI Banco de Indicadores | Sin contraparte en el legacy (endpoints nuevos). Verificación en producción contra los archivos de origen: resumen exacto (31,817 / 31,039 / 2,690,682) y 5 series completas idénticas observación por observación. | Documentación propia (tag `inegi`). | 9/9 tablas con conteos iguales al origen; suma de `n_observaciones` = filas de `observaciones`. |
+| INEGI Banco de Indicadores | Sin contraparte en el legacy (endpoints nuevos). Verificación en producción contra los archivos de origen: resumen exacto (31,817 indicadores / 31,039 con datos / 7,456,265 observaciones en tres niveles geográficos) y 8 series completas idénticas observación por observación, 3 de ellas municipales. | Documentación propia (tag `inegi`). | 9/9 tablas con conteos iguales al origen; suma de `n_observaciones` = filas de `observaciones`. |
 
 Notas:
 - CDMX: 6 rutas difieren solo por el orden de filas empatadas en la llave de orden (el legacy no fija desempate); verificación por conjuntos en `cdmx-datos.md`.

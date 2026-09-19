@@ -444,3 +444,27 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
   serie coe2 → coe1 → sdem (`pipeline-grupos.log`); estimación ~6 h en total.
   Opción para acelerar, a decisión del CEO: subir temporalmente el cómputo de
   Neon (cuesta; es infraestructura del legacy).
+
+## 2026-09-19 · F8 fase 2 EN LÍNEA — municipios en el Banco de Indicadores
+- Descarga municipal: 67,122 peticiones (594 indicadores × 113 lotes de 22
+  municipios), 95 min, 0 errores; 1,500 lotes sin datos (400 del INEGI).
+  4,780,070 observaciones crudas → 4,765,583 tras descartar 14,487
+  repeticiones más del propio INEGI (todas auditadas en `duplicados.csv`,
+  ahora 50,949 en total).
+- Catálogo de municipios: los 2,478 del Marco Geoestadístico 2025, tomados
+  de las capas municipales que ya usan los mapas del sitio (misma fuente y
+  edición; claves de 5 dígitos y nombres NOMGEO literales).
+- D1 `datosmexico-api-bise` tras la fase 2: `observaciones` 7,456,265 filas
+  (2,690,682 nacionales/estatales + 4,765,583 municipales; conteo remoto =
+  CSV), `geografias` 2,511 (1 + 32 + 2,478), `indicadores` recargada con
+  conteos y periodos de los tres niveles (suma de `n_observaciones` = filas).
+- Endpoints desplegados con tres niveles: `geografia` acepta 2 o 5 dígitos,
+  la ficha lista las geografías con su nivel, el resumen y el catálogo
+  describen la cobertura municipal. Verificación en producción contra los
+  archivos de origen: resumen exacto (31,817 / 31,039 / 7,456,265), 8 series
+  completas idénticas observación por observación (3 de ellas con municipios,
+  hasta 4,948 observaciones), 404/422 correctos, catálogo de geografías 2,511.
+- Enunciado público que ya se sostiene: «tenemos los 31,817 indicadores del
+  Banco de Indicadores del INEGI: nacional, 32 entidades y, en los 594 que el
+  INEGI publica por municipio, los 2,478 municipios; última actualización del
+  INEGI 2026-09-18». Pendiente de F8: fase 3, refresco periódico.
