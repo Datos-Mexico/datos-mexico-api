@@ -433,3 +433,14 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
   trimestre y luego publica cada uno exactamente como antes (mismos Parquet,
   claves R2 y manifiesto; marca `lectura_unica`). Corriendo para sdem, coe1
   y coe2 en paralelo (`pipeline-<tabla>.log`).
+- Diagnóstico del pipeline (14:30 UTC): las tres copias completas se
+  congelaron a los ~20 min (Neon en `ClientWrite`, psql en `poll`, Python en
+  `read`: el pooler deja de reenviar). Mediciones: el cómputo de Neon entrega
+  ~1 MB/s de CSV en total, con 1, 2 o 4 flujos (cuello = CPU del cómputo
+  formateando filas anchas), por lo que el paralelismo no ayuda. Nueva
+  versión de `microdatos_r2_tabla.py`: host directo (sin pooler), un solo
+  flujo, copias de 10 trimestres por consulta (8 recorridos por tabla en vez
+  de 80) y vigilante que reinicia la copia si pasan 180 s sin datos. Corre en
+  serie coe2 → coe1 → sdem (`pipeline-grupos.log`); estimación ~6 h en total.
+  Opción para acelerar, a decisión del CEO: subir temporalmente el cómputo de
+  Neon (cuesta; es infraestructura del legacy).
