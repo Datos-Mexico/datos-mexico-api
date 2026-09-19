@@ -12,11 +12,14 @@ import { ComisionesSerie, ComisionesSnapshot, FlujosSerie, FlujosSnapshot, PeaCo
 import { ActivoNetoAgregado, ActivoNetoSerie, ActivoNetoSnapshot, RendimientosSerie, RendimientosSistema, RendimientosSnapshot } from "./consar/activo_rendimiento";
 import { CuentasSerie, CuentasSistema, CuentasSnapshot, MedidasSerie, MedidasSnapshot, MetricasCuenta, MetricasSensibilidad } from "./consar/medidas_cuentas";
 import { PreciosComparativo, PreciosGestionComparativo, PreciosGestionSerie, PreciosGestionSnapshot, PreciosSerie, PreciosSnapshot } from "./consar/precios";
+import { ActividadAgro, ActividadJcf, ActividadNoagro, EnighMetadataEndpoint, EnighValidaciones, GastosByRubro, HogaresByDecil, HogaresByEntidad, HogaresSummaryEndpoint, PoblacionDemographics } from "./enigh/endpoints";
 import { ErrorHttp, respuestaError } from "./lib/errores";
 import { limitarPeticiones } from "./lib/limites";
 
 export type Env = {
   DB_CONSAR: D1Database;
+  DB_ENIGH: D1Database;
+  DB_CDMX: D1Database;
   RL_30: RateLimit;
   RL_60: RateLimit;
 };
@@ -80,6 +83,16 @@ openapi.get("/api/v1/consar/precios/comparativo", PreciosComparativo);
 openapi.get("/api/v1/consar/precios-gestion/serie", PreciosGestionSerie);
 openapi.get("/api/v1/consar/precios-gestion/snapshot", PreciosGestionSnapshot);
 openapi.get("/api/v1/consar/precios-gestion/comparativo", PreciosGestionComparativo);
+openapi.get("/api/v1/enigh/metadata", EnighMetadataEndpoint);
+openapi.get("/api/v1/enigh/validaciones", EnighValidaciones);
+openapi.get("/api/v1/enigh/hogares/summary", HogaresSummaryEndpoint);
+openapi.get("/api/v1/enigh/hogares/by-decil", HogaresByDecil);
+openapi.get("/api/v1/enigh/hogares/by-entidad", HogaresByEntidad);
+openapi.get("/api/v1/enigh/poblacion/demographics", PoblacionDemographics);
+openapi.get("/api/v1/enigh/gastos/by-rubro", GastosByRubro);
+openapi.get("/api/v1/enigh/actividad/agro", ActividadAgro);
+openapi.get("/api/v1/enigh/actividad/noagro", ActividadNoagro);
+openapi.get("/api/v1/enigh/actividad/jcf", ActividadJcf);
 app.get("/", (c) => c.redirect("/docs", 302));
 
 app.onError(async (err, c) => {

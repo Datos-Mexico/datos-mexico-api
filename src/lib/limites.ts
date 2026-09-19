@@ -13,6 +13,8 @@ const RUTAS_30 = new Set([
   "/api/v1/consar/rendimientos/snapshot", "/api/v1/consar/medidas/snapshot", "/api/v1/consar/cuentas/snapshot",
   "/api/v1/consar/precios/snapshot", "/api/v1/consar/precios/comparativo", "/api/v1/consar/precios-gestion/snapshot",
   "/api/v1/consar/precios-gestion/comparativo",
+  "/api/v1/enigh/validaciones", "/api/v1/enigh/hogares/by-decil", "/api/v1/enigh/hogares/by-entidad", "/api/v1/enigh/poblacion/demographics",
+  "/api/v1/enigh/gastos/by-rubro", "/api/v1/enigh/actividad/agro", "/api/v1/enigh/actividad/noagro", "/api/v1/enigh/actividad/jcf",
 ]);
 
 export const limitarPeticiones: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {

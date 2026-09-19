@@ -132,3 +132,21 @@ Formato: fecha · qué se hizo · evidencia · pendiente inmediato.
 - Contratos de endpoints ENIGH y CDMX en extracción (`docs/legacy/{enigh,cdmx}-endpoints.md`).
 - Decisión propuesta: NO migrar `/auth/*`, `/ingest/*`, `/admin/*` ni `/demo/*`
   (escritura, administración y basura de prueba). Pendiente de confirmar con el CEO.
+- CDMX cargado en D1: 10/10 tablas con conteo idéntico (personas 246,845;
+  nombramientos 246,836). Vistas/matviews pendientes de resolver con el contrato.
+- LÍMITE DE D1 DESCUBIERTO: **máximo 100 columnas por tabla** («too many
+  columns»). ENIGH tiene 4 tablas anchas: poblacion 185, hogares 148,
+  concentradohogar 127, noagro 115. Solución en `ddl_pg_a_sqlite.py`: partir en
+  `tabla` (PK + columnas prioritarias que usan los endpoints + resto hasta 100)
+  y `tabla_2` (PK + restantes); mapa en `data/enigh/particiones.json`;
+  `csv_a_sql.py` reparte las columnas. Los endpoints usan solo la parte 1, con
+  los nombres originales. Otros quirks: crear 128 tablas en un solo `--file`
+  falla con `{"D1_RESET_DO":true}` → aplicar en partes de 20 sentencias; un
+  INSERT de 500 filas anchas excede el tamaño de sentencia (SQLITE_TOOBIG) →
+  lotes de ≤500 filas y ≤400 KB. DDL ahora idempotente (IF NOT EXISTS).
+- Esquema ENIGH aplicado en remoto: 132 tablas. Carga de datos en curso
+  (`data/enigh/carga-remota.log`, primero las 8 tablas de los endpoints).
+- ENIGH: 10 endpoints implementados (`src/enigh/endpoints.ts`) con validación
+  manual que replica los 422 de Pydantic (`lib/validacion.ts`: pattern, int
+  parsing, ge/le, con `ctx`). Summary de FastAPI derivado del nombre de la
+  función («Enigh Metadata», etc.). Paridad pendiente de la carga.

@@ -8,6 +8,16 @@ comentarios al final: se resuelven a mano según el uso que les den los endpoint
 """
 import re, sys, pathlib, collections
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
+MAX_COLS = 100  # límite de D1 (SQLITE_MAX_COLUMN)
+# Columnas que deben quedar en la primera parte de una tabla partida (las que usan los endpoints).
+PRIORIDAD = {
+    'enigh': {
+        'concentradohogar': ['ubica_geo', 'factor', 'ing_cor', 'gasto_mon', 'decil', 'alimentos', 'transporte', 'educa_espa', 'vivienda', 'personales', 'limpieza', 'vesti_calz', 'salud', 'transf_gas'],
+        'hogares': ['entidad', 'factor'],
+        'poblacion': ['sexo', 'edad', 'entidad', 'factor'],
+        'noagro': ['ventas_tri', 'ing_tri'],
+    }
+}
 
 def sqlt(ty):
     ty = ty.lower()
@@ -63,6 +73,35 @@ def main(schema):
         for t in list(pend):
             if deps[t] <= set(orden): orden.append(t); pend.remove(t); avance = True
         if not avance: raise SystemExit(f'ciclo de FK en {pend}')
+    # partir tablas con más de MAX_COLS columnas: parte 1 = PK + prioritarias + resto; partes 2..n = PK + resto
+    particiones = {}
+    for t in list(cols):
+        if len(cols[t]) <= MAX_COLS: continue
+        pk = None
+        for name, defn in cons.get(t, []):
+            if defn.startswith('PRIMARY KEY'): pk = [c.strip() for c in re.search(r'\((.*)\)', defn).group(1).split(',')]
+        if not pk: raise SystemExit(f'{t}: tabla ancha sin PK, no se puede partir')
+        pri = PRIORIDAD.get(schema, {}).get(t, [])
+        nombres = [c for c, *_ in cols[t]]
+        resto = [c for c in nombres if c not in pk and c not in pri]
+        orden_cols = pk + pri + resto
+        capacidad = MAX_COLS - len(pk)
+        partes = []; i = 0; libres = [c for c in orden_cols if c not in pk]
+        while libres:
+            partes.append(pk + libres[:capacidad]); libres = libres[capacidad:]
+        por_nombre = {c: (c, ty, nul, df) for c, ty, nul, df in cols[t]}
+        particiones[t] = []
+        for k, parte in enumerate(partes):
+            nombre = t if k == 0 else f"{t}_{k+1}"
+            cols[nombre] = [por_nombre[c] for c in parte]
+            if k > 0:
+                cons[nombre] = [(f"{nombre}_pkey", f"PRIMARY KEY ({', '.join(pk)})")]
+                deps[nombre] = set()
+            particiones[t].append({'tabla': nombre, 'columnas': parte})
+        orden.insert(orden.index(t) + 1, *[p['tabla'] for p in particiones[t][1:]])
+    import json
+    (RAIZ / f'data/{schema}').mkdir(parents=True, exist_ok=True)
+    (RAIZ / f'data/{schema}/particiones.json').write_text(json.dumps(particiones, ensure_ascii=False, indent=1), encoding='utf-8')
     out = [f"-- Esquema {schema.upper()} para D1 (SQLite), traducido del esquema Postgres del legacy por scripts/ddl_pg_a_sqlite.py.",
            "-- Fechas como TEXT ISO (YYYY-MM-DD); numeric como REAL; boolean como INTEGER 0/1.", "PRAGMA foreign_keys = ON;", ""]
     for t in orden:
@@ -84,7 +123,7 @@ def main(schema):
         for u in uniques: lines.append(f"  {u}")
         for fk in fks: lines.append(f"  {fk}")
         for name, ck in checks: lines.append(f"  CONSTRAINT {name} {ck}")
-        out.append(f"CREATE TABLE {t} (\n" + ",\n".join(lines) + "\n);"); out.append("")
+        out.append(f"CREATE TABLE IF NOT EXISTS {t} (\n" + ",\n".join(lines) + "\n);"); out.append("")
     for i in idx:
         m = re.match(r'CREATE (UNIQUE )?INDEX (\S+) ON \w+\.(\S+) USING (\w+) \((.*)\)(?: WHERE (.*))?$', i)
         if not m: out.append(f"-- índice no traducido: {i}"); continue
@@ -92,12 +131,12 @@ def main(schema):
         if m.group(4) != 'btree': out.append(f"-- índice {m.group(4)} omitido (no aplica en SQLite): {i}"); continue
         cols_i = re.sub(r' (varchar_pattern_ops|text_pattern_ops)', '', m.group(5))
         where = f" WHERE {tr_check(m.group(6))}" if m.group(6) else ""
-        out.append(f"CREATE {m.group(1) or ''}INDEX {m.group(2)} ON {m.group(3)} ({cols_i}){where};")
+        out.append(f"CREATE {m.group(1) or ''}INDEX IF NOT EXISTS {m.group(2)} ON {m.group(3)} ({cols_i}){where};")
     if vistas:
         out.append(""); out.append("-- Vistas del legacy (resolver a mano según los endpoints):")
         for k, v in vistas: out.append(f"-- [{k}] {v[:300]}")
     dst = RAIZ / f'data/{schema}/schema.sqlite.sql'; dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text("\n".join(out) + "\n", encoding='utf-8')
-    print(f"{schema}: {len(orden)} tablas → {dst} ({len(out)} líneas); orden: {', '.join(orden)}")
+    print(f"{schema}: {len(orden)} tablas → {dst} ({len(out)} líneas); partidas: {list(particiones)}")
 
 if __name__ == '__main__': main(sys.argv[1])
