@@ -22,7 +22,7 @@ export class SectoresLista extends OpenAPIRoute {
   };
   async handle(c: AppContext) {
     return filas(c.env.DB_CDMX, `
-SELECT cs.id, cs.nombre, COUNT(n.id) AS total_servidores, AVG(n.sueldo_bruto) AS sueldo_bruto_avg,
+SELECT cs.id, cs.nombre, COUNT(n.id) AS total_servidores, (SUM(CAST(ROUND((n.sueldo_bruto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(n.sueldo_bruto))) AS sueldo_bruto_avg,
        COUNT(CASE WHEN csex.nombre = 'MASCULINO' THEN 1 END) AS count_hombres, COUNT(CASE WHEN csex.nombre = 'FEMENINO' THEN 1 END) AS count_mujeres
 FROM cat_sectores cs LEFT JOIN nombramientos n ON n.sector_id = cs.id LEFT JOIN personas p ON n.persona_id = p.id LEFT JOIN cat_sexos csex ON p.sexo_id = csex.id
 GROUP BY cs.id, cs.nombre ORDER BY cs.nombre`);
@@ -34,9 +34,9 @@ const TopPuesto = z.object({ puesto: z.string(), count: z.number().int(), sueldo
 const SectorDetailStats = z.object({ id: z.number().int(), nombre: z.string(), total_servidores: z.number().int(), sueldo_bruto_avg: z.number().nullable(), sueldo_bruto_median: z.number().nullable(), sueldo_neto_avg: z.number().nullable(), edad_avg: z.number().nullable(), count_hombres: z.number().int(), count_mujeres: z.number().int(), brecha_genero_pct: z.number().nullable(), top_puestos: z.array(TopPuesto) });
 async function detalleSector(c: AppContext, sector_id: number) {
   const r = await fila<Record<string, number | string | null>>(c.env.DB_CDMX, `
-SELECT cs.id, cs.nombre, COUNT(n.id) AS total_servidores, AVG(n.sueldo_bruto) AS sueldo_bruto_avg, AVG(n.sueldo_neto) AS sueldo_neto_avg, AVG(p.edad) AS edad_avg,
+SELECT cs.id, cs.nombre, COUNT(n.id) AS total_servidores, (SUM(CAST(ROUND((n.sueldo_bruto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(n.sueldo_bruto))) AS sueldo_bruto_avg, (SUM(CAST(ROUND((n.sueldo_neto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(n.sueldo_neto))) AS sueldo_neto_avg, AVG(p.edad) AS edad_avg,
        COUNT(CASE WHEN csex.nombre = 'MASCULINO' THEN 1 END) AS count_hombres, COUNT(CASE WHEN csex.nombre = 'FEMENINO' THEN 1 END) AS count_mujeres,
-       AVG(CASE WHEN csex.nombre = 'MASCULINO' THEN n.sueldo_bruto END) AS avg_m, AVG(CASE WHEN csex.nombre = 'FEMENINO' THEN n.sueldo_bruto END) AS avg_f
+       (SUM(CAST(ROUND((CASE WHEN csex.nombre = 'MASCULINO' THEN n.sueldo_bruto END) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(CASE WHEN csex.nombre = 'MASCULINO' THEN n.sueldo_bruto END))) AS avg_m, (SUM(CAST(ROUND((CASE WHEN csex.nombre = 'FEMENINO' THEN n.sueldo_bruto END) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(CASE WHEN csex.nombre = 'FEMENINO' THEN n.sueldo_bruto END))) AS avg_f
 FROM cat_sectores cs LEFT JOIN nombramientos n ON n.sector_id = cs.id LEFT JOIN personas p ON n.persona_id = p.id LEFT JOIN cat_sexos csex ON p.sexo_id = csex.id
 WHERE cs.id = ?1 GROUP BY cs.id, cs.nombre`, [sector_id]);
   if (!r) throw new ErrorHttp(404, "Sector no encontrado");
@@ -47,7 +47,7 @@ WHERE cs.id = ?1 GROUP BY cs.id, cs.nombre`, [sector_id]);
     const v = (await filas<{ v: number }>(c.env.DB_CDMX, `SELECT sueldo_bruto AS v FROM nombramientos WHERE sector_id = ?1 AND sueldo_bruto IS NOT NULL ORDER BY sueldo_bruto LIMIT 2 OFFSET ${lo}`, [sector_id])).map((x) => Number(x.v));
     median = v.length === 1 || pos === lo ? v[0] : v[0] + (v[1] - v[0]) * (pos - lo);
   }
-  const top = await filas<z.infer<typeof TopPuesto>>(c.env.DB_CDMX, `SELECT cp.nombre AS puesto, COUNT(*) AS count, AVG(n.sueldo_bruto) AS sueldo_avg FROM nombramientos n JOIN cat_puestos cp ON n.puesto_id = cp.id WHERE n.sector_id = ?1 GROUP BY cp.nombre ORDER BY count DESC, cp.nombre LIMIT 10`, [sector_id]);
+  const top = await filas<z.infer<typeof TopPuesto>>(c.env.DB_CDMX, `SELECT cp.nombre AS puesto, COUNT(*) AS count, (SUM(CAST(ROUND((n.sueldo_bruto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(n.sueldo_bruto))) AS sueldo_avg FROM nombramientos n JOIN cat_puestos cp ON n.puesto_id = cp.id WHERE n.sector_id = ?1 GROUP BY cp.nombre ORDER BY count DESC, cp.nombre LIMIT 10`, [sector_id]);
   const avg_f = r.avg_f as number | null, avg_m = r.avg_m as number | null;
   return {
     id: r.id, nombre: r.nombre, total_servidores: r.total_servidores, sueldo_bruto_avg: r.sueldo_bruto_avg, sueldo_bruto_median: median, sueldo_neto_avg: r.sueldo_neto_avg, edad_avg: r.edad_avg,

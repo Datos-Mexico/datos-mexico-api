@@ -47,10 +47,10 @@ export class ServidoresStats extends OpenAPIRoute {
     const { where, params } = predicados(f);
     const FROM = `FROM nombramientos n JOIN personas p ON n.persona_id = p.id LEFT JOIN cat_sexos csex ON p.sexo_id = csex.id LEFT JOIN cat_puestos cp ON n.puesto_id = cp.id`;
     const r = (await fila<Record<string, number | null>>(c.env.DB_CDMX, `
-SELECT COUNT(*) AS total, AVG(n.sueldo_bruto) AS sueldo_bruto_avg, MIN(n.sueldo_bruto) AS sueldo_bruto_min, MAX(n.sueldo_bruto) AS sueldo_bruto_max,
-       AVG(n.sueldo_neto) AS sueldo_neto_avg, AVG(p.edad) AS edad_avg,
+SELECT COUNT(*) AS total, (SUM(CAST(ROUND((n.sueldo_bruto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(n.sueldo_bruto))) AS sueldo_bruto_avg, MIN(n.sueldo_bruto) AS sueldo_bruto_min, MAX(n.sueldo_bruto) AS sueldo_bruto_max,
+       (SUM(CAST(ROUND((n.sueldo_neto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(n.sueldo_neto))) AS sueldo_neto_avg, AVG(p.edad) AS edad_avg,
        COUNT(CASE WHEN csex.nombre = 'MASCULINO' THEN 1 END) AS count_hombres, COUNT(CASE WHEN csex.nombre = 'FEMENINO' THEN 1 END) AS count_mujeres,
-       AVG(CASE WHEN csex.nombre = 'MASCULINO' THEN n.sueldo_bruto END) AS avg_m, AVG(CASE WHEN csex.nombre = 'FEMENINO' THEN n.sueldo_bruto END) AS avg_f
+       (SUM(CAST(ROUND((CASE WHEN csex.nombre = 'MASCULINO' THEN n.sueldo_bruto END) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(CASE WHEN csex.nombre = 'MASCULINO' THEN n.sueldo_bruto END))) AS avg_m, (SUM(CAST(ROUND((CASE WHEN csex.nombre = 'FEMENINO' THEN n.sueldo_bruto END) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(CASE WHEN csex.nombre = 'FEMENINO' THEN n.sueldo_bruto END))) AS avg_f
 ${FROM} WHERE ${where}`, params))!;
     // percentiles con la misma semántica que PERCENTILE_CONT (sobre sueldo_bruto no nulo del subconjunto)
     const sub = `(SELECT n.sueldo_bruto AS v ${FROM} WHERE ${where} AND n.sueldo_bruto IS NOT NULL)`;

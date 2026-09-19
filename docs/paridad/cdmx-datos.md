@@ -1,6 +1,6 @@
 # Paridad — docs/paridad/cdmx-rutas.txt
 
-Fecha: 2026-09-19T10:15:07Z · legacy `https://api.datos-itam.org` · nuevo `https://datosmexico-api.davidfernando.workers.dev`
+Fecha: 2026-09-19T10:18:32Z · legacy `https://api.datos-itam.org` · nuevo `https://datosmexico-api.davidfernando.workers.dev`
 
 **49/55 rutas idénticas.**
 
@@ -44,8 +44,8 @@ Fecha: 2026-09-19T10:15:07Z · legacy `https://api.datos-itam.org` · nuevo `htt
 - ✗ `/api/v1/catalogos/puestos?page=3&per_page=25` — 4 diferencias: $.data[0].id: 1444 vs 49; $.data[0].nombre: 'RESPONSABLE TÉCNICO OPERATIVO D' vs 'ADMINISTRATIVO CESCALAFON DIGITAL'; $.data[1].id: 49 vs 1444; $.data[1].nombre: 'ADMINISTRATIVO CESCALAFON DIGITAL' vs 'RESPONSABLE TÉCNICO OPERATIVO D'
 - ✓ `/api/v1/catalogos/puestos?page=0` — HTTP 422, idéntico
 - ✗ `/api/v1/dashboard/stats` — 22 diferencias: $.allSectors[72].avgFemale: 10000.0 vs 11129; $.allSectors[72].avgMale: 0.0 vs 11129; $.allSectors[72].avgSalary: 10000.0 vs 11129; $.allSectors[72].name: 'SALUD' vs 'CONSEJO PARA PREVENIR Y ELIMINAR LA DISCRIMINACIÓN DE LA CIUDAD DE MÉXICO'; $.allSectors[73].avgFemale: 11129.0 vs 10000; $.allSectors[73].avgMale: 11129.0 vs 0
-- ✗ `/api/v1/analytics/puestos/ranking` — 28 diferencias: $[1].count: 21 vs 16; $[1].gap_vs_next: 0.0 vs -5241; $[1].nombre: 'COORDINADOR GENERAL B' vs 'ALCALDE DE LA CDMX'; $[1].puesto_id: 555 vs 100; $[2].count: 16 vs 21; $[2].gap_vs_next: -5241.0 vs 0
-- ✗ `/api/v1/analytics/puestos/ranking?limit=100` — 63 diferencias: $[1].count: 8 vs 16; $[1].gap_vs_next: 0.0 vs -5241; $[1].nombre: 'SUBSECRETARIO' vs 'ALCALDE DE LA CDMX'; $[1].puesto_id: 1576 vs 100; $[2].count: 16 vs 21; $[2].gap_vs_next: -5241.0 vs 0
+- ✗ `/api/v1/analytics/puestos/ranking` — 23 diferencias: $[1].count: 21 vs 16; $[1].gap_vs_next: 0.0 vs -5241; $[1].nombre: 'COORDINADOR GENERAL B' vs 'ALCALDE DE LA CDMX'; $[1].puesto_id: 555 vs 100; $[2].count: 8 vs 21; $[2].gap_vs_next: -5241.0 vs 0
+- ✗ `/api/v1/analytics/puestos/ranking?limit=100` — 74 diferencias: $[1].count: 8 vs 16; $[1].gap_vs_next: 0.0 vs -5241; $[1].nombre: 'SUBSECRETARIO' vs 'ALCALDE DE LA CDMX'; $[1].puesto_id: 1576 vs 100; $[2].count: 16 vs 21; $[2].gap_vs_next: -5241.0 vs 0
 - ✓ `/api/v1/analytics/puestos/ranking?limit=0` — HTTP 422, idéntico
 - ✓ `/api/v1/analytics/sectores/ranking` — HTTP 200, idéntico
 - ✓ `/api/v1/analytics/brecha-edad` — HTTP 200, idéntico
@@ -59,14 +59,17 @@ Fecha: 2026-09-19T10:15:07Z · legacy `https://api.datos-itam.org` · nuevo `htt
 - ✓ `/api/v1/nombramientos/?sector_id=8&per_page=5&page=3` — HTTP 200, idéntico
 - ✓ `/api/v1/nombramientos/1` — HTTP 200, idéntico
 - ✓ `/api/v1/nombramientos/99999999` — HTTP 404, idéntico
-
 ## Empates sin desempate en el legacy
 
-Las rutas siguientes difieren SOLO en el orden de filas con llave de ordenamiento igual (`ORDER BY count DESC`, `ORDER BY avg_sueldo DESC`), donde el SQL del legacy no fija desempate y Postgres devuelve un orden arbitrario. El nuevo aplica un desempate determinista (id, nombre o posición física). Verificación por multiconjuntos:
+Las rutas siguientes difieren SOLO por filas con llave de ordenamiento igual (el SQL del legacy no fija desempate y Postgres devuelve un orden arbitrario; el nuevo aplica un desempate determinista). Cuando un LIMIT o una página corta dentro de un grupo empatado, las filas incluidas pueden variar; se verifica que toda diferencia queda dentro del empate de la frontera. Los promedios de sueldo se calculan sobre centavos enteros para que los empates sean los mismos que en Postgres (AVG sobre numeric).
 
-- ✗ `/api/v1/sectores/compare?a=1&b=2` — mismo conjunto de filas en todas las listas: NO ($.sector_a.top_puestos, $.sector_b.top_puestos); escalares idénticos: no
-- ✗ `/api/v1/sectores/1/stats` — mismo conjunto de filas en todas las listas: NO ($.top_puestos); escalares idénticos: no
-- ✓ `/api/v1/catalogos/puestos?page=3&per_page=25` — mismo conjunto de filas en todas las listas: sí; escalares idénticos: sí
-- ✗ `/api/v1/dashboard/stats` — mismo conjunto de filas en todas las listas: NO ($.allSectors, $.genderGapBySector, $.top15Sectors, $.topPositions); escalares idénticos: sí
-- ✗ `/api/v1/analytics/puestos/ranking` — mismo conjunto de filas en todas las listas: NO ($); escalares idénticos: no
-- ✗ `/api/v1/analytics/puestos/ranking?limit=100` — mismo conjunto de filas en todas las listas: NO ($); escalares idénticos: no
+- ✓ `/api/v1/sectores/compare?a=1&b=2` $.sector_a.top_puestos: 1 fila(s) distintas — todas en el empate de la frontera del corte (`count` = 12.0)
+- ✓ `/api/v1/sectores/compare?a=1&b=2` $.sector_b.top_puestos: 2 fila(s) distintas — todas en el empate de la frontera del corte (`count` = 1.0)
+- ✓ `/api/v1/sectores/1/stats` $.top_puestos: 1 fila(s) distintas — todas en el empate de la frontera del corte (`count` = 12.0)
+- ✓ `/api/v1/catalogos/puestos?page=3&per_page=25` $.data: mismo conjunto de 25 filas (solo cambia el orden dentro de empates de `count`)
+- ✓ `/api/v1/dashboard/stats` $.allSectors: mismo conjunto de 75 filas (solo cambia el orden dentro de empates de `count`)
+- ✓ `/api/v1/dashboard/stats` $.top15Sectors: mismo conjunto de 15 filas (solo cambia el orden dentro de empates de `count`)
+- ✓ `/api/v1/dashboard/stats` $.genderGapBySector: mismo conjunto de 10 filas (solo cambia el orden dentro de empates de `gap`)
+- ✓ `/api/v1/dashboard/stats` $.topPositions: mismo conjunto de 10 filas (solo cambia el orden dentro de empates de `avgSalary`)
+- ✓ `/api/v1/analytics/puestos/ranking` $: mismo conjunto de 20 filas (solo cambia el orden dentro de empates de `avg_sueldo`)
+- ✓ `/api/v1/analytics/puestos/ranking?limit=100` $: mismo conjunto de 100 filas (solo cambia el orden dentro de empates de `avg_sueldo`)

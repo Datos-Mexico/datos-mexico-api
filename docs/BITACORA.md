@@ -183,10 +183,16 @@ Formato: fecha · qué se hizo · evidencia · pendiente inmediato.
   chanfana recorta la barra final de `/servidores/` en el openapi → middleware
   en `/openapi.json` la restituye para las 4 colecciones; `Decimal` de Pydantic
   se documenta como `anyOf[number, string(pattern)]` → `z.union`.
-- Paridad de DATOS: 49/55 idénticas; las 6 restantes difieren SOLO en el orden
-  de filas empatadas (el legacy no fija desempate); verificado que el conjunto
-  de filas es idéntico (`docs/paridad/cdmx-datos.md`, sección «Empates»). El
-  nuevo aplica desempate determinista.
+- Paridad de DATOS: 49/55 idénticas; las 6 restantes difieren SOLO por filas
+  empatadas en la llave de orden (el legacy no fija desempate; Postgres devuelve
+  un orden arbitrario). Verificación por conjuntos en `docs/paridad/cdmx-datos.md`
+  (sección «Empates»): mismo conjunto de filas, o diferencias confinadas al
+  empate de la frontera cuando un LIMIT/página corta dentro del grupo empatado.
+  Para que los empates coincidan con Postgres (AVG sobre numeric exacto), los
+  promedios de sueldo se calculan sobre centavos enteros
+  (`SUM(ROUND(x*100))/(100*COUNT)`); con AVG sobre REAL dos promedios iguales
+  salían distintos en el último bit y rompían RANK/PERCENT_RANK. El nuevo aplica
+  desempate determinista.
 - Decisiones de fidelidad: `Decimal` → cadena con dos decimales (`dec2`);
   `ORDER BY … ASC NULLS LAST / DESC NULLS FIRST` (Postgres vs SQLite);
   `COUNT(*) FILTER` → `COUNT(CASE …)` (SUM daría NULL en conjuntos vacíos);

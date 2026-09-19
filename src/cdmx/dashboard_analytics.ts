@@ -57,11 +57,11 @@ SELECT label, count FROM (
     const seniority = await filas<{ label: string; count_all: number; count_with_salary: number; avg_salary: number }>(db, "SELECT label, count_all, count_with_salary, avg_salary FROM mv_dashboard_seniority ORDER BY ord");
     const bruto_neto = await filas<{ label: string; avg_bruto: number; avg_neto: number; count: number }>(db, `
 SELECT label, avg_bruto, avg_neto, count FROM (
-    SELECT 'Menos de $5K' AS label, AVG(sueldo_bruto) AS avg_bruto, AVG(sueldo_neto) AS avg_neto, COUNT(*) AS count, 1 AS ord FROM nombramientos WHERE sueldo_bruto < 5000 AND sueldo_bruto IS NOT NULL AND sueldo_neto IS NOT NULL
-    UNION ALL SELECT '$5K - $10K', AVG(sueldo_bruto), AVG(sueldo_neto), COUNT(*), 2 FROM nombramientos WHERE sueldo_bruto >= 5000 AND sueldo_bruto < 10000 AND sueldo_neto IS NOT NULL
-    UNION ALL SELECT '$10K - $20K', AVG(sueldo_bruto), AVG(sueldo_neto), COUNT(*), 3 FROM nombramientos WHERE sueldo_bruto >= 10000 AND sueldo_bruto < 20000 AND sueldo_neto IS NOT NULL
-    UNION ALL SELECT '$20K - $40K', AVG(sueldo_bruto), AVG(sueldo_neto), COUNT(*), 4 FROM nombramientos WHERE sueldo_bruto >= 20000 AND sueldo_bruto < 40000 AND sueldo_neto IS NOT NULL
-    UNION ALL SELECT 'Más de $40K', AVG(sueldo_bruto), AVG(sueldo_neto), COUNT(*), 5 FROM nombramientos WHERE sueldo_bruto >= 40000 AND sueldo_neto IS NOT NULL
+    SELECT 'Menos de $5K' AS label, (SUM(CAST(ROUND((sueldo_bruto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(sueldo_bruto))) AS avg_bruto, (SUM(CAST(ROUND((sueldo_neto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(sueldo_neto))) AS avg_neto, COUNT(*) AS count, 1 AS ord FROM nombramientos WHERE sueldo_bruto < 5000 AND sueldo_bruto IS NOT NULL AND sueldo_neto IS NOT NULL
+    UNION ALL SELECT '$5K - $10K', (SUM(CAST(ROUND((sueldo_bruto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(sueldo_bruto))), (SUM(CAST(ROUND((sueldo_neto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(sueldo_neto))), COUNT(*), 2 FROM nombramientos WHERE sueldo_bruto >= 5000 AND sueldo_bruto < 10000 AND sueldo_neto IS NOT NULL
+    UNION ALL SELECT '$10K - $20K', (SUM(CAST(ROUND((sueldo_bruto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(sueldo_bruto))), (SUM(CAST(ROUND((sueldo_neto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(sueldo_neto))), COUNT(*), 3 FROM nombramientos WHERE sueldo_bruto >= 10000 AND sueldo_bruto < 20000 AND sueldo_neto IS NOT NULL
+    UNION ALL SELECT '$20K - $40K', (SUM(CAST(ROUND((sueldo_bruto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(sueldo_bruto))), (SUM(CAST(ROUND((sueldo_neto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(sueldo_neto))), COUNT(*), 4 FROM nombramientos WHERE sueldo_bruto >= 20000 AND sueldo_bruto < 40000 AND sueldo_neto IS NOT NULL
+    UNION ALL SELECT 'Más de $40K', (SUM(CAST(ROUND((sueldo_bruto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(sueldo_bruto))), (SUM(CAST(ROUND((sueldo_neto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(sueldo_neto))), COUNT(*), 5 FROM nombramientos WHERE sueldo_bruto >= 40000 AND sueldo_neto IS NOT NULL
 ) sub ORDER BY ord`);
     const all_sectors = sectors.map((r) => ({ name: r.name, count: r.count, avgSalary: redondear(r.avg_salary, 2), avgMale: redondear(r.avg_male, 2), avgFemale: redondear(r.avg_female, 2) }));
     const gaps = all_sectors.filter((s) => s.avgMale > 0 && s.avgFemale > 0).map((s) => ({ name: s.name, avgMale: s.avgMale, avgFemale: s.avgFemale, gap: redondear(((s.avgMale - s.avgFemale) / s.avgFemale) * 100, 2) }));
@@ -97,7 +97,7 @@ export class PuestosRanking extends OpenAPIRoute {
     const limit = enteroConDefault(c.req.query("limit"), "limit", 20, 1, 100);
     const rows = await filas<{ puesto_id: number; nombre: string; avg_sueldo: number; count: number; rank: number; percent_rank: number; prev_avg: number | null }>(c.env.DB_CDMX, `
 WITH agg AS (
-    SELECT cp.id AS puesto_id, cp.nombre AS nombre, AVG(n.sueldo_bruto) AS avg_sueldo, COUNT(*) AS cnt
+    SELECT cp.id AS puesto_id, cp.nombre AS nombre, (SUM(CAST(ROUND((n.sueldo_bruto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(n.sueldo_bruto))) AS avg_sueldo, COUNT(*) AS cnt
     FROM nombramientos n JOIN cat_puestos cp ON n.puesto_id = cp.id WHERE n.sueldo_bruto IS NOT NULL GROUP BY cp.id, cp.nombre HAVING COUNT(*) >= 5
 )
 SELECT puesto_id, nombre, avg_sueldo, cnt AS count, RANK() OVER (ORDER BY avg_sueldo DESC) AS rank, PERCENT_RANK() OVER (ORDER BY avg_sueldo) AS percent_rank, LAG(avg_sueldo) OVER (ORDER BY avg_sueldo DESC) AS prev_avg
@@ -117,7 +117,7 @@ export class SectoresRanking extends OpenAPIRoute {
   async handle(c: AppContext) {
     const rows = await filas<{ sector_id: number; nombre: string; avg_sueldo: number; count: number; rank: number; percent_rank: number; avg_global: number | null }>(c.env.DB_CDMX, `
 WITH agg AS (
-    SELECT cs.id AS sector_id, cs.nombre AS nombre, AVG(n.sueldo_bruto) AS avg_sueldo, COUNT(*) AS cnt
+    SELECT cs.id AS sector_id, cs.nombre AS nombre, (SUM(CAST(ROUND((n.sueldo_bruto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(n.sueldo_bruto))) AS avg_sueldo, COUNT(*) AS cnt
     FROM nombramientos n JOIN cat_sectores cs ON n.sector_id = cs.id WHERE n.sueldo_bruto IS NOT NULL GROUP BY cs.id, cs.nombre
 )
 SELECT sector_id, nombre, avg_sueldo, cnt AS count, RANK() OVER (ORDER BY avg_sueldo DESC) AS rank, PERCENT_RANK() OVER (ORDER BY avg_sueldo) AS percent_rank, AVG(avg_sueldo) OVER () AS avg_global
@@ -144,8 +144,8 @@ WITH buckets AS (
     WHERE n.sueldo_bruto IS NOT NULL AND p.edad IS NOT NULL
 ),
 agg AS (
-    SELECT bucket_edad, ord, AVG(CASE WHEN sexo = 'MASCULINO' THEN sueldo_bruto END) AS avg_male, AVG(CASE WHEN sexo = 'FEMENINO' THEN sueldo_bruto END) AS avg_female,
-           COUNT(CASE WHEN sexo = 'MASCULINO' THEN 1 END) AS count_male, COUNT(CASE WHEN sexo = 'FEMENINO' THEN 1 END) AS count_female, AVG(sueldo_bruto) AS avg_bucket
+    SELECT bucket_edad, ord, (SUM(CAST(ROUND((CASE WHEN sexo = 'MASCULINO' THEN sueldo_bruto END) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(CASE WHEN sexo = 'MASCULINO' THEN sueldo_bruto END))) AS avg_male, (SUM(CAST(ROUND((CASE WHEN sexo = 'FEMENINO' THEN sueldo_bruto END) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(CASE WHEN sexo = 'FEMENINO' THEN sueldo_bruto END))) AS avg_female,
+           COUNT(CASE WHEN sexo = 'MASCULINO' THEN 1 END) AS count_male, COUNT(CASE WHEN sexo = 'FEMENINO' THEN 1 END) AS count_female, (SUM(CAST(ROUND((sueldo_bruto) * 100) AS INTEGER)) * 1.0 / (100 * COUNT(sueldo_bruto))) AS avg_bucket
     FROM buckets WHERE bucket_edad IS NOT NULL GROUP BY bucket_edad, ord
 )
 SELECT bucket_edad, avg_male, avg_female, count_male, count_female,
