@@ -32,7 +32,7 @@ Formato: fecha · qué se hizo · evidencia · pendiente inmediato.
   34 rutas CONSAR con operationId estilo FastAPI, tag `consar`).
 
 ## 2026-09-19 · F2 CONSAR — datos
-- Export Neon → CSV (`data/consar/neon-export/`, 36 MB, 22 tablas, 1,413,148
+- Export Neon → CSV (`data/consar/neon-export/`, 36 MB, 22 tablas, 1,413,128
   filas en total). Conteos exactos en `csv_a_sql.py` y en esta bitácora:
   precio_bolsa 648,469 · precio_gestion 600,265 · medida_sensibilidad 50,785 ·
   recursos_mensuales 36,647 · rendimiento 34,894 · cuenta_administrada 20,109 ·
@@ -235,3 +235,10 @@ Formato: fecha · qué se hizo · evidencia · pendiente inmediato.
 | ENOE (agregados) | 14 | 41/41 | 14/17 |
 | **Total** | **88** | | |
 No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/personas/nombramientos POST/PUT/DELETE (9). Pendientes: microdatos ENOE (3) → R2.
+
+## 2026-09-19 · F7 CATÁLOGO PÚBLICO — primera versión EN LÍNEA
+- `GET /api/v1/catalogo/datasets`: qué bases tenemos, fuente, licencia,
+  periodicidad, corte más reciente leído en vivo, tablas con filas y columnas.
+- `GET /api/v1/catalogo/datasets/{dataset}/esquema`: tablas, columnas (tipo,
+  nulabilidad, PK) y relaciones (FK) leídas de D1 → base del visualizador.
+- Metadata curada en `src/catalogo/datasets.ts`; conteos con caché de 10 min.

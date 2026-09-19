@@ -20,6 +20,7 @@ import { BrechaEdad, DashboardStatsEndpoint, PuestosRanking, SectoresRanking } f
 import { NombramientoDetalle, NombramientosLista, PersonaDetalle, PersonasLista } from "./cdmx/personas_nombramientos";
 import { cacheControl } from "./lib/cache";
 import { CatalogoEntidades, CatalogoEtapas, CatalogoIndicadores, EnoeHealthEndpoint, EnoeMetadataEndpoint, EntidadRanking, EntidadSerie, EntidadSnapshot, NacionalSerie, NacionalSnapshot, PosicionSerie, PosicionSnapshot, SectorSerie, SectorSnapshot } from "./enoe/endpoints";
+import { CatalogoDatasets, CatalogoEsquema } from "./catalogo/endpoints";
 import { ErrorHttp, respuestaError } from "./lib/errores";
 import { limitarPeticiones } from "./lib/limites";
 
@@ -72,6 +73,8 @@ const openapi = fromHono(app, {
 });
 
 openapi.get("/health", Salud);
+openapi.get("/api/v1/catalogo/datasets", CatalogoDatasets);
+openapi.get("/api/v1/catalogo/datasets/:dataset/esquema", CatalogoEsquema);
 openapi.get("/api/v1/consar/afores", Afores);
 openapi.get("/api/v1/consar/tipos-recurso", TiposRecurso);
 openapi.get("/api/v1/consar/recursos/totales", RecursosTotales);
