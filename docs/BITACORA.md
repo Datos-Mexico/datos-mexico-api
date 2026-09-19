@@ -498,3 +498,9 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
   sobrantes ni conteos distintos): viv 9,843,149 · hog 10,037,505 · sdem
   31,498,811 · coe1 25,066,601 · coe2 25,066,601 = **101,512,667 filas**, las
   mismas que el legacy publica como «101.5 millones».
+- Subida remota terminada (16 min): 399/399 claves presentes en el bucket
+  con el tamaño del manifiesto, 2.55 GB. Almacén local de wrangler borrado.
+  **Los microdatos de la ENOE (101,512,667 filas) están publicados en R2**
+  como Parquet por tabla y trimestre, verificados contra Neon; los
+  endpoints `/microdatos/*` siguen sirviendo desde Neon vía Hyperdrive
+  hasta la decisión del CEO sobre el origen definitivo.

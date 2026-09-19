@@ -40,6 +40,9 @@ paridad base por base.
       indicadores del catálogo a nivel nacional y por entidad (D1
       `datosmexico-api-bise`, endpoints /api/v1/inegi/*); fase 2 = municipios
       con el mismo mecanismo; fase 3 = refresco periódico contra LASTUPDATE.
+- Microdatos ENOE: PUBLICADOS en R2 (399 Parquet, 2.55 GB, verificados);
+  origen definitivo de /microdatos/* pendiente de decisión (Neon vía
+  Hyperdrive mientras tanto).
 - Después: panel del observatorio (tablas tipo hoja de cálculo, visualizador
   de esquemas), librería de Python nueva o apuntada, apagado del legacy.
 
