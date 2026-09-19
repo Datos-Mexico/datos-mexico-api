@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "datosmexico-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "d1_databases": [
+    { "binding": "DB_CONSAR", "database_name": "datosmexico-api-consar", "database_id": "7a13a6f9-ab5a-4f9d-8339-65753f7b9f91" }
+  ]
+}
