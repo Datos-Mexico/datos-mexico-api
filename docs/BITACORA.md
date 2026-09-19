@@ -419,3 +419,17 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
   que es el mismo mecanismo, la fase 2 arranca ahora: mismas tablas
   (`observaciones` con clave geográfica de 5 dígitos, `geografias` con nivel
   «municipio»), respuestas crudas aparte en `data/bise/crudo_municipal/`.
+- Pipeline de microdatos: `viv` (79) y `hog` (79) completos en R2. La
+  exportación de `sdem` desde Neon tardó 685 s en el primer trimestre (a ese
+  ritmo, sdem + coe1 + coe2 ≈ 2 días en serie), así que se detuvo la instancia
+  única y se relanzaron tres en paralelo, una por tabla (`pipeline-sdem.log`,
+  `pipeline-coe1.log`, `pipeline-coe2.log`); comparten el manifiesto (una
+  línea por trimestre, escrita en modo append) y cada una omite lo ya hecho.
+- Causa de la lentitud del pipeline: cada trimestre se exportaba con
+  `where periodo=…` y Neon no tiene índice por periodo (y el legacy no se
+  toca), así que cada trimestre recorría la tabla entera (sdem ≈ 40 M filas:
+  11-21 min por trimestre × 80). Nuevo `scripts/microdatos_r2_tabla.py`: una
+  sola lectura completa de la tabla que reparte las filas en un CSV por
+  trimestre y luego publica cada uno exactamente como antes (mismos Parquet,
+  claves R2 y manifiesto; marca `lectura_unica`). Corriendo para sdem, coe1
+  y coe2 en paralelo (`pipeline-<tabla>.log`).
