@@ -37,7 +37,7 @@ def main():
             assert zips, f'faltan archivos del estado {i:02d}'
             for zp in zips:
               z = zipfile.ZipFile(zp)
-              datos = [x for x in z.namelist() if '/conjunto_de_datos/' in x and x.endswith('.csv')]
+              datos = [x for x in z.namelist() if 'conjunto_de_datos/' in x and x.endswith('.csv')]
               assert len(datos) == 1, (zp.name, datos)
               txt = z.read(datos[0]).decode('latin-1')
               r = csv.reader(io.StringIO(txt)); cab = next(r)

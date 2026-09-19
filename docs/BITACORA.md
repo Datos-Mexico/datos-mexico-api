@@ -534,3 +534,20 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
   por código o prefijo, estrato), ficha por id, cercanía a una coordenada
   (caja de búsqueda en SQL + haversine, radio ≤ 5 km) y catálogo de
   actividades. Cupo 30/min en búsqueda y cercanía.
+- Restricción del CEO (22:10 UTC): el costo total debe quedarse en los 5 USD
+  del plan de Workers. Consecuencias: (a) para los microdatos NO se reparten
+  en varias D1 (≈40 USD/mes); el origen definitivo será R2 (Parquet ya
+  publicados, dentro del nivel gratuito de R2) con R2 SQL para consultas y
+  paginación por llave en la API nueva, más descarga directa de cada
+  trimestre; el legacy conserva su contrato con offset mientras viva.
+  (b) D1 incluye 5 GB en el plan: hoy consar 153 MB + enigh 1.13 GB + cdmx
+  63 MB + enoe 11 MB + bise 789 MB = 2.15 GB; el DENUE se estima en ~2.9 GB
+  (472 B/fila con índices, 6,138,075 filas) → ~5.05 GB, en el límite (el
+  excedente costaría centavos; si el CEO exige estrictamente 5 GB se quita
+  un índice o se mueve algo a R2). Las bases siguientes grandes (Censo 2020
+  por AGEB/manzana, microdatos de encuestas) irán a R2 como Parquet.
+- DENUE convertido: 6,138,075 unidades económicas en 33 archivos (el Estado
+  de México viene partido en denue_15_1 y denue_15_2; el archivo denue_15
+  «normal» es una página 404 de 2,263 bytes que hubo que descartar), 989
+  actividades SCIAN, 42 entradas de diccionario. Carga remota en curso
+  (`data/denue/carga-remota.log`).
