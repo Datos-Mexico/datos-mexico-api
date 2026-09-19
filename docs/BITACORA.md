@@ -394,3 +394,14 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
 | Catálogo público | 2 | nuevo | propia |
 | INEGI Banco de Indicadores | 5 | nuevo (verificado contra origen) | propia |
 | **Total** | **98** | | |
+- F8 fase 2 (municipios), sondeo de viabilidad: la API acepta claves
+  municipales de 5 dígitos (una o varias por petición; las claves de 10
+  dígitos no existen). En una muestra aleatoria de 60 indicadores, 3 tienen
+  datos para Azcapotzalco (≈5 %, unos 1,600 indicadores del catálogo).
+  Lanzado `scripts/bise_sondeo_municipal.py`: una petición por indicador con
+  20 cabeceras de 20 entidades para saber exactamente cuáles tienen datos
+  municipales (`data/bise/sondeo_municipal.jsonl`, reanudable). Con ese
+  universo se estimará el costo de la fase 2 (≈2,469 municipios × ~1,600
+  indicadores; a 24 claves por petición son ~165 mil peticiones, ~2 h con 6
+  hilos; ~20 millones de observaciones, dentro del límite de una D1). La
+  descarga municipal completa no arranca sin el visto bueno del CEO.
