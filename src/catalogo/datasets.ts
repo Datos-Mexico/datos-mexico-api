@@ -43,9 +43,9 @@ export const DATASETS: DatasetDef[] = [
   },
   {
     clave: "inegi", nombre: "INEGI — Banco de Indicadores (BISE)", fuente: "INEGI, API de indicadores", fuente_url: "https://www.inegi.org.mx/servicios/api_indicadores.html", licencia: "Términos de libre uso INEGI",
-    descripcion: "Los 31,817 indicadores del catálogo oficial del Banco de Indicadores del INEGI con todas sus observaciones a nivel nacional y por entidad federativa, más los catálogos de unidades, frecuencias, temas, fuentes, notas y multiplicadores. Cada valor se conserva como lo publica el INEGI (decimal original como texto).",
+    descripcion: "Los 31,817 indicadores del catálogo oficial del Banco de Indicadores del INEGI con todas sus observaciones a nivel nacional, por entidad federativa y, en los 594 indicadores que el INEGI publica por municipio, para los 2,478 municipios, más los catálogos de unidades, frecuencias, temas, fuentes, notas y multiplicadores. Cada valor se conserva como lo publica el INEGI (decimal original como texto).",
     binding: "DB_BISE", prefijo_api: "/api/v1/inegi", periodicidad: "la de cada indicador (mensual, trimestral, anual, quinquenal, decenal...)",
     sql_corte: "SELECT max(ultimo_periodo) AS corte FROM indicadores", unidad_corte: "periodo más reciente con observaciones (formato del INEGI)",
-    notas: ["Cobertura geográfica de esta fase: nacional (00) y 32 entidades (01-32); los municipios se incorporan después con el mismo mecanismo.", "Los indicadores con con_datos = 0 existen en el catálogo pero no tienen observaciones nacionales ni estatales.", "El INEGI repite algunas observaciones en sus respuestas (36,462 en 300 indicadores el 2026-09-19); se conserva la primera aparición y las repeticiones quedan auditadas fuera de la base.", "Resumen verificable en /api/v1/inegi/resumen."],
+    notas: ["Cobertura geográfica: nacional (00), 32 entidades (01-32) y 2,478 municipios (claves de 5 dígitos, Marco Geoestadístico 2025) en los indicadores con datos municipales.", "Los indicadores con con_datos = 0 existen en el catálogo pero no tienen observaciones en ninguno de los tres niveles.", "El INEGI repite algunas observaciones en sus respuestas (36,462 en 300 indicadores el 2026-09-19); se conserva la primera aparición y las repeticiones quedan auditadas fuera de la base.", "Resumen verificable en /api/v1/inegi/resumen."],
   },
 ];

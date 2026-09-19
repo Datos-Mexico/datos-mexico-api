@@ -32,7 +32,7 @@ const Resumen = z.object({
 export class InegiResumen extends OpenAPIRoute {
   schema = {
     tags: TAG, operationId: "inegi_resumen", summary: "Cuántos indicadores del INEGI tenemos y hasta cuándo",
-    description: "Resumen verificable del Banco de Indicadores del INEGI en el observatorio: indicadores del catálogo oficial, cuántos tienen observaciones a nivel nacional o estatal, total de observaciones, periodos extremos, fecha de la última actualización publicada por el INEGI y fecha de descarga. Los indicadores 'sin datos' existen en el catálogo del INEGI pero no tienen observaciones nacionales ni estatales (por ejemplo, series solo municipales).",
+    description: "Resumen verificable del Banco de Indicadores del INEGI en el observatorio: indicadores del catálogo oficial, cuántos tienen observaciones a nivel nacional o estatal, total de observaciones, periodos extremos, fecha de la última actualización publicada por el INEGI y fecha de descarga. Los indicadores 'sin datos' existen en el catálogo del INEGI pero no tienen observaciones a ninguno de los tres niveles que consulta el observatorio (nacional, estatal, municipal).",
     responses: { ...ok("Resumen del Banco de Indicadores.", Resumen), ...RESP_429 },
   };
   async handle(c: AppContext) {
@@ -44,7 +44,7 @@ export class InegiResumen extends OpenAPIRoute {
     return {
       fuente: "INEGI — Banco de Indicadores (API de indicadores, BISE 2.0)", fuente_url: "https://www.inegi.org.mx/servicios/api_indicadores.html",
       indicadores_catalogo: ind.n, indicadores_con_datos: ind.con, indicadores_sin_datos: ind.n - ind.con,
-      observaciones: ind.obs, geografias: catalogos.geografias, cobertura_geografica: "nacional (00) y 32 entidades federativas (01-32)",
+      observaciones: ind.obs, geografias: catalogos.geografias, cobertura_geografica: "nacional (00), 32 entidades federativas (01-32) y 2,478 municipios (claves de 5 dígitos, Marco Geoestadístico 2025) en los indicadores que el INEGI publica a ese nivel",
       primer_periodo: ind.p1, ultimo_periodo: ind.p2, ultima_actualizacion_inegi: ind.act, descargado_en: ind.desc, catalogos,
     };
   }
@@ -55,7 +55,7 @@ const ItemCatalogo = z.object({ clave: z.string(), descripcion: z.string().nulla
 export class InegiCatalogo extends OpenAPIRoute {
   schema = {
     tags: TAG, operationId: "inegi_catalogo", summary: "Catálogo del INEGI (unidades, frecuencias, temas, fuentes, notas, multiplicadores, geografías)",
-    description: "Contenido de un catálogo del Banco de Indicadores tal como lo publica el INEGI (CL_UNIT, CL_FREQ, CL_TOPIC, CL_SOURCE, CL_NOTE, CL_UNIT_MULT). El catálogo 'geografias' es el marco de esta fase: 00 nacional y 01-32 entidades. Filtro opcional `q` (contiene, sin distinguir mayúsculas).",
+    description: "Contenido de un catálogo del Banco de Indicadores tal como lo publica el INEGI (CL_UNIT, CL_FREQ, CL_TOPIC, CL_SOURCE, CL_NOTE, CL_UNIT_MULT). El catálogo 'geografias' contiene 00 nacional, 01-32 entidades y los 2,478 municipios del Marco Geoestadístico 2025 (nivel: nacional, entidad, municipio). Filtro opcional `q` (contiene, sin distinguir mayúsculas).",
     request: { params: z.object({ catalogo: z.enum(CATALOGOS) }), query: z.object({ q: z.string().optional() }) },
     responses: { ...ok("Catálogo.", z.object({ catalogo: z.string(), n: z.number().int(), items: z.array(ItemCatalogo) })), ...RESP_404, ...RESP_429 },
   };
@@ -122,7 +122,7 @@ export class InegiIndicadores extends OpenAPIRoute {
 const Ficha = IndicadorResumen.extend({
   multiplicador: z.string().nullable(), multiplicador_descripcion: z.string().nullable(), nota: z.string().nullable(), nota_descripcion: z.string().nullable(),
   fuentes: z.array(z.object({ clave: z.string(), descripcion: z.string().nullable() })), estatus: z.string().nullable(), ultima_actualizacion_texto: z.string().nullable(), descargado_en: z.string().nullable(),
-  geografias: z.array(z.object({ clave: z.string(), nombre: z.string(), n_observaciones: z.number().int() })), observaciones_url: z.string(),
+  geografias: z.array(z.object({ clave: z.string(), nombre: z.string(), nivel: z.string(), n_observaciones: z.number().int() })), observaciones_url: z.string(),
 });
 async function indicadorOr404(c: AppContext, id: string) {
   const r = await fila<FilaInd & { multiplicador: string | null; nota: string | null; fuentes: string | null; estatus: string | null; ultima_actualizacion_texto: string | null; descargado_en: string | null }>(c.env.DB_BISE,
@@ -133,7 +133,7 @@ async function indicadorOr404(c: AppContext, id: string) {
 export class InegiIndicador extends OpenAPIRoute {
   schema = {
     tags: TAG, operationId: "inegi_indicador", summary: "Ficha de un indicador del INEGI",
-    description: "Metadatos completos de un indicador: descripción, tema, frecuencia, unidad, multiplicador, nota metodológica, fuentes, estatus y última actualización publicada por el INEGI, más las geografías para las que hay observaciones y el enlace a la serie.",
+    description: "Metadatos completos de un indicador: descripción, tema, frecuencia, unidad, multiplicador, nota metodológica, fuentes, estatus y última actualización publicada por el INEGI, más las geografías para las que hay observaciones (con su nivel: nacional, entidad, municipio) y el enlace a la serie.",
     request: { params: z.object({ id: z.string() }) },
     responses: { ...ok("Ficha del indicador.", Ficha), ...RESP_404, ...RESP_429 },
   };
@@ -146,7 +146,7 @@ export class InegiIndicador extends OpenAPIRoute {
     for (const k of claves) fuentes.push({ clave: k, descripcion: (await fila<{ d: string | null }>(db, "SELECT descripcion AS d FROM fuentes WHERE clave = ?", [k]))?.d ?? null });
     const mult = r.multiplicador ? (await fila<{ d: string | null }>(db, "SELECT descripcion AS d FROM multiplicadores WHERE clave = ?", [r.multiplicador]))?.d ?? null : null;
     const nota = r.nota ? (await fila<{ d: string | null }>(db, "SELECT descripcion AS d FROM notas WHERE clave = ?", [r.nota]))?.d ?? null : null;
-    const geografias = await filas<{ clave: string; nombre: string; n_observaciones: number }>(db, "SELECT o.geografia AS clave, g.nombre, COUNT(*) AS n_observaciones FROM observaciones o JOIN geografias g ON g.clave = o.geografia WHERE o.indicador = ? GROUP BY o.geografia ORDER BY o.geografia", [id]);
+    const geografias = await filas<{ clave: string; nombre: string; nivel: string; n_observaciones: number }>(db, "SELECT o.geografia AS clave, g.nombre, g.nivel, COUNT(*) AS n_observaciones FROM observaciones o JOIN geografias g ON g.clave = o.geografia WHERE o.indicador = ? GROUP BY o.geografia ORDER BY o.geografia", [id]);
     const { multiplicador, nota: _n, fuentes: _f, estatus, ultima_actualizacion_texto, descargado_en, ...base } = r;
     return { ...aResumen(base), multiplicador, multiplicador_descripcion: mult, nota: r.nota, nota_descripcion: nota, fuentes, estatus, ultima_actualizacion_texto, descargado_en, geografias, observaciones_url: `/api/v1/inegi/indicadores/${id}/observaciones` };
   }
@@ -157,13 +157,13 @@ const Observacion = z.object({ geografia: z.string(), periodo: z.string(), valor
 export class InegiObservaciones extends OpenAPIRoute {
   schema = {
     tags: TAG, operationId: "inegi_observaciones", summary: "Serie de un indicador del INEGI",
-    description: "Observaciones de un indicador tal como las publica el INEGI: `valor` es el número y `valor_texto` el decimal original exacto (sin ceros a la derecha). `geografia` filtra por clave (00 nacional, 01-32 entidades); sin ella se devuelven todas las geografías. `desde` y `hasta` acotan el periodo por comparación de texto en el formato del INEGI ('2020', '2020/01', '2020/02'...). Orden: geografía y periodo ascendentes. Paginado con `limit` (1-5000) y `offset`.",
-    request: { params: z.object({ id: z.string() }), query: z.object({ geografia: z.string().regex(/^\d{2}$/).optional(), desde: z.string().optional(), hasta: z.string().optional(), limit: z.number().int().min(1).max(5000).default(1000).optional(), offset: z.number().int().min(0).default(0).optional() }) },
+    description: "Observaciones de un indicador tal como las publica el INEGI: `valor` es el número y `valor_texto` el decimal original exacto (sin ceros a la derecha). `geografia` filtra por clave (00 nacional, 01-32 entidades, 5 dígitos municipio); sin ella se devuelven todas las geografías. `desde` y `hasta` acotan el periodo por comparación de texto en el formato del INEGI ('2020', '2020/01', '2020/02'...). Orden: geografía y periodo ascendentes. Paginado con `limit` (1-5000) y `offset`.",
+    request: { params: z.object({ id: z.string() }), query: z.object({ geografia: z.string().regex(/^\d{2}(\d{3})?$/).optional(), desde: z.string().optional(), hasta: z.string().optional(), limit: z.number().int().min(1).max(5000).default(1000).optional(), offset: z.number().int().min(0).default(0).optional() }) },
     responses: { ...ok("Observaciones del indicador.", z.object({ indicador: z.string(), descripcion: z.string().nullable(), frecuencia: z.string().nullable(), unidad: z.string().nullable(), total: z.number().int(), limit: z.number().int(), offset: z.number().int(), observaciones: z.array(Observacion) })), ...RESP_404, ...RESP_422, ...RESP_429 },
   };
   async handle(c: AppContext) {
     const id = c.req.param("id") ?? "";
-    const geografia = textoConPatron(c.req.query("geografia"), "geografia", "^\\d{2}$");
+    const geografia = textoConPatron(c.req.query("geografia"), "geografia", "^\\d{2}(\\d{3})?$");
     const desde = c.req.query("desde") ?? null; const hasta = c.req.query("hasta") ?? null;
     const limit = enteroOpcional(c.req.query("limit"), "limit", 1, 5000) ?? 1000; const offset = enteroOpcional(c.req.query("offset"), "offset", 0) ?? 0;
     const r = await indicadorOr404(c, id);

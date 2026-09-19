@@ -405,3 +405,17 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
   indicadores; a 24 claves por petición son ~165 mil peticiones, ~2 h con 6
   hilos; ~20 millones de observaciones, dentro del límite de una D1). La
   descarga municipal completa no arranca sin el visto bueno del CEO.
+- Resultado del sondeo municipal (31,817 peticiones, 32 min, 0 errores):
+  **594 indicadores tienen datos municipales** (1.9 % del catálogo), todos
+  con datos también a nivel nacional/estatal; ninguno de los 778 «sin datos»
+  es municipal (quedan como series sin cobertura en los tres niveles que
+  consulta la API). Temas: Población 130, Economía y sectores productivos 49,
+  Vivienda 48, Lengua indígena 47, Delitos registrados 45, Discapacidad 32,
+  Educación 26, Empleo 19… En 20 cabeceras respondieron en promedio 19.8
+  municipios y 3.5 observaciones por municipio. Estimación de la fase 2:
+  594 × 2,469 municipios × 3.5 ≈ **5.2 millones de observaciones** y unas
+  67 mil peticiones (~45 min con 6 hilos): cabe en la misma D1 (≈400 MB) y
+  dentro de las escrituras incluidas en el plan. Dado el costo despreciable y
+  que es el mismo mecanismo, la fase 2 arranca ahora: mismas tablas
+  (`observaciones` con clave geográfica de 5 dígitos, `geografias` con nivel
+  «municipio»), respuestas crudas aparte en `data/bise/crudo_municipal/`.

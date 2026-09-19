@@ -15,6 +15,11 @@ Normalizaciones, todas documentadas aquí y en docs/BITACORA.md:
   respuesta; en 2026-09-19 fueron 36,462 repeticiones en 300 indicadores, casi todas idénticas y
   el resto solo distintas en OBS_STATUS). Se conserva la primera aparición y cada repetición
   descartada se escribe en data/bise/duplicados.csv para auditoría.
+- Fase 2 (municipios): si existe data/bise/manifiesto_municipal.jsonl, las observaciones municipales
+  (data/bise/crudo_municipal/) se escriben en observaciones_municipales.csv (mismas columnas que
+  observaciones.csv; se cargan a la MISMA tabla con bise_cargar_municipal.py), `geografias` incluye
+  los municipios del Marco Geoestadístico 2025 (data/bise/municipios.csv) y los conteos de
+  `indicadores` (n_observaciones, n_geografias, periodos) abarcan los tres niveles.
 Uso: python3 scripts/bise_a_csv.py
 """
 import csv, gzip, json, pathlib, re, sys
@@ -71,8 +76,11 @@ def main():
     for tabla, cl in [('unidades', 'CL_UNIT'), ('frecuencias', 'CL_FREQ'), ('temas', 'CL_TOPIC'),
                       ('fuentes', 'CL_SOURCE'), ('notas', 'CL_NOTE'), ('multiplicadores', 'CL_UNIT_MULT')]:
         escribir(tabla, ['clave', 'descripcion'], catalogo(cl))
-    escribir('geografias', ['clave', 'nombre', 'nivel'],
-             [(k, v, 'nacional' if k == '00' else 'entidad') for k, v in ENTIDADES.items()])
+    geografias = [(k, v, 'nacional' if k == '00' else 'entidad') for k, v in ENTIDADES.items()]
+    MUN = DIR / 'municipios.csv'
+    if MUN.exists():
+        geografias += [(r['clave'], r['nombre'], 'municipio') for r in csv.DictReader(open(MUN, encoding='utf-8'))]
+    escribir('geografias', ['clave', 'nombre', 'nivel'], geografias)
     descripciones = dict(catalogo('CL_INDICATOR'))
     manifiesto = {}
     for l in open(DIR / 'manifiesto.jsonl'):
@@ -113,8 +121,39 @@ def main():
                                n=len(periodos), ng=len(geos),
                                primero=min(periodos) if periodos else None, ultimo=max(periodos) if periodos else None)
                 vistos.add(i)
-    dup.close()
     print(f'{n_obs:>9} filas  observaciones')
+    MANM = DIR / 'manifiesto_municipal.jsonl'
+    n_mun = 0
+    if MANM.exists():
+        lotes = [json.loads(l) for l in open(MANM) if l.strip()]
+        por_ind = {}
+        for m in lotes:
+            if m['estado'] == 'ok': por_ind.setdefault(m['id'], []).append(m['archivo'])
+        with open(OUT / 'observaciones_municipales.csv', 'w', newline='', encoding='utf-8') as f:
+            w = csv.writer(f)
+            w.writerow(['indicador', 'geografia', 'periodo', 'valor', 'valor_texto', 'excepcion', 'estatus', 'fuente', 'nota'])
+            for i, archivos in por_ind.items():
+                claves = set(); geos = set(); periodos = []
+                for a in sorted(archivos):
+                    d = json.load(gzip.open(DIR / 'crudo_municipal' / a))
+                    for s in d['Series']:
+                        if s['INDICADOR'] != i: continue
+                        for o in s['OBSERVATIONS']:
+                            g = o['COBER_GEO']; p = o['TIME_PERIOD']; vt = valor_texto(o['OBS_VALUE'])
+                            if len(g) != 5:
+                                continue  # solo municipios en este archivo
+                            if (g, p) in claves:
+                                wdup.writerow([i, g, p, nn(vt), nn(o.get('OBS_EXCEPTION')), nn(o.get('OBS_STATUS')), nn(o.get('OBS_SOURCE')), nn(o.get('OBS_NOTE')), a]); n_dup += 1
+                                continue
+                            claves.add((g, p))
+                            w.writerow([i, g, p, nn(vt), nn(vt), nn(o.get('OBS_EXCEPTION')), nn(o.get('OBS_STATUS')), nn(o.get('OBS_SOURCE')), nn(o.get('OBS_NOTE'))])
+                            geos.add(g); periodos.append(p); n_mun += 1
+                if i in meta and periodos:
+                    x = meta[i]; x['n'] += len(periodos); x['ng'] += len(geos)
+                    x['primero'] = min(x['primero'], min(periodos)) if x['primero'] else min(periodos)
+                    x['ultimo'] = max(x['ultimo'], max(periodos)) if x['ultimo'] else max(periodos)
+        print(f'{n_mun:>9} filas  observaciones_municipales')
+    dup.close()
     print(f'{n_dup:>9} repeticiones descartadas (data/bise/duplicados.csv)')
     filas = []
     for i, desc in descripciones.items():
