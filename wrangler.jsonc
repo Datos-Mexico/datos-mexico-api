@@ -5,6 +5,7 @@
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "routes": [ { "pattern": "api.datosmexico.org", "custom_domain": true } ],
   "observability": { "enabled": true },
   "ratelimits": [
     { "name": "RL_30", "namespace_id": "5030", "simple": { "limit": 30, "period": 60 } },

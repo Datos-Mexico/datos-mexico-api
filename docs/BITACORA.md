@@ -102,3 +102,17 @@ Formato: fecha · qué se hizo · evidencia · pendiente inmediato.
   peticiones con conexiones nuevas no lo disparan; ver prueba con keep-alive.
 - Quirk: `wrangler dev` con D1 local vacía devuelve 500 en rutas de datos (no
   hay tablas locales); las pruebas de datos se hacen contra remoto.
+- Rate limiting verificado en producción con conexión reutilizada (keep-alive):
+  80 peticiones a una ruta de 30/min → 24 pasan y 56 reciben 429 con el cuerpo
+  del legacy. Con conexiones nuevas por petición el contador se reparte entre
+  servidores del centro de datos y no dispara: es la naturaleza «permisiva y
+  eventualmente consistente» del binding (documentada por Cloudflare).
+- HALLAZGO (no corregido, por paridad de textos): los `description` del legacy
+  dicen cobertura «1998-05-01 a 2025-06-01» y «326 puntos», pero los datos
+  cargados llegan a **2025-12-01 (332 puntos)**. Los textos están atrasados en
+  el legacy; corregirlos en ambos lados es decisión editorial del CEO.
+
+## 2026-09-19 · F3 DOMINIO — api.datosmexico.org EN LÍNEA
+- `routes: [{ pattern: "api.datosmexico.org", custom_domain: true }]` → wrangler
+  creó el DNS y el certificado. /health, /docs, /openapi.json y
+  /api/v1/consar/afores responden 200 en ~0.2 s. workers.dev sigue activo.
