@@ -18,6 +18,7 @@
   "d1_databases": [
     { "binding": "DB_CONSAR", "database_name": "datosmexico-api-consar", "database_id": "7a13a6f9-ab5a-4f9d-8339-65753f7b9f91" },
     { "binding": "DB_ENIGH", "database_name": "datosmexico-api-enigh", "database_id": "75a0d706-0bea-4907-b18c-7014abb6489f" },
-    { "binding": "DB_CDMX", "database_name": "datosmexico-api-cdmx", "database_id": "183ddd7e-e102-4829-bf2a-3e7b56a4616f" }
+    { "binding": "DB_CDMX", "database_name": "datosmexico-api-cdmx", "database_id": "183ddd7e-e102-4829-bf2a-3e7b56a4616f" },
+    { "binding": "DB_ENOE", "database_name": "datosmexico-api-enoe", "database_id": "db6e43ac-353e-43a4-ada6-134357f07c71" }
   ]
 }

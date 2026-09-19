@@ -19,6 +19,7 @@ import { CatNivelesSalariales, CatPuestos, CatSectores, CatSexos, CatTiposContra
 import { BrechaEdad, DashboardStatsEndpoint, PuestosRanking, SectoresRanking } from "./cdmx/dashboard_analytics";
 import { NombramientoDetalle, NombramientosLista, PersonaDetalle, PersonasLista } from "./cdmx/personas_nombramientos";
 import { cacheControl } from "./lib/cache";
+import { CatalogoEntidades, CatalogoEtapas, CatalogoIndicadores, EnoeHealthEndpoint, EnoeMetadataEndpoint, EntidadRanking, EntidadSerie, EntidadSnapshot, NacionalSerie, NacionalSnapshot, PosicionSerie, PosicionSnapshot, SectorSerie, SectorSnapshot } from "./enoe/endpoints";
 import { ErrorHttp, respuestaError } from "./lib/errores";
 import { limitarPeticiones } from "./lib/limites";
 
@@ -26,6 +27,7 @@ export type Env = {
   DB_CONSAR: D1Database;
   DB_ENIGH: D1Database;
   DB_CDMX: D1Database;
+  DB_ENOE: D1Database;
   RL_5: RateLimit;
   RL_10: RateLimit;
   RL_15: RateLimit;
@@ -145,6 +147,21 @@ openapi.get("/api/v1/personas/:persona_id", PersonaDetalle);
 openapi.get("/api/v1/nombramientos/", NombramientosLista);
 openapi.get("/api/v1/nombramientos/:nombramiento_id", NombramientoDetalle);
 openapi.get("/api/v1/export/csv", ExportCsv);
+// ENOE (agregados; los microdatos van a R2 en otra fase)
+openapi.get("/api/v1/enoe/health", EnoeHealthEndpoint);
+openapi.get("/api/v1/enoe/metadata", EnoeMetadataEndpoint);
+openapi.get("/api/v1/enoe/catalogos/indicadores", CatalogoIndicadores);
+openapi.get("/api/v1/enoe/catalogos/entidades", CatalogoEntidades);
+openapi.get("/api/v1/enoe/catalogos/etapas-metodologicas", CatalogoEtapas);
+openapi.get("/api/v1/enoe/indicadores/nacional/serie", NacionalSerie);
+openapi.get("/api/v1/enoe/indicadores/nacional/snapshot", NacionalSnapshot);
+openapi.get("/api/v1/enoe/indicadores/entidad/serie", EntidadSerie);
+openapi.get("/api/v1/enoe/indicadores/entidad/snapshot", EntidadSnapshot);
+openapi.get("/api/v1/enoe/indicadores/entidad/ranking", EntidadRanking);
+openapi.get("/api/v1/enoe/ocupados/por-sector/snapshot", SectorSnapshot);
+openapi.get("/api/v1/enoe/ocupados/por-sector/serie", SectorSerie);
+openapi.get("/api/v1/enoe/ocupados/por-posicion/snapshot", PosicionSnapshot);
+openapi.get("/api/v1/enoe/ocupados/por-posicion/serie", PosicionSerie);
 // Rutas de colección sin barra final: 307 hacia la ruta con barra, como Starlette.
 for (const col of ["servidores", "sectores", "personas", "nombramientos"]) {
   app.get(`/api/v1/${col}`, (c) => { const u = new URL(c.req.url); u.pathname += "/"; return c.redirect(u.toString(), 307); });

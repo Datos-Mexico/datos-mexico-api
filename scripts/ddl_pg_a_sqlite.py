@@ -28,10 +28,11 @@ def sqlt(ty):
 
 def tr_check(defn):
     d = defn
-    d = re.sub(r'::character varying(\[\])?', '', d); d = re.sub(r'::text(\[\])?', '', d); d = re.sub(r'::numeric', '', d); d = re.sub(r'::integer', '', d); d = re.sub(r'::date', '', d)
+    d = re.sub(r'::[\w.]+(\[\])?', '', d)  # quita todo cast de tipo (incluidos enums calificados como enoe.etapa_metodologica)
     d = re.sub(r'\(EXTRACT\(day FROM (\w+)\) = \(1\)\)', r"(substr(\1, 9, 2) = '01')", d)
     d = re.sub(r'\(\((\w+)\) = ANY \(\(ARRAY\[(.*?)\]\)\)\)', r'(\1 IN (\2))', d)
     d = re.sub(r'\((\w+) = ANY \(\(ARRAY\[(.*?)\]\)\)\)', r'(\1 IN (\2))', d)
+    d = re.sub(r'SUBSTRING\((\w+) FROM (\d+) FOR (\d+)\)', r'substr(\1, \2, \3)', d)
     d = re.sub(r'\((-?\d+(?:\.\d+)?)\)', r'\1', d)
     d = re.sub(r"'(\d{4}-\d{2}-\d{2})'::date", r"'\1'", d)
     return d

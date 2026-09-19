@@ -206,3 +206,32 @@ Formato: fecha · qué se hizo · evidencia · pendiente inmediato.
   duplicado) y `puesto_search=` vacío no rompe `/servidores/stats`.
 - Pendiente: ENOE (indicadores agregados a D1; microdatos 54 GB → R2), catálogo
   público de datasets, BISE.
+
+## 2026-09-19 · F6 ENOE — agregados COMPLETOS (14/17)
+- D1 `datosmexico-api-enoe` (db6e43ac-…): 11 tablas agregadas/catálogos con
+  fidelidad 11/11 por valores. Las 5 tablas de microdatos (54 GB) quedan fuera
+  de D1 por el límite de 10 GB; van a R2 en la fase siguiente, junto con los
+  3 endpoints `/microdatos/{tabla}/list|count|schema`.
+- 14 endpoints (`src/enoe/{constantes,endpoints}.ts`): paridad de DATOS 41/41
+  rutas (incluye 404/422 con mensajes literales de los helpers del legacy) y
+  de DOCUMENTACIÓN 14/17 (los 3 faltantes son los de microdatos).
+- Quirks del DDL: casts a enums calificados (`::enoe.etapa_metodologica`) y
+  `SUBSTRING(x FROM a FOR b)` en CHECK → el traductor ahora quita todo cast y
+  traduce a `substr`. Timestamps de Postgres → isoformat de Python con `Z` y
+  microsegundos solo si no son cero (`isoZ`). `cargas`: el CSV tiene un campo
+  con salto de línea (wc -l cuenta 479 líneas para 478 filas); la fidelidad por
+  conteo real confirma 478.
+- ENIGH: fidelidad por valores completada 132/132 (las 4 tablas anchas se
+  verifican por trozos de ≤ 90 columnas: D1 también limita el result set a 100
+  columnas).
+
+### Estado global al cierre de esta tanda
+| Bloque | Endpoints | Paridad datos | Paridad docs |
+|---|---|---|---|
+| CONSAR | 34 | 132/132 rutas | 34/34 |
+| ENIGH | 10 | 24/24 | 10/10 |
+| COMPARATIVO | 7 | 7/7 | 7/7 |
+| CDMX (GET) | 23 | 49/55 idénticas + 6 solo empates (conjuntos iguales) | 23/23 |
+| ENOE (agregados) | 14 | 41/41 | 14/17 |
+| **Total** | **88** | | |
+No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/personas/nombramientos POST/PUT/DELETE (9). Pendientes: microdatos ENOE (3) → R2.
