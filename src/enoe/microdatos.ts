@@ -37,7 +37,7 @@ const PATRON_PERIODO = "^20\\d{2}T[1-4]$", PATRON_ENT = "^(0[1-9]|[12][0-9]|3[0-
 
 function sql(c: AppContext) { return postgres(c.env.HYPERDRIVE.connectionString, { max: 1, prepare: false, fetch_types: false }); }
 function validarTabla(t: string): string {
-  if (!(TABLAS as readonly string[]).includes(t)) throw new ErrorHttp(422, [{ type: "enum", loc: ["path", "tabla"], msg: "Input should be 'viv', 'hog', 'sdem', 'coe1' or 'coe2'", input: t, ctx: { expected: "'viv', 'hog', 'sdem', 'coe1' or 'coe2'" } } satisfies Detalle]);
+  if (!(TABLAS as readonly string[]).includes(t)) throw new ErrorHttp(422, [{ type: "literal_error", loc: ["path", "tabla"], msg: "Input should be 'viv', 'hog', 'sdem', 'coe1' or 'coe2'", input: t, ctx: { expected: "'viv', 'hog', 'sdem', 'coe1' or 'coe2'" } } satisfies Detalle]);
   return t;
 }
 function patron(v: string | undefined, nombre: string, p: string): string | null {

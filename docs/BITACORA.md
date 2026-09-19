@@ -262,3 +262,13 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
   trimestres cargadas desde los mismos Parquet; el contrato no cambia.
 - Primera consulta tras inactividad tarda ~6 s (Neon suspende el cómputo);
   después responde en menos de un segundo.
+- Paridad microdatos: DATOS 21/21 rutas (ignorando `tiempo_query_ms`, que es
+  una medición y no un dato: el nuevo responde en ~160 ms contra ~1,200 ms del
+  legacy) y DOCUMENTACIÓN ENOE completa 17/17. Con esto los **91 endpoints
+  públicos del legacy están migrados**.
+- Pendiente para apagar Neon: habilitar R2 Data Catalog (Iceberg) en el bucket,
+  registrar los Parquet como tablas con pyiceberg y probar R2 SQL (COUNT,
+  LIMIT/OFFSET, filtros por periodo/ent) contra los mismos casos de paridad.
+- BISE (F8): el token del INEGI es personal y no está en ningún archivo
+  local (el sitio lo lee de la variable de entorno INEGI_TOKEN). Se solicitó
+  al CEO.

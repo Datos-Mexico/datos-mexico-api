@@ -17,10 +17,13 @@ def pedir(base, ruta):
         except Exception: cuerpo = None
         return e.code, cuerpo
 
+IGNORAR = set()
+
 def diff(a, b, ruta="$", out=None, tol=1e-9):
     out = [] if out is None else out
     if isinstance(a, dict) and isinstance(b, dict):
         for k in sorted(set(a) | set(b)):
+            if k in IGNORAR: continue
             if k not in a: out.append(f"{ruta}.{k}: falta en legacy")
             elif k not in b: out.append(f"{ruta}.{k}: falta en nuevo")
             else: diff(a[k], b[k], f"{ruta}.{k}", out, tol)
@@ -40,7 +43,9 @@ def main():
     ap.add_argument("rutas"); ap.add_argument("--legacy", default="https://api.datos-itam.org")
     ap.add_argument("--nuevo", default="https://datosmexico-api.davidfernando.workers.dev")
     ap.add_argument("--reporte", default=None)
+    ap.add_argument("--ignorar", default="", help="campos a ignorar (separados por coma), p. ej. tiempo_query_ms")
     a = ap.parse_args()
+    IGNORAR.update(x for x in a.ignorar.split(",") if x)
     rutas = [l.strip() for l in open(a.rutas) if l.strip() and not l.startswith("#")]
     lineas = []; ok = 0
     for r in rutas:
