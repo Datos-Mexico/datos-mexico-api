@@ -116,3 +116,19 @@ Formato: fecha · qué se hizo · evidencia · pendiente inmediato.
 - `routes: [{ pattern: "api.datosmexico.org", custom_domain: true }]` → wrangler
   creó el DNS y el certificado. /health, /docs, /openapi.json y
   /api/v1/consar/afores responden 200 en ~0.2 s. workers.dev sigue activo.
+
+## 2026-09-19 · F4/F5 ENIGH y CDMX — arranque
+- D1 creadas: `datosmexico-api-enigh` (75a0d706-…) y `datosmexico-api-cdmx`
+  (183ddd7e-…); bindings `DB_ENIGH` y `DB_CDMX` en wrangler.jsonc.
+- Esquemas Postgres volcados a `docs/legacy/{enigh,cdmx}-postgres-schema.md`
+  (columnas, constraints, índices, vistas, vistas materializadas, conteos).
+  ENIGH: 17 tablas de datos + catálogos; gastoshogar 5,311,497 filas (la más
+  grande). CDMX: personas 246,845 · nombramientos 246,836 · 8 catálogos ·
+  vista `v_servidores_publicos` · 5 vistas materializadas `mv_dashboard_*`.
+- Herramientas generalizadas: `scripts/ddl_pg_a_sqlite.py <schema>` (orden por
+  FK, CHECK traducidos, vistas listadas como comentarios) y
+  `scripts/csv_a_sql.py <schema>`.
+- Export Neon → CSV de enigh y cdmx en curso (`data/export-enigh-cdmx.log`).
+- Contratos de endpoints ENIGH y CDMX en extracción (`docs/legacy/{enigh,cdmx}-endpoints.md`).
+- Decisión propuesta: NO migrar `/auth/*`, `/ingest/*`, `/admin/*` ni `/demo/*`
+  (escritura, administración y basura de prueba). Pendiente de confirmar con el CEO.
