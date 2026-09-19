@@ -272,3 +272,125 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
 - BISE (F8): el token del INEGI es personal y no está en ningún archivo
   local (el sitio lo lee de la variable de entorno INEGI_TOKEN). Se solicitó
   al CEO.
+
+## 2026-09-19 — Tokens obtenidos; arranca F8 (Banco de Indicadores del INEGI)
+- Token del INEGI: estaba en el correo de registro (registro.api@inegi.org.mx,
+  2026-07-25). Guardado en `data/.secretos.env` (ignorado por git) como
+  `INEGI_TOKEN`; verificado contra la API.
+- Token de Cloudflare `datosmexico-r2-catalog` (Workers R2 Data Catalog: Edit +
+  Workers R2 Storage: Edit, todas las cuentas, sin caducidad) creado en el panel
+  y guardado como `CF_CATALOG_TOKEN` en el mismo archivo. Verificado con
+  `/user/tokens/verify` (activo) y contra el catálogo Iceberg del bucket
+  (`/v1/config` responde 200 con el prefijo del almacén).
+- Catálogos del BISE descargados a `data/bise/catalogos/`: CL_INDICATOR
+  31,817 indicadores, CL_UNIT 223, CL_FREQ 13, CL_TOPIC 272, CL_SOURCE 258,
+  CL_NOTE 1,157, CL_UNIT_MULT 6. CL_GEO, CL_PERIOD y CL_OBS_STATUS no existen
+  en el servicio (responden HTML); las claves geográficas se toman del marco
+  (00 nacional + 01-32) y los estatus de observación se documentan a partir de
+  los valores que aparezcan en los datos.
+- Límites medidos de la API del INEGI (INDICATOR/.../BISE/2.0):
+  - La URL no puede pasar de ~294 caracteres; si se pasa responde una página
+    HTML "Página no encontrada" con estado 200 (no un error). Con 33
+    geografías caben 4 indicadores de 10 dígitos por petición.
+  - Si algún indicador del lote no tiene observación alguna en las geografías
+    pedidas: 400 "No se encontraron resultados" cuando ninguno tiene y 401 "No
+    autorizado" cuando solo algunos tienen (el 401 no es de autorización).
+  - 6 peticiones en paralelo tardan lo mismo que una (~0.8 s).
+  - Muestra aleatoria de 40 indicadores × 33 geografías: todos con datos;
+    93 observaciones por indicador en promedio (mediana 66, máximo 627);
+    estimación del universo nacional + estatal: ~3 millones de observaciones,
+    que caben holgadamente en una D1.
+- Diseño F8: base `datosmexico-api-bise`. Tablas: catálogos (unidades,
+  frecuencias, temas, fuentes, notas, multiplicadores), `indicadores`
+  (metadatos del catálogo + los de la serie: frecuencia, tema, unidad,
+  multiplicador, nota, fuentes, última actualización del INEGI, estatus,
+  conteo de observaciones y primer/último periodo) y `observaciones`
+  (indicador, geografía, periodo, valor numérico y valor original como texto,
+  excepción, estatus, fuente, nota). Cobertura de esta fase: nacional y 32
+  entidades. Los municipios quedan como fase posterior (el mismo mecanismo,
+  otro universo de geografías).
+- `scripts/bise_descarga.py`: descarga reanudable, 6 hilos, lotes por longitud
+  de URL, respuestas crudas comprimidas en `data/bise/crudo/` (respaldo fiel
+  de lo que respondió el INEGI) y `data/bise/manifiesto.jsonl` con el estado
+  por indicador (`ok` / `sin_datos`). Lanzada en segundo plano; bitácora de
+  avance en `data/bise/descarga.log`.
+- Prueba del camino para apagar Neon (R2 Data Catalog + R2 SQL), hecha con el
+  token nuevo (al que hubo que añadir el permiso "Workers R2 SQL: Read"):
+  - pyiceberg 0.12 se conecta al catálogo con solo el token (sin llaves S3:
+    el catálogo presta credenciales). Espacio `enoe` creado; el trimestre
+    viv 2005T2 (120,251 filas, 25 columnas) se registró como tabla Iceberg
+    `enoe.viv_prueba` con `append` en 14 s y se leyó completo en 2.3 s.
+    Iceberg escribe sus propios archivos bajo `__r2_data_catalog/`: no reusa
+    los Parquet ya subidos (registrar todo duplicaría los ~54 GB; a ~0.015
+    USD/GB-mes son ~0.8 USD/mes más; aceptable si se decide ese camino).
+  - R2 SQL (POST a api.sql.cloudflarestorage.com): COUNT(*) 11 s en frío y
+    1.3 s en caliente; filtro + GROUP BY 1.3 s; **OFFSET no está soportado**
+    ("unsupported feature: OFFSET clause is not supported"). Los endpoints
+    `/microdatos/{tabla}/list` paginan con offset, así que R2 SQL no cubre el
+    contrato tal cual. Opciones: (a) D1 por trimestre cargadas desde los
+    Parquet (contrato idéntico, ~54 GB repartidos en varias D1: ~40 USD/mes),
+    (b) paginación por llave (`con` > último) sobre R2 SQL, cambiando el
+    contrato de `list` en el nuevo (documentado) y dejando Neon solo mientras
+    viva el legacy. Decisión pendiente del CEO; la tabla de prueba se
+    conserva hasta entonces.
+- Descarga BISE terminada en 18 min (6 hilos): 31,039 indicadores con datos,
+  778 sin observaciones nacionales ni estatales (el INEGI responde 400 "No se
+  encontraron resultados" también pidiéndolos solos; ejemplos: 716967 "Personal
+  ocupado total - 488320 Servicios de carga y descarga…", 6204482224 "INC.
+  Series originales. Coeficiente de Gini"), 0 errores de red. 44 MB de
+  respuestas crudas comprimidas en `data/bise/crudo/`.
+- Hallazgo de calidad en la fuente: el INEGI repite observaciones dentro de
+  la misma respuesta (misma clave indicador+geografía+periodo dos veces):
+  36,462 repeticiones en 300 indicadores; 35,924 idénticas y 538 iguales en
+  valor pero distintas en OBS_STATUS (3 vs 1). La carga falló por la llave
+  primaria y se resolvió conservando la primera aparición y escribiendo cada
+  repetición descartada en `data/bise/duplicados.csv` (auditable). Total
+  final: **2,690,682 observaciones** (118,428 con valor nulo y excepción NA,
+  -, ND o NS, conservadas con su excepción). Formatos de periodo: `AAAA`
+  (1.19 M) y `AAAA/NN` (1.54 M; NN = mes o trimestre según la frecuencia).
+- `cargar_d1.sh`: el conteo esperado se calcula ahora por registros CSV y no
+  por líneas (las descripciones del INEGI traen saltos de línea; el conteo
+  por líneas daba 224/1160/31819 contra 223/1157/31817 reales).
+
+## 2026-09-19 · F8 fase 1 EN LÍNEA — Banco de Indicadores del INEGI
+- D1 `datosmexico-api-bise` cargada y verificada: 31,817 indicadores (31,039
+  con datos), 2,690,682 observaciones, 7 catálogos; suma de
+  `n_observaciones` = filas de `observaciones`; conteos remotos = CSV.
+- Cinco endpoints nuevos (tag `inegi`), desplegados y verificados en
+  producción contra los archivos de origen (resumen exacto; 5 series
+  completas idénticas observación por observación; 404/422 con la forma
+  FastAPI del resto de la API; Cache-Control público 1 h; cupo 30/min en la
+  serie y 60/min en el resto):
+  - `GET /api/v1/inegi/resumen` — cuántos indicadores tenemos y hasta cuándo.
+  - `GET /api/v1/inegi/indicadores` — búsqueda (q en descripción y tema;
+    filtros tema/frecuencia/unidad/con_datos; paginación).
+  - `GET /api/v1/inegi/indicadores/{id}` — ficha con catálogos resueltos,
+    fuentes y geografías disponibles.
+  - `GET /api/v1/inegi/indicadores/{id}/observaciones` — serie con valor
+    numérico y decimal original, filtros geografía/desde/hasta, paginación.
+  - `GET /api/v1/inegi/catalogos/{catalogo}` — unidades, frecuencias, temas,
+    fuentes, notas, multiplicadores, geografías.
+- Entrada `inegi` en `/api/v1/catalogo/datasets` (corte = último periodo con
+  observaciones). Nota: el corte dice 2050 porque un indicador del tema
+  Población es una proyección; el resumen distingue `ultimo_periodo` de
+  `ultima_actualizacion_inegi` (2026-09-18, es decir, la base está al día).
+- Limitación de la fuente registrada: los nombres del catálogo son cortos
+  («Total», «Mujeres»: 15,519 descripciones distintas para 31,817 ids), así
+  que la búsqueda incluye la descripción del tema y la ficha resuelve tema,
+  unidad, frecuencia y fuentes.
+- Enunciado que ya se puede sostener públicamente: «tenemos los 31,817
+  indicadores del Banco de Indicadores del INEGI a nivel nacional y estatal,
+  con la última actualización publicada por el INEGI (2026-09-18)».
+  Pendientes de F8: municipios (fase 2) y refresco periódico (fase 3).
+
+### Estado global al cierre de esta tanda
+| Bloque | Endpoints | Paridad datos | Paridad docs |
+|---|---|---|---|
+| CONSAR | 34 | 132/132 rutas | 34/34 |
+| ENIGH | 10 | 24/24 | 10/10 |
+| COMPARATIVO | 7 | 7/7 | 7/7 |
+| CDMX (GET) | 23 | 49/55 idénticas + 6 solo empates (conjuntos iguales) | 23/23 |
+| ENOE (agregados + microdatos) | 17 | 41/41 + 21/21 | 17/17 |
+| Catálogo público | 2 | nuevo | propia |
+| INEGI Banco de Indicadores | 5 | nuevo (verificado contra origen) | propia |
+| **Total** | **98** | | |

@@ -36,7 +36,10 @@ paridad base por base.
 - F6  ENOE indicadores (agregados). Microdatos crudos: R2 (después).
 - F7  Catálogo público «qué datos tenemos y hasta cuándo» + esquema legible por
       máquina por dataset (base del visualizador de relaciones).
-- F8  Ingesta del Banco de Indicadores del INEGI (BISE).
+- F8  Ingesta del Banco de Indicadores del INEGI (BISE): fase 1 = los 31,817
+      indicadores del catálogo a nivel nacional y por entidad (D1
+      `datosmexico-api-bise`, endpoints /api/v1/inegi/*); fase 2 = municipios
+      con el mismo mecanismo; fase 3 = refresco periódico contra LASTUPDATE.
 - Después: panel del observatorio (tablas tipo hoja de cálculo, visualizador
   de esquemas), librería de Python nueva o apuntada, apagado del legacy.
 

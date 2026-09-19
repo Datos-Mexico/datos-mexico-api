@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Carga data/<schema>/sql/*.sql a la D1 remota datosmexico-api-<schema>, en el orden del DDL.
 # Uso: zsh scripts/cargar_d1.sh <schema> [tabla_prioritaria ...]   (las prioritarias van primero; gastoshogar siempre al final)
-# Antes de cada tabla compara el conteo remoto con el CSV: si ya coincide la salta; si hay carga parcial se detiene.
+# Antes de cada tabla compara el conteo remoto con el CSV (registros CSV, no líneas: hay campos con saltos de línea): si ya coincide la salta; si hay carga parcial se detiene.
 # Cada archivo se manda en trozos de ≤ 8 MB en límites de sentencia (D1 se queda sin memoria con archivos grandes).
 S=$1; shift; PRIMERO=($@)
 cd "/Users/davicho/Datos México/datos-mexico-api"
@@ -14,7 +14,8 @@ import json,subprocess,sys,os
 s,t=sys.argv[1],sys.argv[2]; pj=f'data/{s}/particiones.json'
 p=json.load(open(pj)) if os.path.exists(pj) else {}
 orig=next((o for o,ps in p.items() if any(x['tabla']==t for x in ps)), t)
-print(int(subprocess.check_output(['wc','-l',f'data/{s}/neon-export/'+orig+'.csv']).split()[0])-1)" "$S" "$1"; }
+import csv; csv.field_size_limit(1<<30)
+with open(f'data/{s}/neon-export/'+orig+'.csv', newline='', encoding='utf-8') as f: print(sum(1 for _ in csv.reader(f))-1)" "$S" "$1"; }
 remoto() { npx wrangler d1 execute $DB --remote --yes --json --command "select count(*) n from $1" 2>/dev/null | grep -o '"n": [0-9]*' | grep -o '[0-9]*'; }
 for t in $PRIMERO $RESTO $ULTIMA; do
   [ -f data/$S/sql/$t.sql ] || { echo "$(date -u +%T) $t SIN SQL"; continue; }

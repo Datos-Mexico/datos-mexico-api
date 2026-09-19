@@ -39,6 +39,13 @@ export const DATASETS: DatasetDef[] = [
     descripcion: "13 indicadores laborales trimestrales (nacional y por entidad, 2005T1-2025T1), cortes de ocupados por sector y posición, y catálogos. Los 101.5 millones de filas de microdatos no están en esta base: se publican aparte.",
     binding: "DB_ENOE", prefijo_api: "/api/v1/enoe", periodicidad: "trimestral",
     sql_corte: "SELECT max(periodo) AS corte FROM indicadores_nacionales", unidad_corte: "último trimestre con indicadores",
-    notas: ["Gap documental en 2020T2 (ETOE telefónica, sin microdatos).", "Microdatos (viv, hog, sdem, coe1, coe2): pendientes de publicación en almacenamiento de objetos; los endpoints /microdatos/* del legacy todavía no existen aquí."],
+    notas: ["Gap documental en 2020T2 (ETOE telefónica, sin microdatos).", "Microdatos (viv, hog, sdem, coe1, coe2): 101.5 millones de filas consultables en /api/v1/enoe/microdatos/{tabla}/list, /count y /schema; el respaldo permanente son archivos Parquet por tabla y trimestre en almacenamiento de objetos."],
+  },
+  {
+    clave: "inegi", nombre: "INEGI — Banco de Indicadores (BISE)", fuente: "INEGI, API de indicadores", fuente_url: "https://www.inegi.org.mx/servicios/api_indicadores.html", licencia: "Términos de libre uso INEGI",
+    descripcion: "Los 31,817 indicadores del catálogo oficial del Banco de Indicadores del INEGI con todas sus observaciones a nivel nacional y por entidad federativa, más los catálogos de unidades, frecuencias, temas, fuentes, notas y multiplicadores. Cada valor se conserva como lo publica el INEGI (decimal original como texto).",
+    binding: "DB_BISE", prefijo_api: "/api/v1/inegi", periodicidad: "la de cada indicador (mensual, trimestral, anual, quinquenal, decenal...)",
+    sql_corte: "SELECT max(ultimo_periodo) AS corte FROM indicadores", unidad_corte: "periodo más reciente con observaciones (formato del INEGI)",
+    notas: ["Cobertura geográfica de esta fase: nacional (00) y 32 entidades (01-32); los municipios se incorporan después con el mismo mecanismo.", "Los indicadores con con_datos = 0 existen en el catálogo pero no tienen observaciones nacionales ni estatales.", "El INEGI repite algunas observaciones en sus respuestas (36,462 en 300 indicadores el 2026-09-19); se conserva la primera aparición y las repeticiones quedan auditadas fuera de la base.", "Resumen verificable en /api/v1/inegi/resumen."],
   },
 ];
