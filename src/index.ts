@@ -9,15 +9,22 @@ import { Salud } from "./endpoints/salud";
 import { Afores, TiposRecurso } from "./consar/catalogos";
 import { RecursosComposicion, RecursosImssVsIssste, RecursosPorAfore, RecursosPorComponente, RecursosSerie, RecursosTotales } from "./consar/recursos";
 import { ComisionesSerie, ComisionesSnapshot, FlujosSerie, FlujosSnapshot, PeaCotizantesSerie, TraspasosSerie, TraspasosSnapshot } from "./consar/flujos";
+import { ActivoNetoAgregado, ActivoNetoSerie, ActivoNetoSnapshot, RendimientosSerie, RendimientosSistema, RendimientosSnapshot } from "./consar/activo_rendimiento";
+import { CuentasSerie, CuentasSistema, CuentasSnapshot, MedidasSerie, MedidasSnapshot, MetricasCuenta, MetricasSensibilidad } from "./consar/medidas_cuentas";
+import { PreciosComparativo, PreciosGestionComparativo, PreciosGestionSerie, PreciosGestionSnapshot, PreciosSerie, PreciosSnapshot } from "./consar/precios";
 import { ErrorHttp, respuestaError } from "./lib/errores";
+import { limitarPeticiones } from "./lib/limites";
 
 export type Env = {
   DB_CONSAR: D1Database;
+  RL_30: RateLimit;
+  RL_60: RateLimit;
 };
 export type AppContext = Context<{ Bindings: Env }>;
 
 const app = new Hono<{ Bindings: Env }>();
 app.use("*", cors({ origin: "*", allowMethods: ["GET", "OPTIONS"] }));
+app.use("/api/v1/*", limitarPeticiones);
 
 const openapi = fromHono(app, {
   docs_url: "/docs",
@@ -54,6 +61,25 @@ openapi.get("/api/v1/consar/flujos/snapshot", FlujosSnapshot);
 openapi.get("/api/v1/consar/traspasos/serie", TraspasosSerie);
 openapi.get("/api/v1/consar/traspasos/snapshot", TraspasosSnapshot);
 openapi.get("/api/v1/consar/pea-cotizantes/serie", PeaCotizantesSerie);
+openapi.get("/api/v1/consar/activo-neto/serie", ActivoNetoSerie);
+openapi.get("/api/v1/consar/activo-neto/snapshot", ActivoNetoSnapshot);
+openapi.get("/api/v1/consar/activo-neto/agregado", ActivoNetoAgregado);
+openapi.get("/api/v1/consar/rendimientos/serie", RendimientosSerie);
+openapi.get("/api/v1/consar/rendimientos/snapshot", RendimientosSnapshot);
+openapi.get("/api/v1/consar/rendimientos/sistema", RendimientosSistema);
+openapi.get("/api/v1/consar/metricas-sensibilidad", MetricasSensibilidad);
+openapi.get("/api/v1/consar/medidas/serie", MedidasSerie);
+openapi.get("/api/v1/consar/medidas/snapshot", MedidasSnapshot);
+openapi.get("/api/v1/consar/metricas-cuenta", MetricasCuenta);
+openapi.get("/api/v1/consar/cuentas/serie", CuentasSerie);
+openapi.get("/api/v1/consar/cuentas/snapshot", CuentasSnapshot);
+openapi.get("/api/v1/consar/cuentas/sistema", CuentasSistema);
+openapi.get("/api/v1/consar/precios/serie", PreciosSerie);
+openapi.get("/api/v1/consar/precios/snapshot", PreciosSnapshot);
+openapi.get("/api/v1/consar/precios/comparativo", PreciosComparativo);
+openapi.get("/api/v1/consar/precios-gestion/serie", PreciosGestionSerie);
+openapi.get("/api/v1/consar/precios-gestion/snapshot", PreciosGestionSnapshot);
+openapi.get("/api/v1/consar/precios-gestion/comparativo", PreciosGestionComparativo);
 app.get("/", (c) => c.redirect("/docs", 302));
 
 app.onError(async (err, c) => {

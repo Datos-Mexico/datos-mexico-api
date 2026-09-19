@@ -85,3 +85,20 @@ Formato: fecha · qué se hizo · evidencia · pendiente inmediato.
   mensajes de `_parse_fecha`; los errores de validación de chanfana llegan a
   Hono como HTTPException con cuerpo `{errors:[…]}` y se traducen a la lista
   422 de FastAPI (`type/loc/msg/input`).
+
+## 2026-09-19 · F2 CONSAR — COMPLETA (34/34 endpoints)
+- Los 34 endpoints de `/api/v1/consar` viven en el Worker. Paridad de DATOS:
+  **132/132 rutas idénticas** contra el legacy (`docs/paridad/consar-datos.md`),
+  cubriendo series completas, snapshots, ventanas, y todos los 404/422 con el
+  mismo `detail`. Paridad de DOCUMENTACIÓN: **34/34** (`docs/paridad/consar-docs.md`):
+  summary, description, operationId, tags, parámetros (nombre, requerido,
+  descripción, tipo) y forma de la respuesta 200.
+- Archivos: `src/consar/{catalogos,recursos,flujos,activo_rendimiento,medidas_cuentas,precios}.ts`
+  + `constantes.ts` (todos los caveats verbatim). Utilerías: `lib/{db,errores,fechas,numeros,texto,comun,limites}.ts`.
+- Rate limiting: bindings `RL_30`/`RL_60` (namespaces 5030/5060) con los cupos
+  exactos del legacy por ruta y el mismo cuerpo 429. Verificado en local (60
+  pasan, la 61.ª recibe 429). En producción el contador de Cloudflare es
+  aproximado y por servidor dentro de cada centro de datos: ráfagas de 150
+  peticiones con conexiones nuevas no lo disparan; ver prueba con keep-alive.
+- Quirk: `wrangler dev` con D1 local vacía devuelve 500 en rutas de datos (no
+  hay tablas locales); las pruebas de datos se hacen contra remoto.

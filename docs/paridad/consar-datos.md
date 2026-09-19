@@ -1,8 +1,8 @@
 # Paridad — docs/paridad/consar-rutas.txt
 
-Fecha: 2026-09-19T09:13:15Z · legacy `https://api.datos-itam.org` · nuevo `https://datosmexico-api.davidfernando.workers.dev`
+Fecha: 2026-09-19T09:25:44Z · legacy `https://api.datos-itam.org` · nuevo `https://datosmexico-api.davidfernando.workers.dev`
 
-**52/52 rutas idénticas.**
+**132/132 rutas idénticas.**
 
 - ✓ `/api/v1/consar/afores` — HTTP 200, idéntico
 - ✓ `/api/v1/consar/tipos-recurso` — HTTP 200, idéntico
@@ -56,3 +56,83 @@ Fecha: 2026-09-19T09:13:15Z · legacy `https://api.datos-itam.org` · nuevo `htt
 - ✓ `/api/v1/consar/traspasos/snapshot?fecha=1999-01` — HTTP 200, idéntico
 - ✓ `/api/v1/consar/traspasos/snapshot?fecha=1998-01` — HTTP 404, idéntico
 - ✓ `/api/v1/consar/pea-cotizantes/serie` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/activo-neto/serie?afore_codigo=xxi_banorte&siefore_slug=sb%2055-59` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/activo-neto/serie?afore_codigo=profuturo&siefore_slug=sb%2060-64` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/activo-neto/serie?afore_codigo=sura&siefore_slug=av2` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/activo-neto/serie?afore_codigo=noexiste&siefore_slug=sb%2060-64` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/activo-neto/serie?afore_codigo=pension_bienestar&siefore_slug=sb%2060-64` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/activo-neto/snapshot?fecha=2025-06` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/activo-neto/snapshot?fecha=2019-12-01` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/activo-neto/snapshot?fecha=2010-01` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/activo-neto/agregado?afore_codigo=profuturo&categoria=act_neto_total_siefores` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/activo-neto/agregado?afore_codigo=coppel&categoria=act_neto_total_basicas` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/activo-neto/agregado?afore_codigo=coppel&categoria=act_neto_total_adicionales` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/activo-neto/agregado?afore_codigo=xxi_banorte&categoria=act_neto_total_siefores` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/activo-neto/agregado?afore_codigo=coppel&categoria=otra` — HTTP 422, idéntico
+- ✓ `/api/v1/consar/activo-neto/agregado?afore_codigo=noexiste&categoria=act_neto_total_siefores` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/rendimientos/serie?afore_codigo=profuturo&siefore_slug=sb%2060-64&plazo=12_meses` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/rendimientos/serie?afore_codigo=profuturo&siefore_slug=sb%2060-64&plazo=historico` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/rendimientos/serie?afore_codigo=sura&siefore_slug=siav2&plazo=36_meses` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/rendimientos/serie?afore_codigo=coppel&siefore_slug=sb%2055-59&plazo=historico` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/rendimientos/serie?afore_codigo=profuturo&siefore_slug=sb%2060-64&plazo=x` — HTTP 422, idéntico
+- ✓ `/api/v1/consar/rendimientos/serie?afore_codigo=noexiste&siefore_slug=sb%2060-64&plazo=12_meses` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/rendimientos/snapshot?fecha=2025-06&plazo=5_anios` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/rendimientos/snapshot?fecha=2025-06&plazo=historico` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/rendimientos/snapshot?fecha=2010-01&plazo=12_meses` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/rendimientos/snapshot?fecha=2025-06&plazo=malo` — HTTP 422, idéntico
+- ✓ `/api/v1/consar/rendimientos/snapshot?fecha=malo&plazo=12_meses` — HTTP 422, idéntico
+- ✓ `/api/v1/consar/rendimientos/sistema?siefore_slug=sb%2060-64&plazo=24_meses` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/rendimientos/sistema?siefore_slug=sb%2060-64&plazo=historico` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/rendimientos/sistema?siefore_slug=agregado_adicionales&plazo=12_meses` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/rendimientos/sistema?siefore_slug=noexiste&plazo=12_meses` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/rendimientos/sistema?siefore_slug=sb%2055-59&plazo=historico` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/metricas-sensibilidad` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/medidas/serie?afore_codigo=profuturo&siefore_slug=sb%2060-64&metrica=var` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/medidas/serie?afore_codigo=coppel&siefore_slug=sb%2055-59&metrica=pid` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/medidas/serie?afore_codigo=sura&siefore_slug=siav2&metrica=escenarios_var` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/medidas/serie?afore_codigo=sura&siefore_slug=siav2&metrica=ppp` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/medidas/serie?afore_codigo=profuturo&siefore_slug=sb%2060-64&metrica=noexiste` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/medidas/snapshot?fecha=2025-06&metrica=var` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/medidas/snapshot?fecha=2025-06&metrica=escenarios_var` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/medidas/snapshot?fecha=2025-06&metrica=pid` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/medidas/snapshot?fecha=2025-06&metrica=noexiste` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/medidas/snapshot?fecha=2010-01&metrica=var` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/metricas-cuenta` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/cuentas/serie?afore_codigo=profuturo&metrica=trabajadores_imss` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/cuentas/serie?afore_codigo=coppel&metrica=cuentas_inhabilitadas` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/cuentas/serie?afore_codigo=coppel&metrica=total_cuentas_sar` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/cuentas/serie?afore_codigo=noexiste&metrica=trabajadores_imss` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/cuentas/snapshot?fecha=2025-06` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/cuentas/snapshot?fecha=1997-12` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/cuentas/snapshot?fecha=1990-01` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/cuentas/sistema?metrica=total_cuentas_sar` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/cuentas/sistema?metrica=cuentas_bienestar_010` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/cuentas/sistema?metrica=cuentas_inhabilitadas` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/cuentas/sistema?metrica=trabajadores_imss` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/cuentas/sistema?metrica=noexiste` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/precios/serie?afore_codigo=profuturo&siefore_slug=sb%2060-64&desde=2024-01-01&hasta=2024-03-31` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/precios/serie?afore_codigo=banamex&siefore_slug=sb%2055-59&desde=2014-01-01&hasta=2014-12-31` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/precios/serie?afore_codigo=xxi_banorte&siefore_slug=sb%2090-94` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/precios/serie?afore_codigo=profuturo&siefore_slug=sb%2060-64&desde=2030-01-01` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/precios/serie?afore_codigo=profuturo&siefore_slug=sb%2060-64&desde=2024-13-01` — HTTP 422, idéntico
+- ✓ `/api/v1/consar/precios/serie?afore_codigo=noexiste&siefore_slug=sb%2060-64` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/precios/snapshot?fecha=2025-06-02` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/precios/snapshot?fecha=1997-01-08` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/precios/snapshot?fecha=2025-06-01` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/precios/snapshot?fecha=2025-06` — HTTP 422, idéntico
+- ✓ `/api/v1/consar/precios/comparativo?siefore_slug=sb%2060-64&desde=2025-05-01&hasta=2025-05-31` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/precios/comparativo?siefore_slug=sb5&desde=2005-01-01&hasta=2005-01-31` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/precios/comparativo?siefore_slug=sb%2060-64&desde=2025-05-31&hasta=2025-05-01` — HTTP 422, idéntico
+- ✓ `/api/v1/consar/precios/comparativo?siefore_slug=noexiste&desde=2025-05-01&hasta=2025-05-31` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/precios/comparativo?siefore_slug=sb%2060-64&desde=2030-05-01&hasta=2030-05-31` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/precios/comparativo?siefore_slug=sb%2060-64&desde=2025-05-01` — HTTP 422, idéntico
+- ✓ `/api/v1/consar/precios-gestion/serie?afore_codigo=xxi_banorte&siefore_slug=sb5&desde=2012-01-01&hasta=2012-12-31` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/precios-gestion/serie?afore_codigo=coppel&siefore_slug=sb%2065-69&desde=2025-01-01` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/precios-gestion/serie?afore_codigo=pensionissste&siefore_slug=sb%2060-64` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/precios-gestion/serie?afore_codigo=profuturo&siefore_slug=sb%2060-64&hasta=1990-01-01` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/precios-gestion/snapshot?fecha=2025-06-02` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/precios-gestion/snapshot?fecha=1997-01-07` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/precios-gestion/snapshot?fecha=2025-06-01` — HTTP 404, idéntico
+- ✓ `/api/v1/consar/precios-gestion/comparativo?siefore_slug=sb%2060-64&desde=2025-05-01&hasta=2025-05-31` — HTTP 200, idéntico
+- ✓ `/api/v1/consar/precios-gestion/comparativo?siefore_slug=sb%2060-64&desde=2025-05-31&hasta=2025-05-01` — HTTP 422, idéntico
+- ✓ `/api/v1/consar/precios-gestion/comparativo?siefore_slug=noexiste&desde=2025-05-01&hasta=2025-05-31` — HTTP 404, idéntico

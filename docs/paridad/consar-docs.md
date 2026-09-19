@@ -1,8 +1,8 @@
 # Paridad de documentación — /api/v1/consar
 
-Fecha: 2026-09-19T09:13:15Z
+Fecha: 2026-09-19T09:23:53Z
 
-**15/34 rutas con documentación equivalente.**
+**34/34 rutas con documentación equivalente.**
 
 - ✓ `/api/v1/consar/afores`
 - ✓ `/api/v1/consar/tipos-recurso`
@@ -19,22 +19,22 @@ Fecha: 2026-09-19T09:13:15Z
 - ✓ `/api/v1/consar/traspasos/serie`
 - ✓ `/api/v1/consar/traspasos/snapshot`
 - ✓ `/api/v1/consar/pea-cotizantes/serie`
-- ✗ `/api/v1/consar/activo-neto/serie`: no existe en nuevo
-- ✗ `/api/v1/consar/activo-neto/snapshot`: no existe en nuevo
-- ✗ `/api/v1/consar/activo-neto/agregado`: no existe en nuevo
-- ✗ `/api/v1/consar/rendimientos/serie`: no existe en nuevo
-- ✗ `/api/v1/consar/rendimientos/snapshot`: no existe en nuevo
-- ✗ `/api/v1/consar/rendimientos/sistema`: no existe en nuevo
-- ✗ `/api/v1/consar/metricas-sensibilidad`: no existe en nuevo
-- ✗ `/api/v1/consar/medidas/serie`: no existe en nuevo
-- ✗ `/api/v1/consar/medidas/snapshot`: no existe en nuevo
-- ✗ `/api/v1/consar/metricas-cuenta`: no existe en nuevo
-- ✗ `/api/v1/consar/cuentas/serie`: no existe en nuevo
-- ✗ `/api/v1/consar/cuentas/snapshot`: no existe en nuevo
-- ✗ `/api/v1/consar/cuentas/sistema`: no existe en nuevo
-- ✗ `/api/v1/consar/precios/serie`: no existe en nuevo
-- ✗ `/api/v1/consar/precios/snapshot`: no existe en nuevo
-- ✗ `/api/v1/consar/precios/comparativo`: no existe en nuevo
-- ✗ `/api/v1/consar/precios-gestion/serie`: no existe en nuevo
-- ✗ `/api/v1/consar/precios-gestion/snapshot`: no existe en nuevo
-- ✗ `/api/v1/consar/precios-gestion/comparativo`: no existe en nuevo
+- ✓ `/api/v1/consar/activo-neto/serie`
+- ✓ `/api/v1/consar/activo-neto/snapshot`
+- ✓ `/api/v1/consar/activo-neto/agregado`
+- ✓ `/api/v1/consar/rendimientos/serie`
+- ✓ `/api/v1/consar/rendimientos/snapshot`
+- ✓ `/api/v1/consar/rendimientos/sistema`
+- ✓ `/api/v1/consar/metricas-sensibilidad`
+- ✓ `/api/v1/consar/medidas/serie`
+- ✓ `/api/v1/consar/medidas/snapshot`
+- ✓ `/api/v1/consar/metricas-cuenta`
+- ✓ `/api/v1/consar/cuentas/serie`
+- ✓ `/api/v1/consar/cuentas/snapshot`
+- ✓ `/api/v1/consar/cuentas/sistema`
+- ✓ `/api/v1/consar/precios/serie`
+- ✓ `/api/v1/consar/precios/snapshot`
+- ✓ `/api/v1/consar/precios/comparativo`
+- ✓ `/api/v1/consar/precios-gestion/serie`
+- ✓ `/api/v1/consar/precios-gestion/snapshot`
+- ✓ `/api/v1/consar/precios-gestion/comparativo`
