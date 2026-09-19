@@ -22,6 +22,7 @@ import { cacheControl } from "./lib/cache";
 import { CatalogoEntidades, CatalogoEtapas, CatalogoIndicadores, EnoeHealthEndpoint, EnoeMetadataEndpoint, EntidadRanking, EntidadSerie, EntidadSnapshot, NacionalSerie, NacionalSnapshot, PosicionSerie, PosicionSnapshot, SectorSerie, SectorSnapshot } from "./enoe/endpoints";
 import { CatalogoDatasets, CatalogoEsquema } from "./catalogo/endpoints";
 import { InegiCatalogo, InegiIndicador, InegiIndicadores, InegiObservaciones, InegiResumen } from "./inegi/endpoints";
+import { DenueActividades, DenueCerca, DenueResumen, DenueUnidad, DenueUnidades } from "./denue/endpoints";
 import { MicrodatosCount, MicrodatosList, MicrodatosSchema } from "./enoe/microdatos";
 import { ErrorHttp, respuestaError } from "./lib/errores";
 import { limitarPeticiones } from "./lib/limites";
@@ -32,6 +33,7 @@ export type Env = {
   DB_CDMX: D1Database;
   DB_ENOE: D1Database;
   DB_BISE: D1Database;
+  DB_DENUE: D1Database;
   DATOS: R2Bucket;
   HYPERDRIVE: Hyperdrive;
   RL_5: RateLimit;
@@ -180,6 +182,13 @@ openapi.get("/api/v1/inegi/indicadores", InegiIndicadores);
 openapi.get("/api/v1/inegi/indicadores/:id", InegiIndicador);
 openapi.get("/api/v1/inegi/indicadores/:id/observaciones", InegiObservaciones);
 openapi.get("/api/v1/inegi/catalogos/:catalogo", InegiCatalogo);
+
+// DENUE (Directorio Estadístico Nacional de Unidades Económicas; nuevo)
+openapi.get("/api/v1/denue/resumen", DenueResumen);
+openapi.get("/api/v1/denue/unidades", DenueUnidades);
+openapi.get("/api/v1/denue/unidades/cerca", DenueCerca);
+openapi.get("/api/v1/denue/unidades/:id", DenueUnidad);
+openapi.get("/api/v1/denue/actividades", DenueActividades);
 // Rutas de colección sin barra final: 307 hacia la ruta con barra, como Starlette.
 for (const col of ["servidores", "sectores", "personas", "nombramientos"]) {
   app.get(`/api/v1/${col}`, (c) => { const u = new URL(c.req.url); u.pathname += "/"; return c.redirect(u.toString(), 307); });

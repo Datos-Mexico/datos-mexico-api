@@ -48,4 +48,11 @@ export const DATASETS: DatasetDef[] = [
     sql_corte: "SELECT max(ultimo_periodo) AS corte FROM indicadores", unidad_corte: "periodo más reciente con observaciones (formato del INEGI)",
     notas: ["Cobertura geográfica: nacional (00), 32 entidades (01-32) y 2,478 municipios (claves de 5 dígitos, Marco Geoestadístico 2025) en los indicadores con datos municipales.", "Los indicadores con con_datos = 0 existen en el catálogo pero no tienen observaciones en ninguno de los tres niveles.", "El INEGI repite algunas observaciones en sus respuestas (36,462 en 300 indicadores el 2026-09-19); se conserva la primera aparición y las repeticiones quedan auditadas fuera de la base.", "Resumen verificable en /api/v1/inegi/resumen."],
   },
+  {
+    clave: "denue", nombre: "INEGI — DENUE (Directorio Estadístico Nacional de Unidades Económicas)", fuente: "INEGI, descarga masiva por entidad", fuente_url: "https://www.inegi.org.mx/app/descarga/?ti=6", licencia: "Términos de libre uso INEGI",
+    descripcion: "Todas las unidades económicas del DENUE de los 32 estados (edición 05/2026) con sus 42 campos originales: nombre, razón social, actividad SCIAN 2018, personal ocupado, domicilio completo, claves geoestadísticas hasta manzana, contacto y coordenadas; más el catálogo de actividades derivado y el diccionario de datos del INEGI.",
+    binding: "DB_DENUE", prefijo_api: "/api/v1/denue", periodicidad: "el INEGI publica actualizaciones del directorio dos veces al año",
+    sql_corte: "SELECT valor AS corte FROM edicion WHERE clave = 'fecha_diccionario'", unidad_corte: "fecha del diccionario de datos de la edición cargada",
+    notas: ["Los campos se conservan tal cual (textos del INEGI, con espacios finales recortados; vacíos como nulos).", "Búsqueda por nombre, actividad, estado, municipio, código postal y cercanía a una coordenada; resumen verificable en /api/v1/denue/resumen."],
+  },
 ];

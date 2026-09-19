@@ -32,6 +32,7 @@ function cupo(ruta: string): number {
   if (/^\/api\/v1\/enoe\/microdatos\/[^/]+\/list$/.test(ruta)) return 10;
   if (/^\/api\/v1\/enoe\/microdatos\/[^/]+\/count$/.test(ruta)) return 30;
   if (/^\/api\/v1\/inegi\/indicadores\/[^/]+\/observaciones$/.test(ruta)) return 30;
+  if (ruta === "/api/v1/denue/unidades" || ruta === "/api/v1/denue/unidades/cerca") return 30;
   return 60;
 }
 

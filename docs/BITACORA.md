@@ -504,3 +504,33 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
   como Parquet por tabla y trimestre, verificados contra Neon; los
   endpoints `/microdatos/*` siguen sirviendo desde Neon vía Hyperdrive
   hasta la decisión del CEO sobre el origen definitivo.
+
+## 2026-09-19 (noche) · Hacia «todo el INEGI»: universo medible y DENUE
+- Instrucción del CEO: seguir hasta poder decir «TODOS» los datos del INEGI.
+  Para que sea verificable, el universo se define por producto de datos
+  abiertos del INEGI y se registra el estado de cada uno (ver
+  `docs/INEGI-UNIVERSO.md`).
+- BIE (Banco de Información Económica): la API responde «No se encontraron
+  resultados» (código 100) para su catálogo y para indicadores conocidos
+  (INPC 539260, PIB 496150, 736183) y la página del BIE devuelve 500. Los
+  temas económicos (INPC, INPP, PIB trimestral, IGAE, empleo) están en el
+  Banco de Indicadores ya cargado (851 indicadores con «precios» en la
+  descripción). Se registra como cubierto por el Banco de Indicadores.
+- DENUE: la API de consulta del DENUE exige un token propio distinto al del
+  Banco de Indicadores («No autorizado. Utilice una clave válida»); la
+  descarga masiva por entidad no lo necesita: 32 archivos
+  `denue_NN_csv.zip` (no existe el 00 nacional), edición 05/2026, 42
+  columnas en latin-1, diccionario de datos y metadatos incluidos.
+  Aguascalientes: 71,871 unidades. Descarga de los 32 en curso
+  (`data/denue/masiva/descarga.log`).
+- D1 `datosmexico-api-denue` (binding DB_DENUE): `unidades_economicas` con
+  los 42 campos (tres renombrados a minúsculas: tipo_cencom, nom_cencom,
+  tipo_unieco), índices por entidad-municipio, actividad y código postal;
+  `actividades` (SCIAN 2018 derivado con conteos), `diccionario` (el del
+  INEGI) y `edicion`. `scripts/denue_a_csv.py` valida columnas por estado,
+  ids únicos y coordenadas numéricas.
+- Cinco endpoints nuevos (tag `denue`): resumen, búsqueda paginada
+  (nombre/razón social, entidad, municipio, código postal, actividad SCIAN
+  por código o prefijo, estrato), ficha por id, cercanía a una coordenada
+  (caja de búsqueda en SQL + haversine, radio ≤ 5 km) y catálogo de
+  actividades. Cupo 30/min en búsqueda y cercanía.

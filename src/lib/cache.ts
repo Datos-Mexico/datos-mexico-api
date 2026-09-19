@@ -6,7 +6,7 @@ function valor(path: string): string | null {
   if (path.includes("/catalogos/") || path.startsWith("/api/v1/sectores")) return "public, max-age=3600";
   if (path.startsWith("/api/v1/dashboard")) return "public, max-age=3600";
   if (path.startsWith("/api/v1/analytics")) return "public, max-age=900";
-  if (path.startsWith("/api/v1/enigh") || path.startsWith("/api/v1/comparativo") || path.startsWith("/api/v1/consar") || path.startsWith("/api/v1/enoe") || path.startsWith("/api/v1/inegi")) return "public, max-age=3600";
+  if (path.startsWith("/api/v1/enigh") || path.startsWith("/api/v1/comparativo") || path.startsWith("/api/v1/consar") || path.startsWith("/api/v1/enoe") || path.startsWith("/api/v1/inegi") || path.startsWith("/api/v1/denue")) return "public, max-age=3600";
   if (path.includes("/servidores/")) return "public, max-age=300";
   return null;
 }
