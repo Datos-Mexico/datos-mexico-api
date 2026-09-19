@@ -14,6 +14,11 @@ import { CuentasSerie, CuentasSistema, CuentasSnapshot, MedidasSerie, MedidasSna
 import { PreciosComparativo, PreciosGestionComparativo, PreciosGestionSerie, PreciosGestionSnapshot, PreciosSerie, PreciosSnapshot } from "./consar/precios";
 import { ActividadAgro, ActividadJcf, ActividadNoagro, EnighMetadataEndpoint, EnighValidaciones, GastosByRubro, HogaresByDecil, HogaresByEntidad, HogaresSummaryEndpoint, PoblacionDemographics } from "./enigh/endpoints";
 import { ActividadCdmxVsNacional, AportesVsJubilaciones, Bancarizacion, DecilServidoresCdmx, GastosCdmxVsNacional, IngresoCdmxVsNacional, TopVsBottom } from "./comparativo/endpoints";
+import { ExportCsv, ServidorDetalle, ServidoresLista, ServidoresStats } from "./cdmx/servidores";
+import { CatNivelesSalariales, CatPuestos, CatSectores, CatSexos, CatTiposContratacion, CatTiposNomina, CatTiposPersonal, CatUniversos, SectorStats, SectoresCompare, SectoresLista } from "./cdmx/sectores_catalogos";
+import { BrechaEdad, DashboardStatsEndpoint, PuestosRanking, SectoresRanking } from "./cdmx/dashboard_analytics";
+import { NombramientoDetalle, NombramientosLista, PersonaDetalle, PersonasLista } from "./cdmx/personas_nombramientos";
+import { cacheControl } from "./lib/cache";
 import { ErrorHttp, respuestaError } from "./lib/errores";
 import { limitarPeticiones } from "./lib/limites";
 
@@ -21,6 +26,9 @@ export type Env = {
   DB_CONSAR: D1Database;
   DB_ENIGH: D1Database;
   DB_CDMX: D1Database;
+  RL_5: RateLimit;
+  RL_10: RateLimit;
+  RL_15: RateLimit;
   RL_20: RateLimit;
   RL_30: RateLimit;
   RL_60: RateLimit;
@@ -30,6 +38,17 @@ export type AppContext = Context<{ Bindings: Env }>;
 const app = new Hono<{ Bindings: Env }>();
 app.use("*", cors({ origin: "*", allowMethods: ["GET", "OPTIONS"] }));
 app.use("/api/v1/*", limitarPeticiones);
+app.use("/api/v1/*", cacheControl);
+
+// chanfana recorta la barra final de las rutas de colección en el documento OpenAPI; el legacy las publica con barra.
+const CON_BARRA = ["/api/v1/servidores", "/api/v1/sectores", "/api/v1/personas", "/api/v1/nombramientos"];
+app.use("/openapi.json", async (c, next) => {
+  await next();
+  const doc = (await c.res.clone().json()) as { paths: Record<string, unknown> };
+  const paths: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(doc.paths)) paths[CON_BARRA.includes(k) ? k + "/" : k] = v;
+  c.res = new Response(JSON.stringify({ ...doc, paths }), { status: c.res.status, headers: c.res.headers });
+});
 
 const openapi = fromHono(app, {
   docs_url: "/docs",
@@ -102,6 +121,34 @@ openapi.get("/api/v1/comparativo/actividad-cdmx-vs-nacional", ActividadCdmxVsNac
 openapi.get("/api/v1/comparativo/gastos/cdmx-vs-nacional", GastosCdmxVsNacional);
 openapi.get("/api/v1/comparativo/bancarizacion", Bancarizacion);
 openapi.get("/api/v1/comparativo/top-vs-bottom", TopVsBottom);
+// CDMX: servidores, sectores, catálogos, dashboard, analytics, personas, nombramientos, export
+openapi.get("/api/v1/servidores/", ServidoresLista);
+openapi.get("/api/v1/servidores/stats", ServidoresStats);
+openapi.get("/api/v1/servidores/:servidor_id", ServidorDetalle);
+openapi.get("/api/v1/sectores/", SectoresLista);
+openapi.get("/api/v1/sectores/compare", SectoresCompare);
+openapi.get("/api/v1/sectores/:sector_id/stats", SectorStats);
+openapi.get("/api/v1/catalogos/tipos-contratacion", CatTiposContratacion);
+openapi.get("/api/v1/catalogos/tipos-personal", CatTiposPersonal);
+openapi.get("/api/v1/catalogos/tipos-nomina", CatTiposNomina);
+openapi.get("/api/v1/catalogos/universos", CatUniversos);
+openapi.get("/api/v1/catalogos/sectores", CatSectores);
+openapi.get("/api/v1/catalogos/sexos", CatSexos);
+openapi.get("/api/v1/catalogos/niveles-salariales", CatNivelesSalariales);
+openapi.get("/api/v1/catalogos/puestos", CatPuestos);
+openapi.get("/api/v1/dashboard/stats", DashboardStatsEndpoint);
+openapi.get("/api/v1/analytics/puestos/ranking", PuestosRanking);
+openapi.get("/api/v1/analytics/sectores/ranking", SectoresRanking);
+openapi.get("/api/v1/analytics/brecha-edad", BrechaEdad);
+openapi.get("/api/v1/personas/", PersonasLista);
+openapi.get("/api/v1/personas/:persona_id", PersonaDetalle);
+openapi.get("/api/v1/nombramientos/", NombramientosLista);
+openapi.get("/api/v1/nombramientos/:nombramiento_id", NombramientoDetalle);
+openapi.get("/api/v1/export/csv", ExportCsv);
+// Rutas de colección sin barra final: 307 hacia la ruta con barra, como Starlette.
+for (const col of ["servidores", "sectores", "personas", "nombramientos"]) {
+  app.get(`/api/v1/${col}`, (c) => { const u = new URL(c.req.url); u.pathname += "/"; return c.redirect(u.toString(), 307); });
+}
 app.get("/", (c) => c.redirect("/docs", 302));
 
 app.onError(async (err, c) => {

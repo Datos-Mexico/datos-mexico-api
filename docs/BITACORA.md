@@ -174,3 +174,29 @@ Formato: fecha · qué se hizo · evidencia · pendiente inmediato.
 - CDMX: datos cargados 10/10 tablas (recarga limpia). Contrato en
   `docs/legacy/cdmx-endpoints.md` (32 endpoints; 9 son escritura admin y NO se
   migran). Pendiente: implementar los 23 GET.
+
+## 2026-09-19 · F5 CDMX — COMPLETO (23 GET)
+- 23 endpoints GET en `src/cdmx/{comun,servidores,sectores_catalogos,dashboard_analytics,personas_nombramientos}.ts`.
+  NO se migran los 9 POST/PUT/DELETE administrativos (escritura con JWT).
+- Paridad de DOCUMENTACIÓN: 23/23 (servidores 3, sectores 3, catálogos 8,
+  dashboard 1, analytics 3, personas 2, nombramientos 2, export 1). Quirks:
+  chanfana recorta la barra final de `/servidores/` en el openapi → middleware
+  en `/openapi.json` la restituye para las 4 colecciones; `Decimal` de Pydantic
+  se documenta como `anyOf[number, string(pattern)]` → `z.union`.
+- Paridad de DATOS: 49/55 idénticas; las 6 restantes difieren SOLO en el orden
+  de filas empatadas (el legacy no fija desempate); verificado que el conjunto
+  de filas es idéntico (`docs/paridad/cdmx-datos.md`, sección «Empates»). El
+  nuevo aplica desempate determinista.
+- Decisiones de fidelidad: `Decimal` → cadena con dos decimales (`dec2`);
+  `ORDER BY … ASC NULLS LAST / DESC NULLS FIRST` (Postgres vs SQLite);
+  `COUNT(*) FILTER` → `COUNT(CASE …)` (SUM daría NULL en conjuntos vacíos);
+  vistas materializadas del dashboard copiadas como tablas con su contenido
+  (dependen de CURRENT_DATE del REFRESH del legacy); Cache-Control por prefijo
+  igual que el middleware del legacy (`lib/cache.ts`); 307 en colecciones sin
+  barra final; bindings RL_5/RL_10/RL_15 para los cupos de export, dashboard y
+  stats/compare.
+- Divergencias deliberadas (mejoras): `puesto_search` funciona en
+  `/servidores/` y `/export/csv` (en el legacy produce 500 por un JOIN
+  duplicado) y `puesto_search=` vacío no rompe `/servidores/stats`.
+- Pendiente: ENOE (indicadores agregados a D1; microdatos 54 GB → R2), catálogo
+  público de datasets, BISE.

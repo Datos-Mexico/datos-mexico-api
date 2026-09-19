@@ -78,7 +78,7 @@ def main():
     ap.add_argument("--nuevo", default="https://datosmexico-api.davidfernando.workers.dev/openapi.json")
     ap.add_argument("--prefijo", default="/api/v1/consar"); ap.add_argument("--reporte", default=None)
     a = ap.parse_args(); legacy = cargar(a.legacy); nuevo = cargar(a.nuevo)
-    rutas = [r for r in legacy["paths"] if r.startswith(a.prefijo)]
+    rutas = [r for r in legacy["paths"] if r.startswith(a.prefijo) and "get" in legacy["paths"][r]]
     ok, lineas = comparar(legacy, nuevo, rutas)
     texto = "\n".join([f"# Paridad de documentación — {a.prefijo}", "", f"Fecha: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")}Z", "", f"**{ok}/{len(rutas)} rutas con documentación equivalente.**", ""] + lineas) + "\n"
     print(texto)

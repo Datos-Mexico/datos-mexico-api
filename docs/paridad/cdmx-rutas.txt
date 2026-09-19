@@ -1,0 +1,60 @@
+# servidores
+/api/v1/servidores/
+/api/v1/servidores/?page=2&per_page=10
+/api/v1/servidores/?sector_id=8&sexo=FEMENINO&edad_min=30&edad_max=40&per_page=5
+/api/v1/servidores/?sueldo_min=50000&order_by=sueldo_bruto&order=desc&per_page=5
+/api/v1/servidores/?tipo_contratacion_id=1&tipo_personal_id=2&universo_id=3&per_page=5
+/api/v1/servidores/?order_by=fecha_ingreso&order=DESC&per_page=3
+/api/v1/servidores/?order_by=noexiste&per_page=3
+/api/v1/servidores/?page=0
+/api/v1/servidores/?per_page=500
+/api/v1/servidores/?sector_id=abc
+/api/v1/servidores/?sueldo_min=abc
+/api/v1/servidores/stats
+/api/v1/servidores/stats?sector_id=8
+/api/v1/servidores/stats?sexo=MASCULINO&edad_min=50
+/api/v1/servidores/stats?puesto_search=POLICIA
+/api/v1/servidores/stats?sector_id=99999
+/api/v1/servidores/1
+/api/v1/servidores/42
+/api/v1/servidores/99999999
+/api/v1/servidores/abc
+# sectores
+/api/v1/sectores/
+/api/v1/sectores/compare?a=1&b=2
+/api/v1/sectores/compare?a=1&b=99999
+/api/v1/sectores/compare?a=1
+/api/v1/sectores/1/stats
+/api/v1/sectores/8/stats
+/api/v1/sectores/99999/stats
+/api/v1/sectores/x/stats
+# catálogos
+/api/v1/catalogos/tipos-contratacion
+/api/v1/catalogos/tipos-personal
+/api/v1/catalogos/tipos-nomina
+/api/v1/catalogos/universos
+/api/v1/catalogos/sectores
+/api/v1/catalogos/sexos
+/api/v1/catalogos/niveles-salariales
+/api/v1/catalogos/puestos
+/api/v1/catalogos/puestos?search=POLICIA&per_page=10
+/api/v1/catalogos/puestos?page=3&per_page=25
+/api/v1/catalogos/puestos?page=0
+# dashboard y analytics
+/api/v1/dashboard/stats
+/api/v1/analytics/puestos/ranking
+/api/v1/analytics/puestos/ranking?limit=100
+/api/v1/analytics/puestos/ranking?limit=0
+/api/v1/analytics/sectores/ranking
+/api/v1/analytics/brecha-edad
+# personas y nombramientos
+/api/v1/personas/
+/api/v1/personas/?nombre=MARIA&per_page=5
+/api/v1/personas/?sexo_id=2&page=2&per_page=5
+/api/v1/personas/1
+/api/v1/personas/99999999
+/api/v1/nombramientos/
+/api/v1/nombramientos/?persona_id=1
+/api/v1/nombramientos/?sector_id=8&per_page=5&page=3
+/api/v1/nombramientos/1
+/api/v1/nombramientos/99999999
