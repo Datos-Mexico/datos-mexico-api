@@ -29,6 +29,8 @@ const CUPOS: Record<string, number> = {
 function cupo(ruta: string): number {
   if (ruta in CUPOS) return CUPOS[ruta];
   if (/^\/api\/v1\/sectores\/[^/]+\/stats$/.test(ruta)) return 30;
+  if (/^\/api\/v1\/enoe\/microdatos\/[^/]+\/list$/.test(ruta)) return 10;
+  if (/^\/api\/v1\/enoe\/microdatos\/[^/]+\/count$/.test(ruta)) return 30;
   return 60;
 }
 

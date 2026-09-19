@@ -21,6 +21,7 @@ import { NombramientoDetalle, NombramientosLista, PersonaDetalle, PersonasLista 
 import { cacheControl } from "./lib/cache";
 import { CatalogoEntidades, CatalogoEtapas, CatalogoIndicadores, EnoeHealthEndpoint, EnoeMetadataEndpoint, EntidadRanking, EntidadSerie, EntidadSnapshot, NacionalSerie, NacionalSnapshot, PosicionSerie, PosicionSnapshot, SectorSerie, SectorSnapshot } from "./enoe/endpoints";
 import { CatalogoDatasets, CatalogoEsquema } from "./catalogo/endpoints";
+import { MicrodatosCount, MicrodatosList, MicrodatosSchema } from "./enoe/microdatos";
 import { ErrorHttp, respuestaError } from "./lib/errores";
 import { limitarPeticiones } from "./lib/limites";
 
@@ -29,6 +30,8 @@ export type Env = {
   DB_ENIGH: D1Database;
   DB_CDMX: D1Database;
   DB_ENOE: D1Database;
+  DATOS: R2Bucket;
+  HYPERDRIVE: Hyperdrive;
   RL_5: RateLimit;
   RL_10: RateLimit;
   RL_15: RateLimit;
@@ -165,6 +168,9 @@ openapi.get("/api/v1/enoe/ocupados/por-sector/snapshot", SectorSnapshot);
 openapi.get("/api/v1/enoe/ocupados/por-sector/serie", SectorSerie);
 openapi.get("/api/v1/enoe/ocupados/por-posicion/snapshot", PosicionSnapshot);
 openapi.get("/api/v1/enoe/ocupados/por-posicion/serie", PosicionSerie);
+openapi.get("/api/v1/enoe/microdatos/:tabla/list", MicrodatosList);
+openapi.get("/api/v1/enoe/microdatos/:tabla/count", MicrodatosCount);
+openapi.get("/api/v1/enoe/microdatos/:tabla/schema", MicrodatosSchema);
 // Rutas de colección sin barra final: 307 hacia la ruta con barra, como Starlette.
 for (const col of ["servidores", "sectores", "personas", "nombramientos"]) {
   app.get(`/api/v1/${col}`, (c) => { const u = new URL(c.req.url); u.pathname += "/"; return c.redirect(u.toString(), 307); });

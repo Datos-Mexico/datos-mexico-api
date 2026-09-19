@@ -242,3 +242,23 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
 - `GET /api/v1/catalogo/datasets/{dataset}/esquema`: tablas, columnas (tipo,
   nulabilidad, PK) y relaciones (FK) leídas de D1 → base del visualizador.
 - Metadata curada en `src/catalogo/datasets.ts`; conteos con caché de 10 min.
+
+## 2026-09-19 · F6b MICRODATOS ENOE — R2 + puente a Neon
+- Decisión (CEO, con costos): los 54 GB de microdatos se guardan en R2 como
+  Parquet por tabla y trimestre (`datosmexico-datos/enoe/microdatos/<tabla>/<periodo>.parquet`,
+  bucket nuevo solo del observatorio). Costo < 1 USD/mes contra ~40 USD/mes si
+  se partieran en varias D1. R2 es además el respaldo permanente y la descarga
+  directa para investigadores.
+- Pipeline `scripts/microdatos_r2.py`: Neon → CSV comprimido (copia a STDOUT,
+  sin shell: la ruta del proyecto lleva espacio) → Parquet con tipos del
+  esquema Postgres (códigos con ceros a la izquierda como texto, zstd) →
+  verificación de conteo por trimestre contra Neon → subida con wrangler →
+  `manifiesto.jsonl` (reanudable). Corriendo en segundo plano
+  (`data/enoe/microdatos/pipeline.log`), ~20 s por trimestre de viv.
+- Los 3 endpoints `/microdatos/{tabla}/list|count|schema` viven en
+  `src/enoe/microdatos.ts` y consultan Neon vía Hyperdrive
+  (`datosmexico-neon`, gratis) con el driver `postgres` — PUENTE TEMPORAL.
+  Cuando se apague Neon, el origen cambia a R2 SQL (por probar) o a D1 por
+  trimestres cargadas desde los mismos Parquet; el contrato no cambia.
+- Primera consulta tras inactividad tarda ~6 s (Neon suspende el cómputo);
+  después responde en menos de un segundo.
