@@ -940,3 +940,17 @@ barras agrupadas por campo (porcentaje/personas, por sexo), treemaps de plantele
 clic, coropleta de procedencia sobre la geometría MG 2025 del hero (escala logarítmica, como la referencia),
 situación académica por sexo, pirámide de edades, tablas ordenables. Los nombres de ANUIES (mayúsculas
 sostenidas) se muestran con mayúscula inicial y el original va en `title`. Producción solo con el go del CEO.
+
+**Cierre F12 (2026-09-20, 14:23 descarga · 14:50 producción).** 26/26 ciclos, 965 páginas, 953,653 filas, 3.3 GB de
+JSON crudo con SHA-256; conciliación COINCIDE en los 26 (tabla completa en `docs/ANUIES-UNIVERSO.md`). Rendimiento
+medido: 8,067 filas/min con dos descargas y 10,333 con cuatro (el servidor de ANUIES es el límite; tiempo medio por
+página 29.6 s). Una descarga (2015-2016) quedó sin trabajador al rebalancear y se reanudó desde su estado en la página
+40: el registro muestra las 40 páginas en secuencia sin solapamiento. D1: 26 ciclos verificados (count y sumas de las 6
+variables, filas de edad y procedencia), 6,066 instituciones, 167 columnas; 26 Parquet (182 columnas) en R2 anotados en
+`ciclos`. Verificador (`verificar_anuies.py`, scratchpad): ciclos vs manifiestos y SHA-256, serie de la UNAM vs la
+descarga independiente `historico` (26/26 en filas, matrícula y egresados), DataMéxico 2018-2022 exacto, agregados que
+suman la serie, procedencia y edades que no exceden el total, paginación por llave sin repetidos, búsqueda, 404/422,
+concurso vs CSV, identidad doble del histograma y descargas con `Content-Length` correcto: FALLOS 0 en preview
+(e0144cd8) y en producción (versión e5a91b4f). Cifra pública: la UNAM tiene 264,847 estudiantes en 2025-2026 según el
+anuario ANUIES; la matrícula nacional es 5,760,478. Costo: +3.3 GB de JSON local (no en R2), Parquet 26 archivos ≈ 60 MB
+en R2, D1 anuies ≈ 0.9 GB.

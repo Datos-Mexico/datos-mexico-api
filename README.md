@@ -16,7 +16,7 @@ Documentación interactiva en [`/docs`](https://api.datosmexico.org/docs) (Swagg
 | INEGI datos abiertos | Catálogo y descarga de todos los microdatos (4,259 archivos de 103 programas, convertidos a Parquet con sus catálogos y sus originales) y de los 18,150 tabulados de 183 programas | `/api/v1/inegi/datos-abiertos/*` |
 | DENUE | Las 6,138,075 unidades económicas, con búsqueda por cercanía | `/api/v1/denue/*` |
 | Censo 2020 | Indicadores por localidad (ITER) y por AGEB y manzana | `/api/v1/censo2020/*` |
-| ANUIES | Anuario Estadístico de Educación Superior completo: todas las instituciones, 2000-2001 en adelante, programa por programa, por sexo, edad, discapacidad, lengua indígena y procedencia | `/api/v1/anuies/*` |
+| ANUIES | Anuario Estadístico de Educación Superior completo: 6,066 instituciones, 26 ciclos (2000-2001 a 2025-2026), 953,653 programas-ciclo con 167 cifras cada uno, por sexo, edad, discapacidad, lengua indígena y procedencia | `/api/v1/anuies/*` |
 | UNAM | Concurso de Selección a licenciatura (distribución de aciertos por carrera-plantel, encabezados oficiales, universo, cobertura, cronología; CC BY 4.0) y la UNAM en el Anuario ANUIES | `/api/v1/unam/*` |
 | Erratas | Registro público de erratas detectadas en las fuentes, con revisión | `/api/v1/erratas/*` |
 | Catálogo | Qué bases hay, su origen, su esquema y su fecha de corte | `/api/v1/catalogo/*` |

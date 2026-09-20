@@ -47,7 +47,9 @@ paridad base por base.
 - F11 Publicación del repositorio en la org Datos-Mexico como `datos-mexico-api`
       (público, sin firmas IA) tras revisión final: HECHO 2026-09-20 —
       https://github.com/Datos-Mexico/datos-mexico-api
-- F12 TODA la UNAM (frente abierto por el CEO 2026-09-20, antes del rediseño visual del explorador):
+- F12 TODA la UNAM: HECHO 2026-09-20 en la API (versión e5a91b4f, verificador FALLOS 0) —
+      Anuario ANUIES completo 26/26 ciclos, 953,653 filas, 6,066 instituciones, conciliado;
+      concurso 17 tablas; docs/ANUIES-UNIVERSO.md. Detalle del encargo:
       (a) Anuario ANUIES completo, todas las instituciones, 2000-2001 a 2025-2026, descargado
       íntegro por ciclo del servicio de anuario.anuies.mx con conciliación contra el agregado
       nacional (scripts/anuies_consulta.py), D1 `datosmexico-api-anuies` + Parquet por ciclo en R2,
@@ -55,7 +57,7 @@ paridad base por base.
       en D1 `datosmexico-api-unam` + CSV en R2, endpoints /api/v1/unam/concurso/*; (c) vistas de la
       UNAM sobre el anuario en /api/v1/unam/anuario/* (serie, planteles, carreras, campos, niveles,
       procedencia, edades). Después: IPN, ITAM y las demás salen del mismo anuario.
-- F13 Sitio: /unam con barra de secciones (Proceso de selección + secciones nuevas con gráficos
+- F13 Sitio (rama unam-anuario, PR abierto, ESPERA EL GO DEL CEO): /unam con barra de secciones (Proceso de selección + secciones nuevas con gráficos
       interactivos sobre F12: matrícula, egreso y titulación por área y sexo, planteles, carreras,
       procedencia por entidad, edades, serie 2000-2025). Rama + PR + preview; producción solo con el
       go del CEO. Referencia visual: exportes de DataMéxico (SE) del perfil UNAM (datos ANUIES 2022).
