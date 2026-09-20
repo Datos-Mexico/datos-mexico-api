@@ -962,3 +962,13 @@ al apéndice de `docs/ANUIES-UNIVERSO.md`, donde va la cita completa de cada gr�
 explícito para producción: PR #164 de datos-mexico-site fusionado por rebase (punta `59046d0`), Workers Builds en
 verde (2 min) y verificación en vivo de las seis rutas de /unam (200, cifras y nota al pie presentes; el asset de los
 26 ciclos responde). Sin firmas de IA en commits ni en el PR.
+
+**Ajustes pedidos por el CEO tras ver producción (2026-09-20, 22:05 UTC).** (1) El mapa de procedencia marcaba el
+estado con el anillo azul de foco del navegador: ahora dibuja su contorno con la tinta del sitio encima de todos, el
+idioma de la coropleta de la Home. (2) «La animación épica» de su grabación de DataMéxico: dos treemaps enlazados; al
+hacer clic en un plantel, el treemap de carreras se reacomoda con animación a las carreras de ese plantel, y al revés.
+Treemap propio (squarify + tween de 750 ms con requestAnimationFrame, color estable por nombre, sin dependencias);
+los 858 programas del último ciclo viajan inline y los de los 26 ciclos en el asset (4.3 MB, solo si cambia el ciclo).
+Prefijo «Universidad Nacional Autónoma de México - » retirado de los rótulos (original en `title`). PR #165 fusionado
+por rebase con go explícito (punta `0a5fbc8`), Workers Builds en verde, verificado en vivo con un clic real en FES
+Iztacala. Sin firmas de IA (autor único en los tres commits).
