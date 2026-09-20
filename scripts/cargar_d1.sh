@@ -4,7 +4,7 @@
 # Antes de cada tabla compara el conteo remoto con el CSV (registros CSV, no líneas: hay campos con saltos de línea): si ya coincide la salta; si hay carga parcial se detiene.
 # Cada archivo se manda en trozos de ≤ 8 MB en límites de sentencia (D1 se queda sin memoria con archivos grandes).
 S=$1; shift; PRIMERO=($@)
-cd "/Users/davicho/Datos México/datos-mexico-api"
+cd "$(dirname "$0")/.."
 DB=datosmexico-api-$S
 TODAS=($(grep -oE '^CREATE TABLE IF NOT EXISTS \w+' data/$S/schema.sqlite.sql | awk '{print $6}'))
 RESTO=(); for t in $TODAS; do [[ " ${PRIMERO[*]} " == *" $t "* ]] || [[ $t == gastoshogar ]] || RESTO+=($t); done

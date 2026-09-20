@@ -771,3 +771,98 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
 - Tiempo real de la ingesta masiva: de las 23:30 a las 01:56 (2.5 h) con
   esta Mac como carga principal, la HP como apoyo de baja prioridad y el
   worker como espejo de descargas.
+
+## 2026-09-20 · Decisiones del CEO tras el cierre del INEGI
+- Aprobado: pasada complementaria de catálogos; ENOE con paginación por
+  cursor para dejar de depender de Neon (Neon y el legacy siguen encendidos al
+  menos un mes, hasta después del Datatón; no se apaga nada todavía); publicar
+  el repositorio como público en la organización tras la pasada de catálogos,
+  la ENOE y una revisión final; borrar los dos objetos de prueba. El acceso al
+  Mac mini queda descartado (no hizo falta).
+
+## 2026-09-20 · Pruebas borradas
+- R2: `inegi/fuentes/pruebas/natalidad_2016_dbf.zip` (37.9 MB) eliminado.
+- R2 Data Catalog: tabla Iceberg `enoe.viv_prueba` purgada (pyiceberg
+  `purge_table`), espacio `enoe` borrado y los 5 archivos residuales bajo
+  `__r2_data_catalog/` eliminados por S3. El catálogo queda vacío; la API no lo
+  usa.
+
+## 2026-09-20 · ENOE microdatos servidos desde R2 (sin Neon ni Hyperdrive)
+- Diseño: `scripts/enoe_particiones_r2.py` lee cada Parquet por trimestre ya
+  verificado, comprueba el conteo y que la llave primaria sea única, ordena por
+  la PK y escribe una partición por entidad
+  (`enoe/particiones/<tabla>/<periodo>/<ent>.parquet`, zstd, grupos de 2,000
+  filas, estadísticas). 399 trimestres → 12,768 particiones, 101,512,667 filas
+  (= origen), 0 errores, 6 min. Índice y esquema en D1 `datosmexico-api-enoe`
+  (`microdatos_particiones`, `microdatos_columnas`; carga y verificación remota
+  con `scripts/enoe_particiones_d1.py`).
+- Worker: `src/enoe/microdatos.ts` reescrito. Lee la partición completa de R2
+  (≤ 3 MB) y la decodifica con hyparquet + hyparquet-compressors (zstd) en el
+  propio worker: primero solo las columnas de la llave (y sex/eda si hay
+  filtro), localiza el cursor por búsqueda binaria y lee únicamente los grupos
+  de filas necesarios para la página. Paginación por cursor
+  (`pagination.next_cursor`, llave de la última fila, base64url); `page` se
+  rechaza con 422 explicando el cambio; cursor de otra tabla o entidad → 422.
+  `total` exacto: del índice sin filtros de fila; con sex/eda se leen solo esas
+  dos columnas de las particiones del trimestre.
+- Orden: dentro del trimestre, entidad primero y luego el resto de la PK
+  (ent, cd_a, con, v_sel[, n_hog[, n_ren]]). Con `entidad_clave` coincide con el
+  legacy; sin él, el legacy ordenaba cd_a antes que ent. Documentado en el
+  Swagger y en el schema (`almacenamiento.orden`).
+- Fidelidad: `ing_x_hrs` (numeric(17,5) en Postgres, double en Parquet) se
+  devuelve como texto con 5 decimales, igual que el legacy; `extras_jsonb` se
+  devuelve como objeto; `periodo` recortado.
+- Verificación contra el legacy (verificador propio, con cupo de 10/min):
+  conteos iguales en 8 casos (viv/hog/sdem/coe1/coe2, con y sin entidad, con
+  sex/eda, 2020T2 vacío); primera y segunda página idénticas fila a fila;
+  recorrido completo por cursor de viv 2005T2 ent 09 (3,306 filas en 14
+  páginas) idéntico y sin repeticiones al conjunto completo del legacy; 5,000
+  filas sin filtro de entidad = legacy ent 01 completo + inicio de ent 02
+  (cruce de frontera); 422 esperados; schema con total_filas y columnas
+  iguales en las 5 tablas. FALLOS: 0 en la versión de prueba y en producción.
+- Retirados del worker: binding Hyperdrive y dependencia `postgres`. La
+  configuración de Hyperdrive en Cloudflare y Neon siguen existiendo para el
+  legacy; la API nueva ya no depende de nada fuera de Cloudflare.
+- Costo: +2.6 GB en R2 (≈ 4 centavos/mes). Latencia típica de `list` con
+  entidad: 150-400 ms; sin entidad y con filtros: hasta ~2 s (lee 32
+  particiones).
+
+## 2026-09-20 · Pasada complementaria de catálogos (`scripts/inegi_complemento.py`)
+- Revisó los 4,259 paquetes contra la regla vigente leyendo los originales del
+  espejo en R2 (sin tocar al INEGI): lista miembros (zips anidados incluidos) y
+  procesa solo los que faltan en los manifiestos, con la misma lectura, tipado
+  y nomenclatura del ingestor. Resultado: 22,597 tablas nuevas en 2,376
+  paquetes (catálogos de códigos: entidades, municipios, sí/no, preguntas…).
+- Hallazgo: el INEGI publica en el CNGSPSPE 2017 (medio ambiente) 13 archivos
+  con extensión .dbf que no son DBF (cabecera nula); quedan documentados en el
+  manifiesto con estado `ilegible`, cabecera y tamaño, y el original íntegro en
+  R2. Ninguna otra falla.
+
+## 2026-09-20 · Conciliación del almacén (`scripts/inegi_conciliar_r2.py`) y catálogo final
+- Regla: nada referenciado por la versión vigente de los manifiestos (la misma
+  selección que el catálogo) puede faltar en R2, y nada sin referencia debe
+  quedar. Primera pasada: 0 faltantes; 1,893 claves con espacios (ediciones
+  como «2015 Nov», anteriores al saneado del ingestor: MOPRADEF, MOLEC, BIARE,
+  MEITEF, ENA, ITAEE…) que la ruta de descarga no aceptaba; 1,687 huérfanos
+  (copias del mismo objeto bajo el esquema de claves anterior, versiones
+  superadas por la corrección de colisiones con sufijo -id, y 2 tabulados del
+  CE). Las fuentes huérfanas solo se borran si la misma fuente (nombre sin
+  sufijo y tamaño) está referenciada: las 9 dudosas resultaron duplicados
+  exactos de su copia con sufijo -id.
+- Hallazgo: un tabulado (CSIT 2008-2026, `Esquema_BD_Mwtwf.xlsx`) tenía dos
+  versiones de tamaño distinto; el INEGI declara 53,041,220 bytes (copia del
+  espejo), la copia directa de la Mac (44,924,928) fue una descarga truncada
+  sin Content-Length. Marcada `truncado` en el manifiesto y borrada.
+- Aplicación: 1,892 claves normalizadas por copia en servidor con verificación
+  de tamaño, manifiestos reescritos (claves y ediciones), 57 borrados directos
+  y el resto absorbido por las claves normalizadas. Segunda pasada: 66,594
+  objetos = 66,594 referenciados, 0 faltantes, 0 huérfanos, 0 claves raras,
+  0 tamaños distintos al manifiesto.
+- Catálogo reconstruido: da_programas 202, da_tabulados 18,150, da_microdatos
+  44,185 (767,179,090 filas). Verificación en producción: cobertura 100 %,
+  8 tablas al azar iguales byte a byte y en filas, envipe 91 tablas,
+  tabulados CE 2,044, descargas y 404/422 correctos. FALLOS: 0. Una descarga
+  con clave normalizada (MOPRADEF 2015_Nov) responde 200 con su tamaño.
+- Almacén R2 final: 79,793 objetos, 50.76 GB (fuentes 18.68, tabulados 14.24,
+  microdatos 11.99, ENOE particiones 2.93 + trimestres 2.55, censo2020 0.37).
+  Costo ≈ 0.61 USD/mes sobre los 10 GB incluidos.

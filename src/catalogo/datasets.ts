@@ -39,7 +39,7 @@ export const DATASETS: DatasetDef[] = [
     descripcion: "13 indicadores laborales trimestrales (nacional y por entidad, 2005T1-2025T1), cortes de ocupados por sector y posición, y catálogos. Los 101.5 millones de filas de microdatos no están en esta base: se publican aparte.",
     binding: "DB_ENOE", prefijo_api: "/api/v1/enoe", periodicidad: "trimestral",
     sql_corte: "SELECT max(periodo) AS corte FROM indicadores_nacionales", unidad_corte: "último trimestre con indicadores",
-    notas: ["Gap documental en 2020T2 (ETOE telefónica, sin microdatos).", "Microdatos (viv, hog, sdem, coe1, coe2): 101.5 millones de filas consultables en /api/v1/enoe/microdatos/{tabla}/list, /count y /schema; el respaldo permanente son archivos Parquet por tabla y trimestre en almacenamiento de objetos."],
+    notas: ["Gap documental en 2020T2 (ETOE telefónica, sin microdatos).", "Microdatos (viv, hog, sdem, coe1, coe2): 101.5 millones de filas consultables en /api/v1/enoe/microdatos/{tabla}/list, /count y /schema; se sirven desde particiones Parquet por trimestre y entidad en almacenamiento de objetos (paginación por cursor), con los Parquet por trimestre como respaldo permanente."],
   },
   {
     clave: "inegi", nombre: "INEGI — Banco de Indicadores (BISE)", fuente: "INEGI, API de indicadores", fuente_url: "https://www.inegi.org.mx/servicios/api_indicadores.html", licencia: "Términos de libre uso INEGI",

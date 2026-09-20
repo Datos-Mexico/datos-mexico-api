@@ -38,8 +38,14 @@ paridad base por base.
       máquina por dataset (base del visualizador de relaciones).
 - F9  TODO lo descargable del INEGI (descarga masiva): HECHO 2026-09-20 —
       microdatos 4,259/4,259 en Parquet + originales, tabulados 18,150/18,150,
-      catálogo y descarga en /api/v1/inegi/datos-abiertos/*; pendiente: pasada
-      complementaria de catálogos cat_* y refresco periódico contra el inventario.
+      catálogo y descarga en /api/v1/inegi/datos-abiertos/*; pasada complementaria
+      de catálogos HECHA (22,597 tablas más); almacén conciliado contra manifiestos
+      (scripts/inegi_conciliar_r2.py). Pendiente: refresco periódico contra el inventario.
+- F10 ENOE microdatos desde R2 con paginación por cursor: HECHO 2026-09-20 —
+      la API nueva ya no depende de Neon/Hyperdrive; Neon y el legacy siguen
+      encendidos al menos hasta un mes después del Datatón (decisión del CEO).
+- F11 Publicación del repositorio en la org Datos-Mexico como `datos-mexico-api`
+      (público, sin firmas IA) tras revisión final: EN CURSO 2026-09-20.
 - F8  Ingesta del Banco de Indicadores del INEGI (BISE): fase 1 = los 31,817
       indicadores del catálogo a nivel nacional y por entidad (D1
       `datosmexico-api-bise`, endpoints /api/v1/inegi/*); fase 2 = municipios

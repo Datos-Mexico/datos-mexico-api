@@ -2,7 +2,7 @@
 
 Documento de paridad del router FastAPI heredado, para reimplementación en otro stack.
 
-- Fuente: `/Users/davicho/datos-itam/api/app/routers/consar.py` (3167 líneas) y `/Users/davicho/datos-itam/api/app/schemas/consar.py` (719 líneas).
+- Fuente: `api/app/routers/consar.py` del repositorio legacy `datos-itam` (3167 líneas) y `api/app/schemas/consar.py` (719 líneas).
 - Versiones pineadas en `uv.lock`: `fastapi 0.136.0`, `pydantic 2.13.3` (kwargs no declarados en un `BaseModel` se IGNORAN silenciosamente; ver nota en `/pea-cotizantes/serie`).
 - Router: `APIRouter(prefix="/api/v1/consar", tags=["consar"])`. Todos los endpoints son `GET`, públicos (sin `require_admin`), con rate limit vía `slowapi` (`@limiter.limit("<n>/minute")`, se indica por endpoint).
 - Todos los endpoints declaran el mismo bloque `responses` para OpenAPI:

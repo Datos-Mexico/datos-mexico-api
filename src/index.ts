@@ -45,7 +45,6 @@ export type Env = {
   DB_PLATAFORMA: D1Database;
   SECRET_KEY: string;
   DATOS: R2Bucket;
-  HYPERDRIVE: Hyperdrive;
   RL_5: RateLimit;
   RL_10: RateLimit;
   RL_15: RateLimit;

@@ -2,7 +2,7 @@
 
 Documento de paridad. Describe, endpoint por endpoint y de forma literal, el comportamiento de los routers
 `servidores`, `sectores`, `catalogos`, `dashboard`, `analytics`, `personas`, `nombramientos` y `export` del
-API FastAPI legacy (`/Users/davicho/datos-itam/api/app/`), para reimplementarlos en otro stack y verificar
+API FastAPI legacy (el repositorio legacy `datos-itam` (`api/app/`)), para reimplementarlos en otro stack y verificar
 paridad con pruebas automatizadas. Quedan fuera `auth.py`, `ingest.py`, `admin.py` y `demo.py`.
 
 Fuentes leídas: `routers/*.py`, `schemas/*.py`, `models/servidores.py`, `models/catalogs.py`, `models/users.py`,

@@ -7,16 +7,16 @@ Fuente: la API interna de «Descarga masiva» del INEGI (la misma que usa https:
 | Qué | Universo (inventario INEGI) | En el observatorio | Cobertura |
 |---|---|---|---|
 | Microdatos: programas | 103 con archivos de datos (139 en el listado; 36 solo traen documentos) | 103 | 100 % |
-| Microdatos: archivos | 4,259 | 4,259 (20,569 tablas Parquet, 762,522,995 filas, 11.9 GB) | 100 % |
+| Microdatos: archivos | 4,259 | 4,259 (44,185 tablas Parquet incluidos los catálogos de códigos, 767,179,090 filas, 12.0 GB) | 100 % |
 | Originales del INEGI conservados (zip con SHA-256) | 4,259 | 4,259 (18.7 GB) | 100 % |
 | Tabulados: programas | 183 | 183 | 100 % |
 | Tabulados: archivos | 18,150 | 18,150 (14.5 GB, íntegros, con ETag) | 100 % |
 | Banco de Indicadores | 31,817 indicadores | 31,817 (7,456,265 observaciones) | 100 % |
 | DENUE | 6,138,075 unidades | 6,138,075 | 100 % |
 
-Verificación: cada tabla Parquet tiene filas = filas leídas del original; el catálogo en D1 coincide con los manifiestos (20,569 tablas, 18,150 tabulados); muestra de 8 tablas al azar comprobada byte a byte entre R2 y la descarga por la API con conteo de filas; descargas de tabulados iguales al tamaño registrado. Almacén R2 total: 48.0 GB (43,822 objetos).
+Verificación: cada tabla Parquet tiene filas = filas leídas del original; el catálogo en D1 coincide con los manifiestos (44,185 tablas, 18,150 tabulados); el almacén está conciliado contra los manifiestos (66,594 objetos bajo `inegi/` = 66,594 referenciados, sin faltantes ni huérfanos, todos con el tamaño registrado); muestra de 8 tablas al azar comprobada byte a byte entre R2 y la descarga por la API con conteo de filas; descargas de tabulados iguales al tamaño registrado. Almacén R2 total: 50.8 GB (79,793 objetos, incluidas las particiones de la ENOE).
 
-Enunciado público sostenible: «Tenemos todo lo que el INEGI pone a descarga: los microdatos de sus 103 programas con datos (4,259 archivos), los 18,150 tabulados de 183 programas, el Banco de Indicadores completo y el DENUE completo, con cada original conservado y verificado.» Fuera de la frase: microdatos confidenciales (no se publican), sistemas solo interactivos y productos geográficos completos.
+Enunciado público sostenible: «Tenemos todo lo que el INEGI pone a descarga: los microdatos de sus 103 programas con datos (4,259 archivos, con sus catálogos de códigos), los 18,150 tabulados de 183 programas, el Banco de Indicadores completo y el DENUE completo, con cada original conservado y verificado.» Única excepción documentada: 13 archivos .dbf del CNGSPSPE 2017 que el INEGI publica ilegibles (cabecera nula); el original íntegro está archivado. Fuera de la frase: microdatos confidenciales (no se publican), sistemas solo interactivos y productos geográficos completos.
 
 ## Cifras del universo (inventario)
 
