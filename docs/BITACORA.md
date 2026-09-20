@@ -721,3 +721,24 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
   `LD_LIBRARY_PATH` con la libstdc++ de nix (`entorno.sh`). El Mac mini
   sigue sin acceso por llave (pendiente del CEO).
 - Prueba ENBIARE 2021/2025: 8 tablas, 411,499 filas, 24-30 s por archivo.
+- Cuellos de botella encontrados y resueltos en la ingesta masiva (madrugada
+  del 20): (1) la API de Cloudflare (la que usa wrangler y `r2 object put`)
+  limita ~1,200 peticiones por 5 minutos: con miles de tablas chicas daba 7
+  archivos/min → subida por la API S3 de R2 (las credenciales S3 de un token
+  de R2 son su id y el SHA-256 del token; sin tope) → 250+ archivos/min.
+  (2) La lectura DBF/Stata/SPSS en Python puro era lenta y devoraba memoria →
+  conversión en flujo a CSV temporal y lectura vectorizada con pyarrow
+  (300 mil filas en 3 s). (3) El INEGI limita la velocidad por dirección IP
+  bajo carga (una descarga se quedó en 0 B/40 s; también corta descargas a
+  medias) → endpoint `POST /api/v1/admin/espejo` (admin): el worker descarga
+  desde la red de Cloudflare y guarda el original en R2; el ingestor toma la
+  fuente de R2 (14 MB/s) y solo cae al INEGI si no está. Impulsor
+  `scripts/inegi_espejo.py` con 24 hilos: 4,900 archivos en 15 min.
+  Correcciones de datos: nombres con espacios y caracteres de control en el
+  inventario (se codifican en la URL y se limpian en la clave), archivos
+  distintos con el mismo nombre en el mismo programa y edición (la clave lleva
+  el id del INEGI; 88 casos), descargas truncadas (se verifica la longitud).
+- Catálogo consultable de lo ingerido: tablas `da_programas`, `da_microdatos`
+  (con esquema por tabla) y `da_tabulados` en la D1 del INEGI, endpoints
+  `/api/v1/inegi/datos-abiertos/{resumen,programas,programas/{slug},tabulados,
+  descarga/*}`; la descarga entrega Parquet, zip original o tabulado desde R2.

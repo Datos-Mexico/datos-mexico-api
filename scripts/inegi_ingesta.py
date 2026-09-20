@@ -75,8 +75,9 @@ def descargar(url, destino):
     for intento in range(4):
         try:
             with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (observatorio datosmexico)'}), timeout=300) as r, open(destino, 'wb') as f:
-                h = hashlib.sha256()
-                for b in iter(lambda: r.read(1 << 20), b''): f.write(b); h.update(b)
+                h = hashlib.sha256(); n = 0; esperado = int(r.headers.get('Content-Length') or 0)
+                for b in iter(lambda: r.read(1 << 20), b''): f.write(b); h.update(b); n += len(b)
+            if esperado and n != esperado: raise RuntimeError(f'descarga incompleta: {n} de {esperado} bytes')  # el INEGI corta descargas bajo carga
             return h.hexdigest()
         except Exception as e:
             time.sleep(10 * (intento + 1)); ultimo = e
