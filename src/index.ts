@@ -22,12 +22,14 @@ import { cacheControl } from "./lib/cache";
 import { CatalogoEntidades, CatalogoEtapas, CatalogoIndicadores, EnoeHealthEndpoint, EnoeMetadataEndpoint, EntidadRanking, EntidadSerie, EntidadSnapshot, NacionalSerie, NacionalSnapshot, PosicionSerie, PosicionSnapshot, SectorSerie, SectorSnapshot } from "./enoe/endpoints";
 import { CatalogoDatasets, CatalogoEsquema } from "./catalogo/endpoints";
 import { InegiCatalogo, InegiIndicador, InegiIndicadores, InegiObservaciones, InegiResumen } from "./inegi/endpoints";
+import { DatosAbiertosDescarga, DatosAbiertosPrograma, DatosAbiertosProgramas, DatosAbiertosResumen, DatosAbiertosTabulados } from "./inegi/datos_abiertos";
 import { DenueActividades, DenueCerca, DenueResumen, DenueUnidad, DenueUnidades } from "./denue/endpoints";
 import { CensoIndicador, CensoIndicadores, CensoLocalidad, CensoLocalidades, CensoResumen } from "./censo2020/endpoints";
 import { AuthMe, AuthRegister, AuthToken } from "./auth/endpoints";
 import { ErrataBorrar, ErrataDetalle, ErrataReportar, ErrataRevisar, ErratasLista } from "./erratas/endpoints";
 import { DemoBorrar, DemoCrear, DemoEditar, DemoEstudiante, DemoEstudiantes, DemoReset, DemoResumen, DemoToggleBono } from "./demo/endpoints";
 import { AdminRefrescarTablero } from "./cdmx/operacion";
+import { AdminEspejo } from "./admin/espejo";
 import { MicrodatosCount, MicrodatosList, MicrodatosSchema } from "./enoe/microdatos";
 import { ErrorHttp, respuestaError } from "./lib/errores";
 import { limitarPeticiones } from "./lib/limites";
@@ -101,6 +103,7 @@ const openapi = fromHono(app, {
       { name: "export", description: "Exportación CSV del padrón CDMX." },
       { name: "enoe", description: "ENOE 15+ — indicadores laborales trimestrales por entidad y microdatos completos (101.5 millones de filas). Fuente: INEGI." },
       { name: "inegi", description: "Banco de Indicadores del INEGI completo: 31,817 indicadores a nivel nacional, estatal y municipal, al día con la última actualización publicada." },
+      { name: "inegi-datos-abiertos", description: "Todos los microdatos y tabulados de la descarga masiva del INEGI: microdatos en Parquet con tipado riguroso y el zip original conservado, tabulados archivados íntegros, todo con manifiesto (SHA-256, filas, esquema) y avance medible contra el inventario oficial." },
       { name: "denue", description: "DENUE — las 6,138,075 unidades económicas del país con sus 42 campos (edición 05/2026). Fuente: INEGI." },
       { name: "censo2020", description: "Censo de Población y Vivienda 2020 — 286 indicadores por localidad, municipio y entidad (ITER); AGEB y manzana en archivos Parquet. Fuente: INEGI." },
       { name: "catalogo", description: "Qué bases tenemos, hasta cuándo llegan, con qué se verificaron y su esquema. Lo que no está aquí, no lo tenemos." },
@@ -217,6 +220,13 @@ openapi.get("/api/v1/inegi/indicadores/:id", InegiIndicador);
 openapi.get("/api/v1/inegi/indicadores/:id/observaciones", InegiObservaciones);
 openapi.get("/api/v1/inegi/catalogos/:catalogo", InegiCatalogo);
 
+// Datos abiertos del INEGI ingeridos (microdatos en Parquet + tabulados archivados, con manifiesto)
+openapi.get("/api/v1/inegi/datos-abiertos/resumen", DatosAbiertosResumen);
+openapi.get("/api/v1/inegi/datos-abiertos/programas", DatosAbiertosProgramas);
+openapi.get("/api/v1/inegi/datos-abiertos/programas/:programa_slug", DatosAbiertosPrograma);
+openapi.get("/api/v1/inegi/datos-abiertos/tabulados", DatosAbiertosTabulados);
+openapi.get("/api/v1/inegi/datos-abiertos/descarga/*", DatosAbiertosDescarga);
+
 // DENUE (Directorio Estadístico Nacional de Unidades Económicas; nuevo)
 openapi.get("/api/v1/denue/resumen", DenueResumen);
 openapi.get("/api/v1/denue/unidades", DenueUnidades);
@@ -245,6 +255,7 @@ openapi.get("/api/v1/auth/me", AuthMe);
 
 // Operación (recalcula tablas derivadas a partir de las oficiales; no modifica datos publicados)
 openapi.post("/api/v1/admin/refresh-materialized-views", AdminRefrescarTablero);
+openapi.post("/api/v1/admin/espejo", AdminEspejo);
 
 // Demo del curso Bases de Datos (tabla pedagógica, no oficial)
 openapi.get("/api/v1/demo/estudiantes", DemoEstudiantes);

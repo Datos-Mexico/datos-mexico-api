@@ -13,7 +13,7 @@ Uso: data/.venv/bin/python scripts/inegi_ingesta.py [--shard k/n] [--workers 4] 
 """
 import argparse, csv, hashlib, io, json, os, pathlib, re, shutil, socket, subprocess, sys, tempfile, time, unicodedata, urllib.request, zipfile, threading
 import concurrent.futures as cf
-import pyarrow as pa, pyarrow.parquet as pq
+import pyarrow as pa, pyarrow.parquet as pq, pyarrow.csv as pcsv, pyarrow.compute as pc
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 INV = RAIZ / 'data' / 'inegi-universo' / 'archivos.csv'
 BASE = RAIZ / 'data' / 'inegi'; BASE.mkdir(parents=True, exist_ok=True)
@@ -42,8 +42,14 @@ def slug(s):
     s = re.sub(r'[^a-z0-9]+', '-', s).strip('-')
     return s[:60]
 
+COLISIONES = set(); COLISIONES_TAB = set()
 def entradas(filtro=None):
     filas = [x for x in csv.DictReader(open(INV, encoding='utf-8')) if x['clasificacion'] == 'microdatos']
+    # dos archivos lógicos distintos (id) con el mismo nombre en el mismo programa y edición → la clave lleva el id
+    import collections
+    grupos = collections.defaultdict(set)
+    for x in filas: grupos[(x['programa'], x['anio'], pathlib.Path(x['path']).name)].add(x['id'])
+    COLISIONES.update(k for k, v in grupos.items() if len(v) > 1)
     por_id = {}
     for x in filas:
         if x['formato'] not in PREF or NO_DATOS.search(x['titulo']): continue
@@ -52,8 +58,18 @@ def entradas(filtro=None):
         if act is None or PREF.index(x['formato']) < PREF.index(act['formato']): por_id[k] = x
     return sorted(por_id.values(), key=lambda x: (x['programa'], x['anio'], x['titulo']))
 
+def claves_de(x):
+    """(programa_slug, edicion, carpeta_archivo, nombre_zip, clave_fuente) coherentes para el ingestor y el espejo."""
+    prog = slug(x['programa']); ed = (x['anio'] or 's-f').replace('|', '-'); nombre = pathlib.Path(''.join(ch for ch in x['path'] if ch >= ' ').strip()).name
+    arch = slug(nombre) or x['id']; limpio = nombre.replace(' ', '_')  # los nombres con espacios no son claves válidas
+    if (x['programa'], x['anio'], nombre) in COLISIONES: arch = f"{arch}-{x['id']}"; zipn = f"{limpio}-{x['id']}{x['formato']}"
+    else: zipn = limpio + x['formato']
+    return prog, ed, arch, zipn, f'inegi/fuentes/{prog}/{ed}/{zipn}'
+
 def url_de(x):
-    p = x['path']; return ('https://www.inegi.org.mx/contenidos' + p if p.startswith('/programas/') else 'https://www.inegi.org.mx' + p) + x['formato']
+    p = ''.join(ch for ch in x['path'] if ch >= ' ').strip()  # el inventario trae rutas con caracteres de control
+    from urllib.parse import quote
+    return quote(('https://www.inegi.org.mx/contenidos' + p if p.startswith('/programas/') else 'https://www.inegi.org.mx' + p) + x['formato'], safe='/:%')
 
 def descargar(url, destino):
     for intento in range(4):
@@ -67,45 +83,56 @@ def descargar(url, destino):
     raise RuntimeError(f'descarga falló: {ultimo}')
 
 def leer_csv(ruta):
-    crudo = open(ruta, 'rb').read()
-    for enc in ('utf-8-sig', 'latin-1'):
-        try: txt = crudo.decode(enc); break
-        except UnicodeDecodeError: continue
-    r = csv.reader(io.StringIO(txt)); cab = next(r)
-    cab = [c.strip() for c in cab]; cols = [[] for _ in cab]; n = 0
-    for fila in r:
-        if not fila or (len(fila) == 1 and not fila[0].strip()): continue
-        if len(fila) < len(cab): fila = fila + [''] * (len(cab) - len(fila))
-        for j in range(len(cab)): cols[j].append(fila[j] if j < len(fila) else '')
-        n += 1
-    return cab, cols, n, enc
+    """Lee todo como texto con pyarrow (rápido); devuelve columnas como arreglos de texto."""
+    crudo = open(ruta, 'rb').read(); enc = 'utf-8'
+    try: crudo.decode('utf-8')
+    except UnicodeDecodeError: enc = 'latin-1'
+    if crudo.startswith(b'\xef\xbb\xbf'): crudo = crudo[3:]; enc = 'utf-8-sig'
+    cab = next(csv.reader(io.StringIO(crudo[:200000].decode(enc, 'replace'))))
+    cab = [c.strip() for c in cab]
+    t = pcsv.read_csv(io.BytesIO(crudo), read_options=pcsv.ReadOptions(encoding=enc if enc != 'utf-8-sig' else 'utf-8', column_names=cab, skip_rows=1, block_size=64 << 20),
+                      parse_options=pcsv.ParseOptions(newlines_in_values=True), convert_options=pcsv.ConvertOptions(column_types={c: pa.string() for c in cab}, strings_can_be_null=False))
+    return cab, [t.column(i).combine_chunks() for i in range(t.num_columns)], t.num_rows, enc
 
 def leer_otro(ruta):
-    import pyreadstat
-    ext = ruta.suffix.lower()
-    if ext == '.dta': df, meta = pyreadstat.read_dta(str(ruta), apply_value_formats=False)
-    elif ext == '.sav': df, meta = pyreadstat.read_sav(str(ruta), apply_value_formats=False)
-    elif ext == '.dbf':
-        from dbfread import DBF, FieldParser
-        class ParserTolerante(FieldParser):
-            # campos numéricos con texto ('N', 'NA', '3 1', 'NSS'): se conserva el texto tal cual en vez de fallar
-            def parseN(self, field, data):
-                try: return super().parseN(field, data)
-                except ValueError: return data.decode('latin-1', 'replace').strip()
-            def parseF(self, field, data):
-                try: return super().parseF(field, data)
-                except ValueError: return data.decode('latin-1', 'replace').strip()
-        regs = list(DBF(str(ruta), encoding='latin-1', char_decode_errors='replace', parserclass=ParserTolerante))
-        cab = list(regs[0].keys()) if regs else []
-        cols = [[('' if r[c] is None else str(r[c])) for r in regs] for c in cab]
-        return cab, cols, len(regs), 'dbf'
-    else: raise RuntimeError(f'formato no soportado {ext}')
-    cab = list(df.columns); cols = [['' if (v is None or (isinstance(v, float) and v != v)) else str(v) for v in df[c].tolist()] for c in cab]
-    return cab, cols, len(df), ext[1:]
+    """DBF/Stata/SPSS → CSV temporal en flujo (memoria acotada) → lector pyarrow. Todo se conserva como texto:
+    en DBF se toman los bytes crudos de cada campo (latin-1, recortados), así los campos numéricos con texto
+    ('N', 'NA', '3 1') y las fechas (AAAAMMDD) quedan tal cual."""
+    ext = ruta.suffix.lower(); tmpcsv = ruta.with_suffix(ruta.suffix + '.csv')
+    with open(tmpcsv, 'w', newline='', encoding='utf-8') as f:
+        w = csv.writer(f)
+        if ext == '.dbf':
+            from dbfread import DBF
+            d = DBF(str(ruta), raw=True, encoding='latin-1', char_decode_errors='replace', ignore_missing_memofile=True)
+            w.writerow(d.field_names)
+            for r in d: w.writerow([(v.decode('latin-1', 'replace').strip() if isinstance(v, (bytes, bytearray)) else ('' if v is None else str(v))) for v in r.values()])
+            enc = 'dbf'
+        else:
+            import pyreadstat
+            lector = pyreadstat.read_file_in_chunks(pyreadstat.read_dta if ext == '.dta' else pyreadstat.read_sav, str(ruta), chunksize=200000, apply_value_formats=False)
+            primero = True
+            for df, meta in lector:
+                if primero: w.writerow(list(df.columns)); primero = False
+                for fila in df.itertuples(index=False, name=None):
+                    w.writerow(['' if (v is None or (isinstance(v, float) and v != v)) else (('%d' % v) if (isinstance(v, float) and v.is_integer()) else str(v)) for v in fila])
+            enc = ext[1:]
+    cab, cols, n, _ = leer_csv(tmpcsv); tmpcsv.unlink()
+    return cab, cols, n, enc
 
 INT = re.compile(r'^-?(0|[1-9]\d*)$'); DEC = re.compile(r'^-?(0|[1-9]\d*)?\.\d+$|^-?(0|[1-9]\d*)\.\d*$')
 def tipar(valores):
     """Texto → int64 si todos son enteros sin ceros a la izquierda; float64 si todos son decimales; si no, texto."""
+    if isinstance(valores, pa.Array):
+        arr = pc.utf8_trim_whitespace(valores); arr = pc.if_else(pc.equal(arr, ''), pa.scalar(None, pa.string()), arr)
+        if arr.null_count == len(arr): return arr
+        def todos(regex): m = pc.match_substring_regex(arr, regex); return pc.all(pc.fill_null(m, True)).as_py()
+        if todos(r'^-?(0|[1-9]\d*)$'):
+            try: return pc.cast(arr, pa.int64())
+            except Exception: pass
+        if todos(r'^-?((0|[1-9]\d*)?\.\d+|(0|[1-9]\d*)\.?\d*)([eE][-+]?\d+)?$'):
+            try: return pc.cast(arr, pa.float64())
+            except Exception: pass
+        return arr
     nn = [v for v in valores if v != '']
     if not nn: return pa.array([None] * len(valores), pa.string())
     if all(INT.match(v) for v in nn):
@@ -115,19 +142,25 @@ def tipar(valores):
         return pa.array([float(v) if v != '' else None for v in valores], pa.float64())
     return pa.array([v if v != '' else None for v in valores], pa.string())
 
+_hilo = threading.local()
+def _s3():
+    """Cliente S3 de R2 por hilo (las credenciales S3 de un token de R2 son: id del token y SHA-256 del token)."""
+    if not hasattr(_hilo, 's3'):
+        import boto3
+        from botocore.config import Config
+        env = dict(l.strip().split('=', 1) for l in (RAIZ / 'data' / '.secretos.env').read_text().splitlines() if '=' in l)
+        _hilo.s3 = boto3.client('s3', endpoint_url=f'https://{CUENTA}.r2.cloudflarestorage.com', aws_access_key_id=env['R2_ACCESS_KEY_ID'], aws_secret_access_key=env['R2_SECRET_ACCESS_KEY'], region_name='auto', config=Config(retries={'max_attempts': 5, 'mode': 'standard'}, max_pool_connections=16))
+    return _hilo.s3
 def subir(clave, ruta, tipo):
-    """PUT a la API REST de R2 (la misma que usa wrangler) con el token; se verifica el tamaño devuelto."""
-    from urllib.parse import quote
+    """Sube por la API S3 de R2 (sin el tope de peticiones de la API de Cloudflare) y verifica el tamaño con HEAD."""
     tam = os.path.getsize(ruta); ultimo = ''
     for intento in range(4):
         try:
-            with open(ruta, 'rb') as f:
-                req = urllib.request.Request(f'https://api.cloudflare.com/client/v4/accounts/{CUENTA}/r2/buckets/{BUCKET}/objects/{quote(clave)}', data=f, method='PUT', headers={'Authorization': f'Bearer {ENV_WR["CLOUDFLARE_API_TOKEN"]}', 'Content-Type': tipo, 'Content-Length': str(tam)})
-                d = json.loads(urllib.request.urlopen(req, timeout=1800).read())
-            if d.get('success') and int(d['result'].get('size', -1)) == tam: return
-            ultimo = str(d)[:200]
+            with open(ruta, 'rb') as f: _s3().put_object(Bucket=BUCKET, Key=clave, Body=f, ContentType=tipo)
+            if _s3().head_object(Bucket=BUCKET, Key=clave)['ContentLength'] == tam: return
+            ultimo = 'tamaño distinto tras subir'
         except Exception as e: ultimo = f'{type(e).__name__}: {str(e)[:120]}'
-        time.sleep(10 * (intento + 1))
+        time.sleep(5 * (intento + 1))
     raise RuntimeError(f'subida falló {clave}: {ultimo}')
 
 def hechos():
@@ -135,17 +168,24 @@ def hechos():
     return {json.loads(l)['id'] for l in open(MANIF) if l.strip() and json.loads(l).get('estado') in ('ok', 'sin_tablas')}
 
 def procesar(x):
-    t0 = time.time(); prog = slug(x['programa']); ed = (x['anio'] or 's-f').replace('|', '-'); arch = slug(pathlib.Path(x['path']).name) or x['id']
+    t0 = time.time(); prog, ed, arch, zipn, clave_fuente = claves_de(x)
     tmp = pathlib.Path(tempfile.mkdtemp(prefix='inegi-')); url = url_de(x)
     try:
-        zipf = tmp / (pathlib.Path(x['path']).name + x['formato']); sha = descargar(url, zipf)
-        subir(f'inegi/fuentes/{prog}/{ed}/{zipf.name}', zipf, 'application/zip')
+        zipf = tmp / zipn
+        # primero el espejo en R2 (rápido); si no está, el INEGI (y entonces se sube el original a R2)
+        try:
+            _s3().download_file(BUCKET, clave_fuente, str(zipf)); h = hashlib.sha256()
+            with open(zipf, 'rb') as f:
+                for b in iter(lambda: f.read(1 << 20), b''): h.update(b)
+            sha = h.hexdigest(); origen = 'r2'
+        except Exception:
+            sha = descargar(url, zipf); origen = 'inegi'; subir(clave_fuente, zipf, 'application/zip')
         with zipfile.ZipFile(zipf) as z: z.extractall(tmp / 'x')
         datos = [p for p in (tmp / 'x').rglob('*') if p.is_file() and p.suffix.lower() in ('.csv', '.dta', '.sav', '.dbf') and 'diccionario' not in str(p).lower() and 'catalogo' not in str(p).lower()]
         if not datos:
             with candado, open(MANIF, 'a') as f: f.write(json.dumps({'id': x['id'], 'estado': 'sin_tablas', 'programa': x['programa'], 'edicion': ed, 'titulo': x['titulo'], 'url': url, 'sha256_zip': sha, 'ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}, ensure_ascii=False) + '\n')
             log(f'sin tablas: {x["programa"][:40]} {ed} {x["titulo"][:40]}'); return
-        regs = []
+        regs = []; pendientes_subida = []
         for d in sorted(datos):
             cab, cols, n, enc = leer_csv(d) if d.suffix.lower() == '.csv' else leer_otro(d)
             nombres = []; vistos = set()
@@ -157,11 +197,13 @@ def procesar(x):
             assert tabla.num_rows == n, (d.name, tabla.num_rows, n)
             tnombre = slug(d.stem) or 'tabla'; parq = tmp / f'{tnombre}.parquet'; pq.write_table(tabla, parq, compression='zstd')
             assert pq.read_metadata(parq).num_rows == n
-            clave = f'inegi/microdatos/{prog}/{ed}/{arch}/{tnombre}.parquet'; subir(clave, parq, 'application/vnd.apache.parquet')
-            regs.append({'id': x['id'], 'estado': 'ok', 'programa': x['programa'], 'programa_slug': prog, 'edicion': ed, 'titulo': x['titulo'], 'archivo': arch, 'tabla': tnombre, 'origen': d.name, 'formato': x['formato'], 'codificacion': enc, 'filas': n, 'columnas': tabla.num_columns, 'esquema': [[f.name, str(f.type)] for f in tabla.schema], 'bytes_parquet': parq.stat().st_size, 'clave_r2': clave, 'fuente_r2': f'inegi/fuentes/{prog}/{ed}/{zipf.name}', 'url': url, 'sha256_zip': sha, 'maquina': socket.gethostname().split('.')[0], 'ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())})
+            clave = f'inegi/microdatos/{prog}/{ed}/{arch}/{tnombre}.parquet'; pendientes_subida.append((clave, parq))
+            regs.append({'id': x['id'], 'estado': 'ok', 'programa': x['programa'], 'programa_slug': prog, 'edicion': ed, 'titulo': x['titulo'], 'archivo': arch, 'tabla': tnombre, 'origen': d.name, 'formato': x['formato'], 'codificacion': enc, 'filas': n, 'columnas': tabla.num_columns, 'esquema': [[f.name, str(f.type)] for f in tabla.schema], 'bytes_parquet': parq.stat().st_size, 'clave_r2': clave, 'fuente_r2': clave_fuente, 'origen_descarga': origen, 'url': url, 'sha256_zip': sha, 'maquina': socket.gethostname().split('.')[0], 'ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())})
+        with cf.ThreadPoolExecutor(min(8, len(pendientes_subida))) as ex:
+            list(ex.map(lambda t: subir(t[0], t[1], 'application/vnd.apache.parquet'), pendientes_subida))
         with candado, open(MANIF, 'a') as f:
             for r in regs: f.write(json.dumps(r, ensure_ascii=False) + '\n')
-        log(f'ok {x["programa"][:40]} {ed} {x["titulo"][:30]}: {len(regs)} tablas, {sum(r["filas"] for r in regs):,} filas, {time.time()-t0:.0f}s')
+        log(f'ok {x["programa"][:40]} {ed} {x["titulo"][:30]}: {len(regs)} tablas, {sum(r["filas"] for r in regs):,} filas, {time.time()-t0:.0f}s ({origen})')
     except Exception as e:
         log(f'ERROR {x["id"]} {x["programa"][:40]} {ed} {x["titulo"][:30]}: {type(e).__name__}: {str(e)[:160]}')
         with candado, open(MANIF, 'a') as f: f.write(json.dumps({'id': x['id'], 'estado': 'error', 'programa': x['programa'], 'edicion': ed, 'titulo': x['titulo'], 'url': url, 'error': f'{type(e).__name__}: {str(e)[:200]}', 'ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}, ensure_ascii=False) + '\n')
