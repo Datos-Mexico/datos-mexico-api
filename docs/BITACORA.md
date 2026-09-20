@@ -1024,3 +1024,7 @@ ANUIES 2025-2026 suma de entidades 5,760,478 = ciclo; UNAM 264,847 = /unam/anuar
 ocupados; Censo entidad y país; CONSAR SAR total 2025-12-01 10,996,258.9 = /consar/recursos/totales; CDMX 246,836
 nombramientos; UNAM concurso 2026 licenciatura escolarizado 141,218 presentaron, 178 carreras-plantel; 8 errores
 404/422; límite y `limitado`. **FALLOS 0.**
+
+**Producción (2026-09-20).** Commit `7f996b3`, `wrangler deploy` versión `3cdd6f5b`; `scripts/verificar_cubos.py
+https://api.datosmexico.org` → **FALLOS 0** (los 18 cubos y todos los cruces); el verificador previo de ANUIES/UNAM
+sigue en FALLOS 0. Publicado en github.com/Datos-Mexico/datos-mexico-api. Sin firmas de IA.
