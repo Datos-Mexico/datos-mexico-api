@@ -44,3 +44,28 @@ Fuente: ANUIES, Anuario Estadístico de Educación Superior, consulta interactiv
 Total: 953,653 filas · 26/26 conciliados.
 
 Refresco: cada anuario nuevo (ANUIES publica el ciclo N-(N+1) durante el año N+1) se baja con `python3 scripts/anuies_consulta.py <ciclo>`, se carga con `anuies_d1.py` y `anuies_parquet_r2.py`, y el sitio se regenera con `scripts/build-unam-anuario.ts`.
+
+## Apéndice: gráficos de datosmexico.org/unam y su origen
+
+Cada gráfico de las secciones del anuario en el sitio se dibuja con datos servidos por la API del observatorio a partir
+del Anuario Estadístico de Educación Superior de la ANUIES (anuario.anuies.mx, derechos reservados por la ANUIES). El
+sitio lleva una nota al pie que remite aquí; esta es la cita completa de cada pieza.
+
+| Sección | Gráfico | Endpoint de origen | Cifras de ANUIES usadas |
+|---|---|---|---|
+| Matrícula | Serie de matrícula por ciclo, mujeres y hombres, con selector de nivel | `/api/v1/unam/anuario/serie` (y `?nivel=`) | M_M, M_H, MAT_TOTAL |
+| Matrícula | Serie de nuevo ingreso por ciclo | `/api/v1/unam/anuario/serie` | NI_M, NI_H, NI |
+| Matrícula | Tarjetas por nivel | `/api/v1/unam/anuario/niveles?ciclo=` | MAT_TOTAL, NI, conteo de programas |
+| Matrícula | Pirámide de edades (matrícula y nuevo ingreso) | `/api/v1/unam/anuario/edades?ciclo=` | M_M_*_LIC, M_H_*_LIC, TOT_*, NI_M_*_LIC, NI_H_*_LIC, NI_TOT_* |
+| Egreso y titulación | Barras por campo de formación (porcentaje o personas, por sexo) | `/api/v1/unam/anuario/campos?ciclo=` | MAT_TOTAL, E, T y sus _M/_H, CAMPO_AMPLIO |
+| Egreso y titulación | Situación académica por sexo | `/api/v1/unam/anuario/niveles?ciclo=` (sumado) | M_M, M_H, NI_M, NI_H, E_M, E_H, T_M, T_H |
+| Egreso y titulación | Series de egreso y titulación | `/api/v1/unam/anuario/serie` | E_M, E_H, E, T_M, T_H, T |
+| Planteles | Treemap y tabla de planteles | `/api/v1/unam/anuario/planteles?ciclo=` | NOMBRE_DE_ESCUELA_CAMPUS_FACULTAD y las 16 cifras base |
+| Carreras y posgrados | Treemap y tabla de programas | `/api/v1/unam/anuario/carreras?ciclo=` | CARRERA y las 16 cifras base |
+| Procedencia | Coropleta y lista por entidad y región del extranjero | `/api/v1/unam/anuario/procedencia?ciclo=` | PNI_* (40 columnas), NI |
+
+Presentación: los nombres que ANUIES escribe en mayúsculas sostenidas se muestran con mayúscula inicial en el sitio; el
+original se conserva en el atributo `title`, en la API y en los Parquet. Los datos del sitio se regeneran con
+`scripts/build-unam-anuario.ts` (repositorio del sitio) desde estos endpoints; el corte vigente aparece en cada página.
+Cita sugerida: ANUIES, *Anuario Estadístico de Educación Superior*, ciclos 2000-2001 a 2025-2026, consultado el
+2026-09-20 en https://anuario.anuies.mx/; procesado por el Observatorio Datos México (api.datosmexico.org).
