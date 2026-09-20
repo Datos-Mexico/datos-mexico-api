@@ -13,6 +13,7 @@ Uso: data/.venv/bin/python scripts/inegi_ingesta.py [--shard k/n] [--workers 4] 
 """
 import argparse, csv, hashlib, io, json, os, pathlib, re, shutil, socket, subprocess, sys, tempfile, time, unicodedata, urllib.request, zipfile, threading
 import concurrent.futures as cf
+socket.setdefaulttimeout(180)  # ninguna conexión (INEGI o R2) puede colgar un hilo indefinidamente
 import pyarrow as pa, pyarrow.parquet as pq, pyarrow.csv as pcsv, pyarrow.compute as pc
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 INV = RAIZ / 'data' / 'inegi-universo' / 'archivos.csv'
@@ -60,7 +61,7 @@ def entradas(filtro=None):
 
 def claves_de(x):
     """(programa_slug, edicion, carpeta_archivo, nombre_zip, clave_fuente) coherentes para el ingestor y el espejo."""
-    prog = slug(x['programa']); ed = (x['anio'] or 's-f').replace('|', '-'); nombre = pathlib.Path(''.join(ch for ch in x['path'] if ch >= ' ').strip()).name
+    prog = slug(x['programa']); ed = (x['anio'] or 's-f').replace('|', '-').replace(' ', '_'); ed = re.sub(r'[^A-Za-z0-9_.-]', '_', ed); nombre = pathlib.Path(''.join(ch for ch in x['path'] if ch >= ' ').strip()).name
     arch = slug(nombre) or x['id']; limpio = nombre.replace(' ', '_')  # los nombres con espacios no son claves válidas
     if (x['programa'], x['anio'], nombre) in COLISIONES: arch = f"{arch}-{x['id']}"; zipn = f"{limpio}-{x['id']}{x['formato']}"
     else: zipn = limpio + x['formato']
@@ -169,20 +170,42 @@ def hechos():
     return {json.loads(l)['id'] for l in open(MANIF) if l.strip() and json.loads(l).get('estado') in ('ok', 'sin_tablas')}
 
 def procesar(x):
-    t0 = time.time(); prog, ed, arch, zipn, clave_fuente = claves_de(x)
+    t0 = time.time(); prog, ed, arch, zipn, clave_fuente = claves_de(x)  # ed sin espacios
     tmp = pathlib.Path(tempfile.mkdtemp(prefix='inegi-')); url = url_de(x)
     try:
         zipf = tmp / zipn
         # primero el espejo en R2 (rápido); si no está, el INEGI (y entonces se sube el original a R2)
         try:
-            _s3().download_file(BUCKET, clave_fuente, str(zipf)); h = hashlib.sha256()
+            _s3().download_file(BUCKET, clave_fuente, str(zipf))
+            with zipfile.ZipFile(zipf) as z: z.testzip() if zipf.stat().st_size < 50_000_000 else z.namelist()  # el espejo pudo guardar una copia truncada
+            h = hashlib.sha256()
             with open(zipf, 'rb') as f:
                 for b in iter(lambda: f.read(1 << 20), b''): h.update(b)
             sha = h.hexdigest(); origen = 'r2'
         except Exception:
             sha = descargar(url, zipf); origen = 'inegi'; subir(clave_fuente, zipf, 'application/zip')
-        with zipfile.ZipFile(zipf) as z: z.extractall(tmp / 'x')
-        datos = [p for p in (tmp / 'x').rglob('*') if p.is_file() and p.suffix.lower() in ('.csv', '.dta', '.sav', '.dbf') and 'diccionario' not in str(p).lower() and 'catalogo' not in str(p).lower()]
+        # extracción miembro a miembro: algunos zips del INEGI traen nombres con codificación inconsistente
+        # (zipfile los rechaza) o compresión no soportada; solo se necesitan los archivos de datos
+        with zipfile.ZipFile(zipf) as z:
+            for info in z.infolist():
+                if info.is_dir() or pathlib.Path(info.filename).suffix.lower() not in ('.csv', '.dta', '.sav', '.dbf', '.zip'): continue  # los zip anidados se extraen después
+                destino = tmp / 'x' / info.filename; destino.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    with z.open(info) as src, open(destino, 'wb') as dst: shutil.copyfileobj(src, dst, 1 << 20)
+                except (zipfile.BadZipFile, NotImplementedError) as e:
+                    if info.compress_type == 9:  # Deflate64: se descomprime con el sistema (unzip lo soporta)
+                        subprocess.run(['unzip', '-o', '-q', str(zipf), info.filename, '-d', str(tmp / 'x')], check=True)
+                    else: raise
+        # zips anidados (series de la ENOE, ENSU, MTI…): se extraen hasta dos niveles
+        for nivel in range(2):
+            anidados = [p for p in (tmp / 'x').rglob('*.zip') if p.is_file()] + [p for p in (tmp / 'x').rglob('*.ZIP') if p.is_file()]
+            for z2 in anidados:
+                try:
+                    with zipfile.ZipFile(z2) as zz: zz.extractall(z2.with_suffix('')); 
+                except Exception: subprocess.run(['unzip', '-o', '-q', str(z2), '-d', str(z2.with_suffix(''))])
+                z2.unlink()
+        # todos los archivos de datos, incluidos los catálogos que acompañan a los microdatos; solo se omiten los diccionarios de variables
+        datos = [p for p in (tmp / 'x').rglob('*') if p.is_file() and p.suffix.lower() in ('.csv', '.dta', '.sav', '.dbf') and 'diccionario' not in p.name.lower()]
         if not datos:
             with candado, open(MANIF, 'a') as f: f.write(json.dumps({'id': x['id'], 'estado': 'sin_tablas', 'programa': x['programa'], 'edicion': ed, 'titulo': x['titulo'], 'url': url, 'sha256_zip': sha, 'ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}, ensure_ascii=False) + '\n')
             log(f'sin tablas: {x["programa"][:40]} {ed} {x["titulo"][:40]}'); return
@@ -196,7 +219,9 @@ def procesar(x):
                 vistos.add(c2); nombres.append(c2)
             tabla = pa.table({nombre: tipar(col) for nombre, col in zip(nombres, cols)})
             assert tabla.num_rows == n, (d.name, tabla.num_rows, n)
-            tnombre = slug(d.stem) or 'tabla'; parq = tmp / f'{tnombre}.parquet'; pq.write_table(tabla, parq, compression='zstd')
+            tnombre = slug(d.stem) or 'tabla'
+            if any(r['tabla'] == tnombre for r in regs): tnombre = slug(str(d.relative_to(tmp / 'x').with_suffix('')).replace('/', '-')) or f'{tnombre}-{len(regs)}'
+            parq = tmp / f'{tnombre}.parquet'; pq.write_table(tabla, parq, compression='zstd')
             assert pq.read_metadata(parq).num_rows == n
             clave = f'inegi/microdatos/{prog}/{ed}/{arch}/{tnombre}.parquet'; pendientes_subida.append((clave, parq))
             regs.append({'id': x['id'], 'estado': 'ok', 'programa': x['programa'], 'programa_slug': prog, 'edicion': ed, 'titulo': x['titulo'], 'archivo': arch, 'tabla': tnombre, 'origen': d.name, 'formato': x['formato'], 'codificacion': enc, 'filas': n, 'columnas': tabla.num_columns, 'esquema': [[f.name, str(f.type)] for f in tabla.schema], 'bytes_parquet': parq.stat().st_size, 'clave_r2': clave, 'fuente_r2': clave_fuente, 'origen_descarga': origen, 'url': url, 'sha256_zip': sha, 'maquina': socket.gethostname().split('.')[0], 'ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())})

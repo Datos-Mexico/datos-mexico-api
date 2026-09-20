@@ -14,7 +14,8 @@
     { "name": "RL_20", "namespace_id": "5020", "simple": { "limit": 20, "period": 60 } },
     { "name": "RL_30", "namespace_id": "5030", "simple": { "limit": 30, "period": 60 } },
     { "name": "RL_60", "namespace_id": "5060", "simple": { "limit": 60, "period": 60 } },
-    { "name": "RL_120", "namespace_id": "5120", "simple": { "limit": 120, "period": 60 } }
+    { "name": "RL_120", "namespace_id": "5120", "simple": { "limit": 120, "period": 60 } },
+    { "name": "RL_600", "namespace_id": "5600", "simple": { "limit": 600, "period": 60 } }
   ],
   "r2_buckets": [ { "binding": "DATOS", "bucket_name": "datosmexico-datos" } ],
   "hyperdrive": [ { "binding": "HYPERDRIVE", "id": "6f8943e63f0e4a69bdba2f1ce35dfd5d" } ],

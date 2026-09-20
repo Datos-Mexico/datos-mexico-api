@@ -33,6 +33,8 @@ export class AdminEspejo extends OpenAPIRoute {
     if (len > 0) { const fl = new FixedLengthStream(len); resp.body.pipeTo(fl.writable); obj = await c.env.DATOS.put(clave, fl.readable, { httpMetadata: { contentType: tipo }, customMetadata: { origen: url } }); }
     else obj = await c.env.DATOS.put(clave, await resp.arrayBuffer(), { httpMetadata: { contentType: tipo }, customMetadata: { origen: url } });
     if (!obj) throw new ErrorHttp(502, "no se pudo guardar en R2");
+    // el INEGI corta descargas bajo carga: si lo guardado no mide lo anunciado, se borra y se reporta
+    if (len > 0 && obj.size !== len) { await c.env.DATOS.delete(clave); throw new ErrorHttp(502, `descarga incompleta del INEGI: ${obj.size} de ${len} bytes`); }
     return { clave, bytes: obj.size, etag: obj.httpEtag, existia: false, ms: Date.now() - t0 };
   }
 }

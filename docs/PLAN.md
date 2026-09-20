@@ -36,6 +36,10 @@ paridad base por base.
 - F6  ENOE indicadores (agregados). Microdatos crudos: R2 (después).
 - F7  Catálogo público «qué datos tenemos y hasta cuándo» + esquema legible por
       máquina por dataset (base del visualizador de relaciones).
+- F9  TODO lo descargable del INEGI (descarga masiva): HECHO 2026-09-20 —
+      microdatos 4,259/4,259 en Parquet + originales, tabulados 18,150/18,150,
+      catálogo y descarga en /api/v1/inegi/datos-abiertos/*; pendiente: pasada
+      complementaria de catálogos cat_* y refresco periódico contra el inventario.
 - F8  Ingesta del Banco de Indicadores del INEGI (BISE): fase 1 = los 31,817
       indicadores del catálogo a nivel nacional y por entidad (D1
       `datosmexico-api-bise`, endpoints /api/v1/inegi/*); fase 2 = municipios

@@ -16,6 +16,13 @@ const ok = (d: string, e: z.ZodTypeAny) => ({ "200": { description: d, ...conten
 const RESP_404 = { "404": { description: "No existe.", ...contentJson(z.object({ detail: z.string() })) } };
 const RESP_422 = { "422": { description: "Parámetro inválido.", ...contentJson(z.object({ detail: z.array(z.object({ type: z.string(), loc: z.array(z.union([z.string(), z.number()])), msg: z.string(), input: z.unknown() })) })) } };
 const SLUG = "^[a-z0-9\\-]{1,60}$";
+// el esquema se guarda como JSON; las tablas de miles de columnas vienen gzip+base64 con prefijo gz: (límite de sentencia de D1)
+async function leerEsquema(texto: string): Promise<[string, string][]> {
+  if (!texto.startsWith("gz:")) return JSON.parse(texto);
+  const bytes = Uint8Array.from(atob(texto.slice(3)), (ch) => ch.charCodeAt(0));
+  const ds = new DecompressionStream("gzip"); const w = ds.writable.getWriter(); w.write(bytes); w.close();
+  return JSON.parse(await new Response(ds.readable).text());
+}
 
 export class DatosAbiertosResumen extends OpenAPIRoute {
   schema = {
@@ -64,7 +71,8 @@ export class DatosAbiertosPrograma extends OpenAPIRoute {
     const rows = await filas<Record<string, unknown>>(c.env.DB_BISE, `SELECT edicion, titulo, archivo, tabla, origen, formato, filas, columnas, esquema, bytes_parquet, clave_r2, fuente_r2, url_inegi, sha256_zip, ingerido_en FROM da_microdatos${where} ORDER BY edicion, archivo, tabla`, params);
     const ediciones = (await filas<{ e: string }>(c.env.DB_BISE, "SELECT DISTINCT edicion AS e FROM da_microdatos WHERE programa_slug = ? ORDER BY e", [slug])).map((r) => r.e);
     const tabulados = (await fila<{ n: number }>(c.env.DB_BISE, "SELECT COUNT(*) AS n FROM da_tabulados WHERE programa_slug = ?", [slug]))!.n;
-    const tablas = rows.map((r) => ({ edicion: r.edicion, titulo: r.titulo, archivo: r.archivo, tabla: r.tabla, origen: r.origen, formato: r.formato, filas: r.filas, columnas: r.columnas, esquema: JSON.parse(r.esquema as string), bytes_parquet: r.bytes_parquet, parquet_url: `/api/v1/inegi/datos-abiertos/descarga/${r.clave_r2}`, fuente_url: r.fuente_r2 ? `/api/v1/inegi/datos-abiertos/descarga/${r.fuente_r2}` : null, url_inegi: r.url_inegi, sha256_zip: r.sha256_zip, ingerido_en: r.ingerido_en }));
+    const tablas = [];
+    for (const r of rows) tablas.push({ edicion: r.edicion, titulo: r.titulo, archivo: r.archivo, tabla: r.tabla, origen: r.origen, formato: r.formato, filas: r.filas, columnas: r.columnas, esquema: await leerEsquema(r.esquema as string), bytes_parquet: r.bytes_parquet, parquet_url: `/api/v1/inegi/datos-abiertos/descarga/${r.clave_r2}`, fuente_url: r.fuente_r2 ? `/api/v1/inegi/datos-abiertos/descarga/${r.fuente_r2}` : null, url_inegi: r.url_inegi, sha256_zip: r.sha256_zip, ingerido_en: r.ingerido_en });
     return { programa: p, ediciones, n_tablas: tablas.length, tablas, tabulados };
   }
 }

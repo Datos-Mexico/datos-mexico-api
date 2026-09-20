@@ -53,6 +53,7 @@ export type Env = {
   RL_30: RateLimit;
   RL_60: RateLimit;
   RL_120: RateLimit;
+  RL_600: RateLimit;
 };
 export type AppContext = Context<{ Bindings: Env }>;
 

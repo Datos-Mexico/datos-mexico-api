@@ -8,14 +8,29 @@ Uso: python3 scripts/inegi_catalogo_d1.py
 import csv, glob, json, pathlib, subprocess, sys
 RAIZ = pathlib.Path(__file__).resolve().parent.parent; DIR = RAIZ / 'data' / 'inegi'; OUT = RAIZ / 'data' / 'bise' / 'neon-export'
 csv.field_size_limit(1 << 30)
+import base64, gzip as _gz
+def esquema_txt(e):
+    """JSON del esquema; si rebasa 60 KB (tablas de miles de columnas) se guarda gzip+base64 con prefijo gz: (D1 limita cada sentencia a 100 KB)."""
+    j = json.dumps(e, ensure_ascii=False, separators=(',', ':'))
+    return j if len(j) <= 60000 else 'gz:' + base64.b64encode(_gz.compress(j.encode('utf-8'), 9)).decode()
 def cargar(patron):
-    regs = {}
+    """Una fila por clave R2 (la más reciente); si dos ids distintos apuntan a la misma clave se avisa."""
+    # 1) una versión por unidad lógica (id+tabla en microdatos, id+formato en tabulados): la más reciente
+    por_unidad = {}
     for f in sorted(glob.glob(str(DIR / patron))):
         for l in open(f, encoding='utf-8'):
             if not l.strip(): continue
             r = json.loads(l)
             if r.get('estado') != 'ok': continue
-            k = (r['id'], r.get('tabla') or r.get('formato')); regs[k] = r  # última versión gana
+            u = (r['id'], r.get('tabla') or r.get('formato'))
+            if u not in por_unidad or r['ts'] >= por_unidad[u]['ts']: por_unidad[u] = r
+    # 2) una fila por clave R2
+    regs = {}; ids_por_clave = {}
+    for r in por_unidad.values():
+        k = r['clave_r2']; ids_por_clave.setdefault(k, set()).add(r['id'])
+        if k not in regs or r['ts'] >= regs[k]['ts']: regs[k] = r
+    col = {k: v for k, v in ids_por_clave.items() if len(v) > 1}
+    if col: print(f'AVISO {patron}: {len(col)} claves con más de un id de origen (se conserva la más reciente): {list(col.items())[:3]}')
     return list(regs.values())
 def main():
     micro = cargar('manifiesto-*.jsonl'); tab = cargar('tabulados-*.jsonl')
@@ -24,7 +39,7 @@ def main():
     with open(OUT / 'da_microdatos.csv', 'w', newline='', encoding='utf-8') as f:
         w = csv.writer(f); w.writerow(['id_inegi', 'programa', 'programa_slug', 'edicion', 'titulo', 'archivo', 'tabla', 'origen', 'formato', 'codificacion', 'filas', 'columnas', 'esquema', 'bytes_parquet', 'clave_r2', 'fuente_r2', 'url_inegi', 'sha256_zip', 'maquina', 'ingerido_en'])
         for r in sorted(micro, key=lambda r: (r['programa_slug'], r['edicion'], r['archivo'], r['tabla'])):
-            w.writerow([r['id'], r['programa'], r['programa_slug'], r['edicion'], r['titulo'], r['archivo'], r['tabla'], r['origen'], r['formato'], r.get('codificacion') or NUL, r['filas'], r['columnas'], json.dumps(r.get('esquema') or [], ensure_ascii=False), r['bytes_parquet'], r['clave_r2'], r['fuente_r2'], r['url'], r['sha256_zip'], r['maquina'], r['ts']])
+            w.writerow([r['id'], r['programa'], r['programa_slug'], r['edicion'], r['titulo'], r['archivo'], r['tabla'], r['origen'], r['formato'], r.get('codificacion') or NUL, r['filas'], r['columnas'], esquema_txt(r.get('esquema') or []), r['bytes_parquet'], r['clave_r2'], r['fuente_r2'], r['url'], r['sha256_zip'], r['maquina'], r['ts']])
     with open(OUT / 'da_tabulados.csv', 'w', newline='', encoding='utf-8') as f:
         w = csv.writer(f); w.writerow(['id_inegi', 'programa', 'programa_slug', 'edicion', 'titulo', 'formato', 'bytes', 'sha256', 'clave_r2', 'url_inegi', 'maquina', 'ingerido_en'])
         for r in sorted(tab, key=lambda r: (r['programa_slug'], r['edicion'], r['titulo'])):

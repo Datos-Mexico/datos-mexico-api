@@ -742,3 +742,32 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
   (con esquema por tabla) y `da_tabulados` en la D1 del INEGI, endpoints
   `/api/v1/inegi/datos-abiertos/{resumen,programas,programas/{slug},tabulados,
   descarga/*}`; la descarga entrega Parquet, zip original o tabulado desde R2.
+
+## 2026-09-20 · TODO LO DESCARGABLE DEL INEGI EN LÍNEA
+- Cierre verificado a las 08:03 UTC: microdatos 4,259/4,259 archivos de los
+  103 programas con datos (20,569 tablas Parquet, 762,522,995 filas, 11.9
+  GB; originales conservados con SHA-256, 18.7 GB); tabulados 18,150/18,150
+  de 183 programas (14.5 GB íntegros). Catálogo en D1 (`da_programas`,
+  `da_microdatos`, `da_tabulados`) = manifiestos; verificación en producción
+  con 0 fallos (`verificar_datos_abiertos.py`: resumen, 8 tablas al azar
+  R2 = API = filas, descarga de tabulado, 404/422).
+- Últimos obstáculos resueltos: paquetes con zips anidados (ENOE 2005-2014
+  series originales y ajustadas, ENSU, ENSI, MTI, ENUT 2002, ENVIN…) →
+  extracción hasta dos niveles; zips con nombres de codificación
+  inconsistente o Deflate64 (Censo 2010 por estado) → extracción miembro a
+  miembro con `unzip` de respaldo; 18 originales truncados por el INEGI en el
+  espejo → el worker ahora verifica la longitud y borra copias incompletas,
+  el ingestor valida el zip y cae al INEGI; esquemas de tablas con miles de
+  columnas → gzip+base64 en D1 (límite de 100 KB por sentencia) y
+  descompresión en el worker; dos tabulados del CE 2023 con el mismo nombre
+  para ids distintos → clave con id.
+- Los catálogos que acompañan a los microdatos (tablas cat_*) ahora se
+  ingieren; los paquetes procesados antes de ese cambio (primeras ~3,000
+  unidades) no los tienen: pendiente una pasada complementaria desde las
+  fuentes en R2 (rápida) para completarlos.
+- Costo tras la ingesta: D1 5.5 GB (≈0.38 USD/mes de excedente) y R2 48 GB
+  (≈0.57 USD/mes sobre los 10 GB incluidos); total ≈ 1 USD/mes sobre el
+  plan, dentro del margen acordado (centavos, con aviso).
+- Tiempo real de la ingesta masiva: de las 23:30 a las 01:56 (2.5 h) con
+  esta Mac como carga principal, la HP como apoyo de baja prioridad y el
+  worker como espejo de descargas.

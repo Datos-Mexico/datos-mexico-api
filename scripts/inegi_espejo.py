@@ -5,7 +5,7 @@ data/inegi/tabulados-espejo.jsonl con la forma del manifiesto de tabulados: byte
 El JWT se renueva cada 25 minutos. Reanudable: omite claves ya registradas.
 Uso: data/.venv/bin/python scripts/inegi_espejo.py [--hilos 24] [--solo microdatos|tabulados]
 """
-import argparse, csv, json, pathlib, sys, threading, time, urllib.parse, urllib.request
+import argparse, re, csv, json, pathlib, sys, threading, time, urllib.parse, urllib.request
 import concurrent.futures as cf
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent)); import inegi_ingesta as g
 API = 'https://api.datosmexico.org'; REG = g.BASE / 'espejo.jsonl'; TAB = g.BASE / 'tabulados-espejo.jsonl'
@@ -54,7 +54,7 @@ def main():
                     if j.get('estado') == 'ok': ya_tab.add(j['id'] + j['formato'])
         for x in inv:
             if x['id'] + x['formato'] in ya_tab: continue
-            prog = g.slug(x['programa']); ed = (x['anio'] or 's-f').replace('|', '-'); nombre = pathlib.Path(''.join(ch for ch in x['path'] if ch >= ' ').strip()).name
+            prog = g.slug(x['programa']); ed = (x['anio'] or 's-f').replace('|', '-').replace(' ', '_'); ed = re.sub(r'[^A-Za-z0-9_.-]', '_', ed); nombre = pathlib.Path(''.join(ch for ch in x['path'] if ch >= ' ').strip()).name
             nombre = (f"{nombre}-{x['id']}{x['formato']}" if (x['programa'], x['anio'], nombre) in col else nombre + x['formato']).replace(' ', '_')
             clave = f'inegi/tabulados/{prog}/{ed}/{nombre}'
             if clave not in hechas: tareas.append(('tabulados', x, g.url_de(x), clave))

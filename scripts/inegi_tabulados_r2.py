@@ -4,7 +4,7 @@ No se transforman: son cuadros de presentación; el índice permite localizarlos
 Claves: inegi/tabulados/<programa_slug>/<edicion>/<nombre_archivo>. Reanudable por (id, formato).
 Uso: data/.venv/bin/python scripts/inegi_tabulados_r2.py [--shard k/n] [--workers 4]
 """
-import argparse, csv, hashlib, json, os, pathlib, socket, subprocess, sys, tempfile, time, threading, urllib.request
+import argparse, re, csv, hashlib, json, os, pathlib, socket, subprocess, sys, tempfile, time, threading, urllib.request
 import concurrent.futures as cf
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent)); import inegi_ingesta as g
 MANIF = g.BASE / f'tabulados-{socket.gethostname().split(".")[0]}.jsonl'; LOG = g.BASE / f'tabulados-{socket.gethostname().split(".")[0]}.log'
@@ -14,7 +14,7 @@ def log(m):
 def hechos():
     return {(json.loads(l)['id'], json.loads(l)['formato']) for l in open(MANIF) if l.strip()} if MANIF.exists() else set()
 def procesar(x):
-    prog = g.slug(x['programa']); ed = (x['anio'] or 's-f').replace('|', '-'); url = g.url_de(x); nombre = pathlib.Path(x['path']).name + x['formato']
+    prog = g.slug(x['programa']); ed = (x['anio'] or 's-f').replace('|', '-').replace(' ', '_'); ed = re.sub(r'[^A-Za-z0-9_.-]', '_', ed); url = g.url_de(x); nombre = pathlib.Path(x['path']).name + x['formato']
     if (x['programa'], x['anio'], pathlib.Path(x['path']).name) in g.COLISIONES_TAB: nombre = f"{pathlib.Path(x['path']).name}-{x['id']}{x['formato']}"
     tmp = pathlib.Path(tempfile.mkdtemp(prefix='tab-'))
     try:

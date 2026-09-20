@@ -52,10 +52,14 @@ def main(schema, lote=500, max_bytes=90_000):
             cols = [todas[i] for i in idx]
             texto = [tipos.get(t, {}).get(c) == 'TEXT' for c in cols]
             lote_t = max(20, min(lote, 5000 // max(1, len(cols))))  # tablas anchas: menos filas por sentencia (D1: SQLITE_NOMEM)
+            tam = 0
             for row in r:
-                chunk.append("(" + ",".join(lit(row[i], texto[k]) for k, i in enumerate(idx)) + ")"); n += 1
-                if len(chunk) == lote_t or sum(len(x) for x in chunk) > max_bytes:
-                    o.write(f"INSERT INTO {t} ({','.join(cols)}) VALUES\n" + ",\n".join(chunk) + ";\n"); chunk = []
+                fila = "(" + ",".join(lit(row[i], texto[k]) for k, i in enumerate(idx)) + ")"; n += 1
+                if chunk and tam + len(fila) > max_bytes:  # se vacía ANTES de rebasar el tope (filas anchas: SQLITE_TOOBIG)
+                    o.write(f"INSERT INTO {t} ({','.join(cols)}) VALUES\n" + ",\n".join(chunk) + ";\n"); chunk = []; tam = 0
+                chunk.append(fila); tam += len(fila)
+                if len(chunk) == lote_t:
+                    o.write(f"INSERT INTO {t} ({','.join(cols)}) VALUES\n" + ",\n".join(chunk) + ";\n"); chunk = []; tam = 0
             if chunk: o.write(f"INSERT INTO {t} ({','.join(cols)}) VALUES\n" + ",\n".join(chunk) + ";\n")
         print(f"{n:>9} filas  {(base / 'sql' / f'{t}.sql').stat().st_size / 1e6:8.1f} MB  {t}")
 
