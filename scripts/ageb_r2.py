@@ -40,8 +40,12 @@ def remotos(tk):
 def procesar(i, hechos):
     if i in hechos: return hechos[i]
     z = zipfile.ZipFile(DIR / f'ageb_mza_urbana_{i:02d}_cpv2020_csv.zip')
-    datos = [x for x in z.namelist() if 'conjunto_de_datos/' in x and x.endswith('.csv')][0]
-    r = csv.reader(io.StringIO(z.read(datos).decode('utf-8-sig'))); cab = [c.strip().lower() for c in next(r)]
+    datos = [x for x in z.namelist() if 'conjunto_de_datos/' in x and x.endswith('.csv') and x.split('/')[-1].lower().startswith('conjunto_de_datos_ageb_urbana')]
+    assert len(datos) == 1, (i, datos); datos = datos[0]  # algunos estados traen además un CSV de cambios
+    crudo = z.read(datos)
+    try: txt = crudo.decode('utf-8-sig')
+    except UnicodeDecodeError: txt = crudo.decode('latin-1')  # algún estado viene en latin-1
+    r = csv.reader(io.StringIO(txt)); cab = [c.strip().lower() for c in next(r)]
     assert cab[:8] == ID_COLS and len(cab) == 230, (i, cab[:8], len(cab))
     cols = {c: [] for c in cab}; esp_col = []; n = 0; n_esp = {'*': 0, 'N/D': 0, 'N/A': 0}; decimal = set()
     for fila in r:

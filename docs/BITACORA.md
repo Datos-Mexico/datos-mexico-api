@@ -580,3 +580,40 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
   grado de escolaridad): el Parquet tipa cada columna según lo que trae
   (Int64 o Float64) y conserva los especiales por fila en
   `celdas_especiales` (JSON columna→valor), reconstruible al 100 %.
+- AGEB/manzana 2020 publicado en R2: 32/32 Parquet verificados por la API
+  de Cloudflare, 1,683,504 filas (manzanas y sus totales), 372 MB, claves
+  `censo2020/ageb_manzana/ageb_mza_NN.parquet`, manifiesto con conteos de
+  celdas '*', 'N/D' y 'N/A' por entidad. Dos sorpresas de la fuente: el
+  estado 14 viene en latin-1 (los demás en UTF-8) y trae un segundo CSV de
+  «bitácora de cambios» dentro de conjunto_de_datos.
+- Directrices nuevas del CEO (2026-09-20): (1) el Swagger nuevo debe ser al
+  menos tan completo como el viejo, incluidos los métodos de escritura
+  «por lo menos una vez» donde aporten valor; (2) excedente de D1 aceptable
+  mientras sea centavos (otros 5 USD solo con valor demostrable); (3) el
+  repositorio de la API se publica en la organización Datos-Mexico solo
+  cuando de verdad tengamos «todo el INEGI», sin firmas de IA; (4) auditar
+  qué falta del INEGI y cargar en paralelo cuando acelere sin perder rigor.
+  Auditoría del openapi: legacy 114 operaciones (96 GET, 9 POST, 5 PUT, 4
+  DELETE; seguridad OAuth2 password → JWT; sin descripciones de tags), nuevo
+  99 GET. Faltan en el nuevo: auth (token, me), CRUD de catálogos, personas
+  y nombramientos (9), admin refresh de vistas, ingest CSV, y el demo del
+  curso de Bases de Datos del ITAM (4 GET + 5 escrituras). Extracto de sus
+  contratos en `docs/legacy/escritura-auth-demo-endpoints.md`.
+
+## 2026-09-20 · DENUE y Censo 2020 (ITER) EN LÍNEA
+- DENUE: la carga se cortó a la mitad por «fetch failed» (red); nuevo
+  `scripts/reanudar_carga_d1.py` (reparte igual que cargar_d1.sh, salta los
+  trozos aplicados, reintenta y acepta UNIQUE en el trozo del corte porque
+  cada trozo es un lote atómico). Final: 6,138,075 = CSV; D1 de 3.2 GB.
+- Censo 2020: dos defectos corregidos antes de publicar: (a) el nivel
+  «resumen de localidades de una y dos viviendas» (LOC 9998/9999) existe en
+  los tres niveles, así que la suma estatal daba 126,411,503; ahora nacional
+  = suma estatal = suma municipal = 126,014,024; (b) `SELECT nivel, *` sobre
+  la tabla de 100 columnas rompía el límite de 100 columnas por resultado de
+  D1 (el nivel se calcula en el worker). Búsqueda de localidades une iter_3
+  para hogares y viviendas.
+- Verificación en producción (`verificar_denue_censo.py`): 0 fallos en 31
+  comprobaciones (DENUE: resumen, 5 fichas, totales por estado, CP y
+  prefijo SCIAN, cercanía; Censo: resumen, 5 fichas de 286 campos, niveles,
+  indicador por entidad con suma 126,014,024, 404/422; openapi 109 rutas;
+  catálogo). Total **108 endpoints** (98 + DENUE 5 + Censo 5).

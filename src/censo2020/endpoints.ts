@@ -19,8 +19,10 @@ const Valor = z.union([z.number(), z.string(), z.null()]);
 const NIVELES = ["nacional", "entidad", "municipio", "localidad", "resumen_1_2_viviendas"] as const;
 // nivel según las claves del INEGI: MUN=000 → total estatal (00 = nacional); LOC=0000 → total municipal;
 // LOC=9998/9999 → totales de localidades de una y dos viviendas; el resto, localidades.
-const SQL_NIVEL = "CASE WHEN entidad='00' THEN 'nacional' WHEN mun='000' THEN 'entidad' WHEN loc='0000' THEN 'municipio' WHEN loc IN ('9998','9999') THEN 'resumen_1_2_viviendas' ELSE 'localidad' END";
-const COND_NIVEL: Record<(typeof NIVELES)[number], string> = { nacional: "entidad='00'", entidad: "entidad<>'00' AND mun='000'", municipio: "mun<>'000' AND loc='0000'", resumen_1_2_viviendas: "loc IN ('9998','9999')", localidad: "mun<>'000' AND loc NOT IN ('0000','9998','9999')" };
+// Los resúmenes de localidades de una y dos viviendas (LOC 9998/9999) existen en los tres niveles (nacional, estatal y municipal).
+const SQL_NIVEL = "CASE WHEN loc IN ('9998','9999') THEN 'resumen_1_2_viviendas' WHEN entidad='00' THEN 'nacional' WHEN mun='000' THEN 'entidad' WHEN loc='0000' THEN 'municipio' ELSE 'localidad' END";
+const COND_NIVEL: Record<(typeof NIVELES)[number], string> = { nacional: "entidad='00' AND loc='0000'", entidad: "entidad<>'00' AND mun='000' AND loc='0000'", municipio: "mun<>'000' AND loc='0000'", resumen_1_2_viviendas: "loc IN ('9998','9999')", localidad: "mun<>'000' AND loc NOT IN ('0000','9998','9999')" };
+const nivelDe = (r: { entidad: string; mun: string; loc: string }) => (["9998", "9999"].includes(r.loc) ? "resumen_1_2_viviendas" : r.entidad === "00" ? "nacional" : r.mun === "000" ? "entidad" : r.loc === "0000" ? "municipio" : "localidad");
 
 const cacheCols = new Map<string, string[]>();
 async function columnasDe(db: D1Database, tabla: string) {
@@ -42,14 +44,14 @@ function nivelParam(v: string | undefined) {
 export class CensoResumen extends OpenAPIRoute {
   schema = {
     tags: TAG, operationId: "censo2020_resumen", summary: "Qué tenemos del Censo 2020 por localidad",
-    description: "Resumen verificable del ITER 2020 cargado: edición, filas por nivel (nacional, entidades, municipios, localidades y resúmenes de localidades de una y dos viviendas), número de indicadores y población total nacional, estatal por suma y municipal por suma (deben coincidir con la cifra oficial del Censo: 126,014,024 habitantes).",
+    description: "Resumen verificable del ITER 2020 cargado: edición, filas por nivel (nacional, entidades, municipios, localidades y resúmenes de localidades de una y dos viviendas, que existen en los tres niveles), número de indicadores y población total nacional, estatal por suma y municipal por suma (deben coincidir con la cifra oficial del Censo: 126,014,024 habitantes).",
     responses: { ...ok("Resumen del ITER 2020.", z.object({ fuente: z.string(), fuente_url: z.string(), edicion: z.string().nullable(), indicadores: z.number().int(), filas: z.number().int(), por_nivel: z.record(z.string(), z.number().int()), poblacion_total_nacional: Valor, suma_entidades: z.number().nullable(), suma_municipios: z.number().nullable(), descargado_en: z.string().nullable() })), ...RESP_429 },
   };
   async handle(c: AppContext) {
     const db = c.env.DB_CENSO2020;
     const ed = Object.fromEntries((await filas<{ clave: string; valor: string }>(db, "SELECT clave, valor FROM edicion")).map((r) => [r.clave, r.valor]));
     const niveles = await filas<{ nivel: string; n: number }>(db, `SELECT ${SQL_NIVEL} AS nivel, COUNT(*) AS n FROM iter GROUP BY 1`);
-    const nac = await fila<{ pobtot: number | string | null }>(db, "SELECT pobtot FROM iter WHERE entidad='00'");
+    const nac = await fila<{ pobtot: number | string | null }>(db, `SELECT pobtot FROM iter WHERE ${COND_NIVEL.nacional}`);
     const se = await fila<{ s: number | null }>(db, `SELECT SUM(pobtot) AS s FROM iter WHERE ${COND_NIVEL.entidad}`);
     const sm = await fila<{ s: number | null }>(db, `SELECT SUM(pobtot) AS s FROM iter WHERE ${COND_NIVEL.municipio}`);
     const ind = (await fila<{ n: number }>(db, "SELECT COUNT(*) AS n FROM iter_diccionario"))!.n;
@@ -58,7 +60,8 @@ export class CensoResumen extends OpenAPIRoute {
 }
 
 // ---------------------------------------------------------------- localidades (búsqueda)
-const CAMPOS_BASE = "entidad, nom_ent, mun, nom_mun, loc, nom_loc, longitud, latitud, altitud, pobtot, pobfem, pobmas, tothog, vivtot, tvivhab";
+const CAMPOS_BASE = "i.entidad, i.nom_ent, i.mun, i.nom_mun, i.loc, i.nom_loc, i.longitud, i.latitud, i.altitud, i.pobtot, i.pobfem, i.pobmas, t.tothog, t.vivtot, t.tvivhab";
+const JOIN_3 = " JOIN iter_3 t ON t.entidad=i.entidad AND t.mun=i.mun AND t.loc=i.loc";
 const Localidad = z.object({ nivel: z.string(), entidad: z.string(), nom_ent: z.string().nullable(), mun: z.string(), nom_mun: z.string().nullable(), loc: z.string(), nom_loc: z.string().nullable(), longitud: z.string().nullable(), latitud: z.string().nullable(), altitud: z.string().nullable(), pobtot: Valor, pobfem: Valor, pobmas: Valor, tothog: Valor, vivtot: Valor, tvivhab: Valor });
 export class CensoLocalidades extends OpenAPIRoute {
   schema = {
@@ -71,13 +74,13 @@ export class CensoLocalidades extends OpenAPIRoute {
     const q = c.req.query("q"); const ent = textoConPatron(c.req.query("entidad"), "entidad", "^\\d{2}$"); const mun = textoConPatron(c.req.query("mun"), "mun", "^\\d{3}$"); const nivel = nivelParam(c.req.query("nivel"));
     const limit = enteroOpcional(c.req.query("limit"), "limit", 1, 1000) ?? 100; const offset = enteroOpcional(c.req.query("offset"), "offset", 0) ?? 0;
     const cond: string[] = []; const params: unknown[] = [];
-    if (ent) { cond.push("entidad = ?"); params.push(ent); }
-    if (mun) { cond.push("mun = ?"); params.push(mun); }
-    if (nivel) cond.push(COND_NIVEL[nivel]);
-    if (q) { cond.push("nom_loc LIKE ? COLLATE NOCASE"); params.push(`%${q}%`); }
+    if (ent) { cond.push("i.entidad = ?"); params.push(ent); }
+    if (mun) { cond.push("i.mun = ?"); params.push(mun); }
+    if (nivel) cond.push(COND_NIVEL[nivel].replace(/\b(entidad|mun|loc)\b/g, "i.$1"));
+    if (q) { cond.push("i.nom_loc LIKE ? COLLATE NOCASE"); params.push(`%${q}%`); }
     const where = cond.length ? " WHERE " + cond.join(" AND ") : "";
-    const total = (await fila<{ n: number }>(c.env.DB_CENSO2020, `SELECT COUNT(*) AS n FROM iter${where}`, params))!.n;
-    const items = await filas<Record<string, unknown>>(c.env.DB_CENSO2020, `SELECT ${SQL_NIVEL} AS nivel, ${CAMPOS_BASE} FROM iter${where} ORDER BY entidad, mun, loc LIMIT ? OFFSET ?`, [...params, limit, offset]);
+    const total = (await fila<{ n: number }>(c.env.DB_CENSO2020, `SELECT COUNT(*) AS n FROM iter i${where}`, params))!.n;
+    const items = await filas<Record<string, unknown>>(c.env.DB_CENSO2020, `SELECT ${SQL_NIVEL.replace(/\b(entidad|mun|loc)\b/g, "i.$1")} AS nivel, ${CAMPOS_BASE} FROM iter i${JOIN_3}${where} ORDER BY i.entidad, i.mun, i.loc LIMIT ? OFFSET ?`, [...params, limit, offset]);
     return { total, limit, offset, items };
   }
 }
@@ -94,11 +97,12 @@ export class CensoLocalidad extends OpenAPIRoute {
     const ent = c.req.param("entidad") ?? ""; const mun = c.req.param("mun") ?? ""; const loc = c.req.param("loc") ?? "";
     for (const [n, v, p] of [["entidad", ent, /^\d{2}$/], ["mun", mun, /^\d{3}$/], ["loc", loc, /^\d{4}$/]] as const) if (!p.test(v)) throw new ErrorHttp(422, [{ type: "string_pattern_mismatch", loc: ["path", n], msg: `String should match pattern '${p.source}'`, input: v, ctx: { pattern: p.source } } satisfies Detalle]);
     const db = c.env.DB_CENSO2020;
-    const a = await fila<Record<string, unknown>>(db, `SELECT ${SQL_NIVEL} AS nivel, * FROM iter WHERE entidad=? AND mun=? AND loc=?`, [ent, mun, loc]);
+    // iter tiene 100 columnas y D1 no devuelve más de 100 por consulta: el nivel se calcula aquí, no en SQL
+    const a = await fila<Record<string, unknown> & { entidad: string; mun: string; loc: string }>(db, "SELECT * FROM iter WHERE entidad=? AND mun=? AND loc=?", [ent, mun, loc]);
     if (!a) throw new ErrorHttp(404, `no existe la clave ${ent}/${mun}/${loc} en el ITER 2020`);
     const b = await fila<Record<string, unknown>>(db, "SELECT * FROM iter_2 WHERE entidad=? AND mun=? AND loc=?", [ent, mun, loc]);
     const d = await fila<Record<string, unknown>>(db, "SELECT * FROM iter_3 WHERE entidad=? AND mun=? AND loc=?", [ent, mun, loc]);
-    return { ...a, ...b, ...d };
+    return { nivel: nivelDe(a), ...a, ...b, ...d };
   }
 }
 
