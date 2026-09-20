@@ -954,3 +954,11 @@ concurso vs CSV, identidad doble del histograma y descargas con `Content-Length`
 (e0144cd8) y en producción (versión e5a91b4f). Cifra pública: la UNAM tiene 264,847 estudiantes en 2025-2026 según el
 anuario ANUIES; la matrícula nacional es 5,760,478. Costo: +3.3 GB de JSON local (no en R2), Parquet 26 archivos ≈ 60 MB
 en R2, D1 anuies ≈ 0.9 GB.
+
+**Cierre F13 (2026-09-20, 21:29 UTC).** Decisiones del CEO: sí al uso citando la fuente y sí a los nombres con
+mayúscula inicial; en el sitio la fuente no es protagonista: una nota al pie en chico por sección («derechos
+reservados por la ANUIES; las citas de cada gráfico, el método y su verificación están en el repositorio») que enlaza
+al apéndice de `docs/ANUIES-UNIVERSO.md`, donde va la cita completa de cada gráfico con su endpoint y sus columnas. Go
+explícito para producción: PR #164 de datos-mexico-site fusionado por rebase (punta `59046d0`), Workers Builds en
+verde (2 min) y verificación en vivo de las seis rutas de /unam (200, cifras y nota al pie presentes; el asset de los
+26 ciclos responde). Sin firmas de IA en commits ni en el PR.
