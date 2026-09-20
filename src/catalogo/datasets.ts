@@ -62,4 +62,18 @@ export const DATASETS: DatasetDef[] = [
     sql_corte: "SELECT '2020' AS corte", unidad_corte: "año censal",
     notas: ["La tabla de 286 columnas se guarda en tres partes (iter, iter_2, iter_3) con la misma llave entidad+mun+loc por el límite de 100 columnas de D1.", "Los resultados por AGEB y manzana urbana (32 archivos) se publican aparte como Parquet en almacenamiento de objetos.", "Resumen verificable en /api/v1/censo2020/resumen (la población total nacional debe ser 126,014,024)."],
   },
+  {
+    clave: "anuies", nombre: "ANUIES — Anuario Estadístico de Educación Superior (todas las instituciones, 2000-2001 en adelante)", fuente: "ANUIES, consulta interactiva del anuario", fuente_url: "https://anuario.anuies.mx/", licencia: "© ANUIES; datos públicos citados con su fuente",
+    descripcion: "Programa por programa (carrera en una escuela o campus de una institución, por nivel y modalidad): matrícula, nuevo ingreso, egresados, lugares ofertados, titulados y solicitudes, por sexo, edad, discapacidad, hablantes de lengua indígena y procedencia del nuevo ingreso. Todas las instituciones del país, ciclo por ciclo desde 2000-2001, con la conciliación de cada ciclo contra el agregado nacional del propio servicio.",
+    binding: "DB_ANUIES", prefijo_api: "/api/v1/anuies", periodicidad: "anual (ciclo escolar; ANUIES publica cada anuario al año siguiente)",
+    sql_corte: "SELECT max(ciclo) AS corte FROM ciclos", unidad_corte: "último ciclo escolar cargado",
+    notas: ["Cada ciclo se descargó íntegro por páginas del servicio de ANUIES y se concilió contra el agregado nacional que el mismo servicio devuelve sin dimensiones (columna conciliacion de /api/v1/anuies/ciclos).", "Por el límite de 100 columnas de D1, las 96 columnas de edad y las 40 de procedencia van en tablas aparte (programas_edad, programas_procedencia) con la misma llave; un Parquet por ciclo en R2 trae las 167 cifras juntas.", "Las claves de columna son las de ANUIES en minúsculas; su título está en /api/v1/anuies/columnas."],
+  },
+  {
+    clave: "unam", nombre: "UNAM — Concurso de Selección a licenciatura (dataset del observatorio)", fuente: "DGAE-UNAM, listados públicos de resultados; reconstrucción del observatorio (repositorio datos-mexico-unam)", fuente_url: "https://datosmexico.org/unam", licencia: "CC BY 4.0",
+    descripcion: "La distribución de aciertos por carrera-plantel-concurso de 2018 en adelante, los encabezados oficiales (oferta, aspirantes, presentaron, aciertos mínimos, seleccionados), el universo oficial de carrera-plantel, la cobertura medida y su sesgo, el proceso anual (registrados, sustentantes, seleccionados) y la cronología del caso 2026. Ninguna tabla contiene filas individuales.",
+    binding: "DB_UNAM", prefijo_api: "/api/v1/unam", periodicidad: "por concurso (dos al año desde 2021)",
+    sql_corte: "SELECT max(anio) AS corte FROM encabezados", unidad_corte: "último año de concurso con encabezados",
+    notas: ["Cobertura declarada y no aleatoria: ver /api/v1/unam/concurso/tablas/cobertura y sesgo_cobertura.", "La UNAM en el Anuario ANUIES (matrícula, egreso, titulación, planteles, carreras, procedencia, edades, 2000-2001 en adelante) se sirve en /api/v1/unam/anuario/* desde la base anuies.", "Los CSV, el diccionario y la licencia se descargan tal cual desde /api/v1/unam/concurso/archivos."],
+  },
 ];

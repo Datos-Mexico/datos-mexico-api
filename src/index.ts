@@ -31,6 +31,8 @@ import { DemoBorrar, DemoCrear, DemoEditar, DemoEstudiante, DemoEstudiantes, Dem
 import { AdminRefrescarTablero } from "./cdmx/operacion";
 import { AdminEspejo } from "./admin/espejo";
 import { MicrodatosCount, MicrodatosList, MicrodatosSchema } from "./enoe/microdatos";
+import { AnuiesAgregado, AnuiesCiclos, AnuiesColumnas, AnuiesDescarga, AnuiesEdades, AnuiesInstitucion, AnuiesInstituciones, AnuiesPrograma, AnuiesProgramas, AnuiesProcedencia, AnuiesResumen, AnuiesSerie, AnuiesValores } from "./anuies/endpoints";
+import { UnamAnuarioAgregado, UnamAnuarioCampos, UnamAnuarioCarreras, UnamAnuarioEdades, UnamAnuarioNiveles, UnamAnuarioPlanteles, UnamAnuarioProcedencia, UnamAnuarioSerie, UnamConcursoArchivos, UnamConcursoDistribucion, UnamConcursoEncabezados, UnamConcursoTabla, UnamConcursoUniverso, UnamDescarga, UnamResumen } from "./unam/endpoints";
 import { ErrorHttp, respuestaError } from "./lib/errores";
 import { limitarPeticiones } from "./lib/limites";
 
@@ -43,6 +45,8 @@ export type Env = {
   DB_DENUE: D1Database;
   DB_CENSO2020: D1Database;
   DB_PLATAFORMA: D1Database;
+  DB_ANUIES: D1Database;
+  DB_UNAM: D1Database;
   SECRET_KEY: string;
   DATOS: R2Bucket;
   RL_5: RateLimit;
@@ -106,6 +110,8 @@ const openapi = fromHono(app, {
       { name: "inegi-datos-abiertos", description: "Todos los microdatos y tabulados de la descarga masiva del INEGI: microdatos en Parquet con tipado riguroso y el zip original conservado, tabulados archivados íntegros, todo con manifiesto (SHA-256, filas, esquema) y avance medible contra el inventario oficial." },
       { name: "denue", description: "DENUE — las 6,138,075 unidades económicas del país con sus 42 campos (edición 05/2026). Fuente: INEGI." },
       { name: "censo2020", description: "Censo de Población y Vivienda 2020 — 286 indicadores por localidad, municipio y entidad (ITER); AGEB y manzana en archivos Parquet. Fuente: INEGI." },
+      { name: "anuies", description: "Anuario Estadístico de Educación Superior (ANUIES) completo: todas las instituciones del país, 2000-2001 a 2025-2026, programa por programa (matrícula, nuevo ingreso, egresados, lugares, titulados y solicitudes por sexo, edad, discapacidad, lengua indígena y procedencia). Fuente: anuario.anuies.mx." },
+      { name: "unam", description: "Todo lo que tenemos de la UNAM: el Concurso de Selección a licenciatura (distribución de aciertos por carrera-plantel, encabezados oficiales, universo, cobertura, cronología; dataset del observatorio, CC BY 4.0) y la UNAM en el Anuario ANUIES ciclo por ciclo." },
       { name: "catalogo", description: "Qué bases tenemos, hasta cuándo llegan, con qué se verificaron y su esquema. Lo que no está aquí, no lo tenemos." },
       { name: "erratas", description: "Registro público de posibles errores en datos oficiales: quién lo reportó, qué se observó, qué se propone, revisión y edición en que se corrigió. El dato publicado nunca cambia por esta vía." },
       { name: "auth", description: "Autenticación OAuth2 (password flow → JWT). Las cuentas las provisiona el observatorio; el registro público está deshabilitado." },
@@ -235,6 +241,34 @@ openapi.get("/api/v1/denue/unidades/:id", DenueUnidad);
 openapi.get("/api/v1/denue/actividades", DenueActividades);
 
 // Censo de Población y Vivienda 2020, ITER (nuevo)
+openapi.get("/api/v1/anuies/resumen", AnuiesResumen);
+openapi.get("/api/v1/anuies/ciclos", AnuiesCiclos);
+openapi.get("/api/v1/anuies/columnas", AnuiesColumnas);
+openapi.get("/api/v1/anuies/valores", AnuiesValores);
+openapi.get("/api/v1/anuies/instituciones", AnuiesInstituciones);
+openapi.get("/api/v1/anuies/instituciones/:clave", AnuiesInstitucion);
+openapi.get("/api/v1/anuies/serie", AnuiesSerie);
+openapi.get("/api/v1/anuies/agregado", AnuiesAgregado);
+openapi.get("/api/v1/anuies/procedencia", AnuiesProcedencia);
+openapi.get("/api/v1/anuies/edades", AnuiesEdades);
+openapi.get("/api/v1/anuies/programas", AnuiesProgramas);
+openapi.get("/api/v1/anuies/programas/:id", AnuiesPrograma);
+openapi.get("/api/v1/anuies/descarga/*", AnuiesDescarga);
+openapi.get("/api/v1/unam/resumen", UnamResumen);
+openapi.get("/api/v1/unam/concurso/encabezados", UnamConcursoEncabezados);
+openapi.get("/api/v1/unam/concurso/distribucion/:anio/:concurso/:carrera_codigo", UnamConcursoDistribucion);
+openapi.get("/api/v1/unam/concurso/universo", UnamConcursoUniverso);
+openapi.get("/api/v1/unam/concurso/tablas/:tabla", UnamConcursoTabla);
+openapi.get("/api/v1/unam/concurso/archivos", UnamConcursoArchivos);
+openapi.get("/api/v1/unam/descarga/*", UnamDescarga);
+openapi.get("/api/v1/unam/anuario/serie", UnamAnuarioSerie);
+openapi.get("/api/v1/unam/anuario/planteles", UnamAnuarioPlanteles);
+openapi.get("/api/v1/unam/anuario/carreras", UnamAnuarioCarreras);
+openapi.get("/api/v1/unam/anuario/campos", UnamAnuarioCampos);
+openapi.get("/api/v1/unam/anuario/niveles", UnamAnuarioNiveles);
+openapi.get("/api/v1/unam/anuario/agregado", UnamAnuarioAgregado);
+openapi.get("/api/v1/unam/anuario/procedencia", UnamAnuarioProcedencia);
+openapi.get("/api/v1/unam/anuario/edades", UnamAnuarioEdades);
 openapi.get("/api/v1/censo2020/resumen", CensoResumen);
 openapi.get("/api/v1/censo2020/localidades", CensoLocalidades);
 openapi.get("/api/v1/censo2020/localidades/:entidad/:mun/:loc", CensoLocalidad);

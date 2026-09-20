@@ -876,3 +876,67 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
 - Publicado como público en la organización:
   https://github.com/Datos-Mexico/datos-mexico-api (rama `main`, remoto
   `origin`). Conforme a la política de nombres `datos-mexico-{tipo}`.
+
+## 2026-09-20 — TODA la UNAM: Anuario ANUIES completo + Concurso de Selección en la API (F12)
+
+**Encargo del CEO.** Así como ya se puede decir «tenemos TODO el INEGI», ahora toca TODA la UNAM (después
+IPN, ITAM, etc.). Compartió siete gráficos exportados del perfil de la UNAM en DataMéxico (Secretaría de
+Economía; datos ANUIES hasta 2022 y 2019) como referencia visual —comparativa por área, treemaps por
+plantel y por carrera, mapa de procedencia, situación académica por sexo— y la fuente: ANUIES, Anuario
+Estadístico de Educación Superior. Pidió gráficos interactivos en /unam con una barra de secciones (proceso de
+selección + secciones nuevas). El rediseño visual del explorador queda para después.
+
+**Fuente y método.** anuies.mx solo enlaza a anuario.anuies.mx, una consulta interactiva (PHP) que arma el
+Excel en el navegador desde un servicio POST (`action=consulta`, paginado, `pageSize` que el servidor adapta a
+1,000 cuando la consulta lleva todas las desagregaciones). Ese mismo sitio ofrece la exportación completa, así
+que la descarga por páginas es un uso previsto; se pace a 1 s entre páginas, dos trabajadores. Ciclos
+2000-2001 a 2025-2026 (26). Por ciclo se piden las 6 variables (matrícula, nuevo ingreso, egresados, lugares
+ofertados, titulados, solicitudes) con las 4 desagregaciones (sexo, edad en 16 grupos, discapacidad, lengua
+indígena) más la procedencia del nuevo ingreso (32 entidades + 8 regiones) y las 14 dimensiones (entidad,
+municipio, sostenimiento, ANUIES, clasificación, institución, escuela/campus, nivel, modalidad, 4 campos de
+formación, carrera): 167 cifras por fila, todas las instituciones. `scripts/anuies_consulta.py`, reanudable,
+con dims/cols verificados página a página y **conciliación por ciclo**: el mismo servicio sin dimensiones
+devuelve el agregado nacional, y la suma de las filas detalladas debe coincidir en las 6 variables (COINCIDE
+en todos los ciclos cerrados hasta ahora). La serie histórica de la UNAM (`action=historico`, historico.php,
+`scripts/anuies_historico.py`) se bajó aparte en 5 páginas: 13,253 filas en 26 ciclos; en los ciclos ya
+cerrados coincide fila por fila y en matrícula con la descarga íntegra (411/459/444 filas, 153,525/154,660/
+156,122 de matrícula en 2000-2003). DataMéxico (apidatamexico, cubos `anuies_enrollment`/`anuies_status`)
+solo llega a 2022: queda como cruce, no como fuente.
+
+**Términos.** anuario.anuies.mx dice «© ANUIES 2025 — Todos los derechos reservados» y no publica licencia
+abierta; se cita la fuente en cada endpoint y en el catálogo. Decisión de uso a confirmar por el CEO.
+
+**Almacén y base.** D1 `datosmexico-api-anuies` (7a70874c…): `programas` (48 columnas: 14 dimensiones,
+ciclo, clave de institución y las 31 cifras base), `programas_edad` (96) y `programas_procedencia` (40) por el
+límite de 100 columnas de D1, solo con fila cuando el ciclo trae algún valor; `ciclos` (filas, conciliación,
+SHA-256 del jsonl, Parquet), `columnas` (título y grupo de ANUIES), `instituciones` (clave estable = nombre
+sin acentos con guiones; ficha del último ciclo). `scripts/anuies_d1.py`: INSERTs multifila ≤ 40 KB en
+trozos ≤ 2 MB (con 90 KB / 7.5 MB el import de D1 falló con `D1_RESET_DO`), verificación remota por ciclo
+(count, sumas de las 6 variables, filas de edad y procedencia). Parquet por ciclo (182 columnas, zstd) en R2
+`anuies/anuario/<ciclo>.parquet` (`scripts/anuies_parquet_r2.py`, manifiesto en data/anuies).
+
+**Concurso de Selección.** El dataset de datos-mexico-unam/data/processed (CC BY 4.0; 17 CSV + diccionario +
+licencia) se cargó tal cual en D1 `datosmexico-api-unam` (5d10dfb0…) con `scripts/unam_concurso_d1.py`
+(tipado por columna, códigos/folios/huellas forzados a TEXT), conteos verificados tabla por tabla
+(encabezados 1,236; distribucion 79,698; universo 2,403; …) y los 19 archivos en R2 `unam/concurso/` con
+SHA-256 en la tabla `archivos`.
+
+**Endpoints.** `/api/v1/anuies/*`: resumen, ciclos, columnas, valores, instituciones (búsqueda), instituciones/{clave},
+serie, agregado (por cualquier dimensión, con filtros exactos), procedencia, edades, programas (paginación por
+llave `after`), programas/{id}, descarga. `/api/v1/unam/*`: resumen, concurso/encabezados, concurso/distribucion/
+{anio}/{concurso}/{codigo}, concurso/universo, concurso/tablas/{tabla}, concurso/archivos, descarga, y las
+vistas del anuario con la UNAM fija: anuario/serie, planteles, carreras, campos, niveles, agregado,
+procedencia, edades. Caché 1 h; cupos 30/min en agregados. Probado en versión de vista previa
+(0aa2fb0c) con los ciclos cargados; dos 500 durante la prueba fueron del import de D1 en curso (la base no
+sirve consultas mientras importa), no del código.
+
+**Sitio (F13, rama `unam-anuario`).** `app/(marketing)/unam/layout.tsx` monta la barra de secciones
+(`components/unam/NavUnam.tsx`): Proceso de selección (lo existente), Matrícula, Egreso y titulación,
+Planteles, Carreras y posgrados, Procedencia, Datos. Datos como assets: `scripts/build-unam-anuario.ts`
+trae de la API `lib/unam/anuario/datos.json` (serie por ciclo y por nivel + último ciclo) y
+`public/unam/v1/anuario-ciclos.json` (todos los ciclos; el navegador lo trae solo si alguien cambia de ciclo,
+`?ciclo=` en la URL). Gráficos con recharts (ya en el sitio): serie apilada por sexo con selector de nivel,
+barras agrupadas por campo (porcentaje/personas, por sexo), treemaps de planteles y carreras con ficha al
+clic, coropleta de procedencia sobre la geometría MG 2025 del hero (escala logarítmica, como la referencia),
+situación académica por sexo, pirámide de edades, tablas ordenables. Los nombres de ANUIES (mayúsculas
+sostenidas) se muestran con mayúscula inicial y el original va en `title`. Producción solo con el go del CEO.

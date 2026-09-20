@@ -26,6 +26,8 @@
     { "binding": "DB_BISE", "database_name": "datosmexico-api-bise", "database_id": "f5365a80-d9f3-4a76-9500-679ac299ed23" },
     { "binding": "DB_DENUE", "database_name": "datosmexico-api-denue", "database_id": "5372dd66-4d63-4e73-9710-a13df3101ee4" },
     { "binding": "DB_CENSO2020", "database_name": "datosmexico-api-censo2020", "database_id": "e234f099-61be-4aec-b74c-856f7b293901" },
-    { "binding": "DB_PLATAFORMA", "database_name": "datosmexico-api-plataforma", "database_id": "b9b10f07-a333-4c96-9986-95115452e7dc" }
+    { "binding": "DB_PLATAFORMA", "database_name": "datosmexico-api-plataforma", "database_id": "b9b10f07-a333-4c96-9986-95115452e7dc" },
+    { "binding": "DB_ANUIES", "database_name": "datosmexico-api-anuies", "database_id": "7a70874c-750d-4cb4-b067-391bd6905d37" },
+    { "binding": "DB_UNAM", "database_name": "datosmexico-api-unam", "database_id": "5d10dfb0-c07d-43be-b27d-972311f68630" }
   ]
 }
