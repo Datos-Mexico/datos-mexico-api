@@ -672,3 +672,25 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
   proceso, solo de `.dev.vars` (ignorado por git); y un hash bcrypt dentro de
   comillas dobles en zsh se corrompe (`$2b$12$` se expande): los hashes se
   escriben desde Python a un archivo SQL.
+
+## 2026-09-20 · Auditoría real del universo INEGI
+- El CEO pidió estimar cuánto falta para «todo el INEGI». Fuentes: el árbol
+  oficial de datos abiertos (`arbol.json`, 214 programas / 427
+  programa-edición) y la API interna de «Descarga masiva»
+  (`/app/api/descarga/descarga/descargamasiva/lista/*`, POST con JSON de
+  cadenas; `obtenerlistado` → programas, `obtenercarpetas` → carpetas,
+  `obtenerarchivos` → archivos con formatos y tamaños; exige cabeceras de
+  navegador). Recorrido completo en `scripts/inegi_inventario_masivo.py` →
+  `data/inegi-universo/archivos.csv` (25,742 registros archivo×formato,
+  18,959 archivos lógicos).
+- Universo: microdatos 139 programas / 4,781 archivos / 49.2 GB en todos los
+  formatos (CSV: 756 archivos, 6.3 GB, 66 programas; 73 programas solo en
+  DBF/DTA/SAV); tabulados 183 programas / 14,178 archivos / 13.6 GB (casi
+  todo Excel); DENUE 486 archivos; Indicadores 392; INV 3. Cubierto hoy:
+  Banco de Indicadores completo, DENUE completo, ENOE completa, ENIGH 2024,
+  Censo 2020 ITER + AGEB/manzana. Resultado y plan en
+  `docs/INEGI-UNIVERSO.md`.
+- Hallazgo: los «microdatos» de los Censos Económicos en descarga masiva son
+  ejemplos con valores alterados (los reales son confidenciales); lo público
+  son los resultados definitivos en datos abiertos (CSV nacional por
+  sector/estrato, 107 variables) y 2,044 tabulados Excel.
