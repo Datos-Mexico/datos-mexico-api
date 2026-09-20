@@ -55,4 +55,11 @@ export const DATASETS: DatasetDef[] = [
     sql_corte: "SELECT valor AS corte FROM edicion WHERE clave = 'fecha_diccionario'", unidad_corte: "fecha del diccionario de datos de la edición cargada",
     notas: ["Los campos se conservan tal cual (textos del INEGI, con espacios finales recortados; vacíos como nulos).", "Búsqueda por nombre, actividad, estado, municipio, código postal y cercanía a una coordenada; resumen verificable en /api/v1/denue/resumen."],
   },
+  {
+    clave: "censo2020", nombre: "INEGI — Censo de Población y Vivienda 2020 (ITER, resultados por localidad)", fuente: "INEGI, datos abiertos del Censo 2020 (4a edición)", fuente_url: "https://www.inegi.org.mx/programas/ccpv/2020/#datos_abiertos", licencia: "Términos de libre uso INEGI",
+    descripcion: "Los 286 indicadores del Censo 2020 para las 189,432 localidades del país y sus totales municipales, estatales y nacional (195,662 filas), con el diccionario de datos del INEGI. Los valores protegidos por confidencialidad ('*') y no disponibles ('N/D') se conservan tal cual.",
+    binding: "DB_CENSO2020", prefijo_api: "/api/v1/censo2020", periodicidad: "decenal (Censo 2020; el siguiente en 2030)",
+    sql_corte: "SELECT '2020' AS corte", unidad_corte: "año censal",
+    notas: ["La tabla de 286 columnas se guarda en tres partes (iter, iter_2, iter_3) con la misma llave entidad+mun+loc por el límite de 100 columnas de D1.", "Los resultados por AGEB y manzana urbana (32 archivos) se publican aparte como Parquet en almacenamiento de objetos.", "Resumen verificable en /api/v1/censo2020/resumen (la población total nacional debe ser 126,014,024)."],
+  },
 ];

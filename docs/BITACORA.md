@@ -551,3 +551,32 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
   «normal» es una página 404 de 2,263 bytes que hubo que descartar), 989
   actividades SCIAN, 42 entradas de diccionario. Carga remota en curso
   (`data/denue/carga-remota.log`).
+
+## 2026-09-20 · Censo de Población y Vivienda 2020 (ITER) y AGEB/manzana
+- ITER 2020 (4a edición, datos abiertos): 195,662 filas × 286 columnas
+  (189,432 localidades; 2,469 totales municipales; 32 estatales + nacional;
+  3,662 resúmenes de localidades de una y dos viviendas). Valores especiales
+  del INEGI: 22,398,055 celdas '*' (confidencialidad) y 41,192 'N/D'.
+  Decisión de fidelidad: columnas NUMERIC en D1 → los números quedan como
+  números (se recortan los espacios a la izquierda del CSV) y '*'/'N/D' se
+  conservan como texto; nada se pierde y las sumas funcionan con SQL.
+- Tres tablas (`iter`, `iter_2`, `iter_3`, llave entidad+mun+loc) por el
+  límite de 100 columnas, `iter_diccionario` (los 286 indicadores del INEGI)
+  y `edicion`. D1 `datosmexico-api-censo2020` (binding DB_CENSO2020).
+  `scripts/iter_a_csv.py` genera CSV, DDL y particiones y valida llaves
+  únicas. Carga remota en curso (`data/censo2020/carga-remota.log`).
+- Cinco endpoints (tag `censo2020`): resumen (con la prueba de que la
+  población nacional, la suma estatal y la municipal coinciden), búsqueda de
+  localidades/municipios/entidades por nombre, clave y nivel, ficha con los
+  286 indicadores, diccionario e «indicador para todas las geografías de un
+  nivel» (la consulta para mapas).
+- AGEB y manzana urbana 2020: 32 archivos `ageb_mza_urbana_NN_cpv2020_csv.zip`
+  (descarga en curso); por tamaño van a R2 como Parquet por entidad, no a D1.
+- ITER 2020 cargado y cuadrado: iter/iter_2/iter_3 195,662 filas cada una,
+  diccionario 286 (llave = columna: el INEGI numera dos veces las nueve
+  columnas de identificación), edición 5; D1 de 152 MB.
+- AGEB/manzana: el INEGI usa tres valores especiales ('*', 'N/D' y también
+  'N/A') y publica decimales en algunas columnas (promedios, relaciones,
+  grado de escolaridad): el Parquet tipa cada columna según lo que trae
+  (Int64 o Float64) y conserva los especiales por fila en
+  `celdas_especiales` (JSON columna→valor), reconstruible al 100 %.
