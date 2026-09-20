@@ -694,3 +694,30 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
   ejemplos con valores alterados (los reales son confidenciales); lo público
   son los resultados definitivos en datos abiertos (CSV nacional por
   sector/estrato, 107 variables) y 2,044 tabulados Excel.
+
+## 2026-09-20 · «Todo el INEGI»: ingesta distribuida en marcha
+- Instrucción del CEO: máximo esfuerzo, todo hoy si se puede, en paralelo
+  desde varias máquinas, todo al sistema nuevo y con el mismo rigor.
+- Ingestor genérico `scripts/inegi_ingesta.py` (microdatos): universo de
+  4,259 archivos de datos (17.4 GB) tomado del inventario; por archivo:
+  descarga con SHA-256, el zip original se sube íntegro a R2
+  (`inegi/fuentes/…`), cada tabla se convierte a Parquet zstd con tipado
+  riguroso (todo se lee como texto y una columna solo pasa a entero o
+  decimal si todos sus valores lo son sin ceros a la izquierda; los códigos
+  se conservan como texto), se verifica filas Parquet = filas leídas y se
+  sube por la API REST de R2 (sin wrangler; se comprueba el tamaño
+  devuelto). Manifiesto por máquina con programa, edición, tabla, filas,
+  columnas, esquema (nombre y tipo), bytes, clave R2, fuente, URL, SHA-256,
+  máquina y fecha. Formatos: CSV preferido; DBF con parser tolerante (los
+  campos numéricos con texto 'N', 'NA', '3 1' se conservan como texto); Stata
+  y SPSS vía pyreadstat.
+- `scripts/inegi_tabulados_r2.py`: archiva íntegros los 14,178 tabulados
+  (Excel/HTML/PDF) en `inegi/tabulados/…` con SHA-256 y manifiesto.
+- Reparto: esta Mac corre los shards 0/3 y 1/3 de microdatos (6 hilos cada
+  uno) y 0/2 de tabulados (4 hilos); la HP ENVY (frame-os, NixOS, usuario
+  `frame`, avisada la sesión The Frame) corre 2/3 de microdatos y 1/2 de
+  tabulados con `nice 19` e `ionice -c 3` y 2 hilos cada uno (límite
+  acordado: carga sostenida ≤ 3, ≥ 40 GB libres). En la HP el venv necesita
+  `LD_LIBRARY_PATH` con la libstdc++ de nix (`entorno.sh`). El Mac mini
+  sigue sin acceso por llave (pendiente del CEO).
+- Prueba ENBIARE 2021/2025: 8 tablas, 411,499 filas, 24-30 s por archivo.
