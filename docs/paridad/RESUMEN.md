@@ -1,6 +1,6 @@
 # Resumen de paridad — api.datosmexico.org (Cloudflare) contra api.datos-itam.org (legacy)
 
-Generado: 2026-09-20 04:05 UTC. Cada fila enlaza el reporte detallado. «Datos»: misma respuesta JSON petición a petición (números con tolerancia relativa 1e-9, códigos HTTP y mensajes de error incluidos). «Docs»: mismo summary, description, operationId, tags, parámetros y forma de la respuesta 200 en el OpenAPI. «Fidelidad»: la base D1 reproduce la de Neon tabla por tabla (conteos, sumas, rangos de fecha, distintos).
+Generado: 2026-09-20 04:30 UTC. Cada fila enlaza el reporte detallado. «Datos»: misma respuesta JSON petición a petición (números con tolerancia relativa 1e-9, códigos HTTP y mensajes de error incluidos). «Docs»: mismo summary, description, operationId, tags, parámetros y forma de la respuesta 200 en el OpenAPI. «Fidelidad»: la base D1 reproduce la de Neon tabla por tabla (conteos, sumas, rangos de fecha, distintos).
 
 | Bloque | Datos | Docs | Fidelidad D1 |
 |---|---|---|---|
@@ -20,6 +20,8 @@ Generado: 2026-09-20 04:05 UTC. Cada fila enlaza el reporte detallado. «Datos»
 | INEGI Banco de Indicadores | Sin contraparte en el legacy (endpoints nuevos). Verificación en producción contra los archivos de origen: resumen exacto (31,817 indicadores / 31,039 con datos / 7,456,265 observaciones en tres niveles geográficos) y 8 series completas idénticas observación por observación, 3 de ellas municipales. | Documentación propia (tag `inegi`). | 9/9 tablas con conteos iguales al origen; suma de `n_observaciones` = filas de `observaciones`. |
 | INEGI DENUE | Sin contraparte en el legacy. Verificación en producción contra los CSV de descarga masiva: resumen exacto (6,138,075 unidades, 989 actividades), 5 fichas con 42 campos idénticos, totales por estado, código postal y prefijo SCIAN iguales al CSV, cercanía a una coordenada con distancia 0 para la propia unidad. | Documentación propia (tag `denue`). | 4/4 tablas con conteos iguales al CSV. |
 | INEGI Censo 2020 (ITER) | Sin contraparte en el legacy. Verificación en producción: 195,662 filas; población nacional = suma estatal = suma municipal = 126,014,024 (cifra oficial); 5 fichas con 286 campos idénticos; conteos por nivel iguales al CSV. | Documentación propia (tag `censo2020`). | 5/5 tablas con conteos iguales al CSV. AGEB/manzana: 32/32 Parquet en R2 verificados por la API de Cloudflare (1,683,504 filas). |
+| Autenticación, demo y operación (escritura) | Contrato del legacy reproducido y probado en local y producción: 41 comprobaciones (tokens, 401/403/422, ciclo completo del demo). Los 9 CRUD del legacy sobre tablas oficiales y la carga CSV por API no se exponen por diseño. | [auth 3/3, demo 9/9, admin 1/1 rutas con documentación equivalente](../BITACORA.md) | `users` 2 (migrados), `demo_curso_bd` 12/12 = Neon. |
+| Erratas (nuevo) | Registro público de observaciones sobre datos oficiales con autoría, revisión y edición aplicada; ciclo completo probado en producción. | Documentación propia (tag `erratas`). | — |
 
 Notas:
 - CDMX: 6 rutas difieren solo por el orden de filas empatadas en la llave de orden (el legacy no fija desempate); verificación por conjuntos en `cdmx-datos.md`.

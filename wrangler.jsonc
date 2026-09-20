@@ -13,7 +13,8 @@
     { "name": "RL_15", "namespace_id": "5015", "simple": { "limit": 15, "period": 60 } },
     { "name": "RL_20", "namespace_id": "5020", "simple": { "limit": 20, "period": 60 } },
     { "name": "RL_30", "namespace_id": "5030", "simple": { "limit": 30, "period": 60 } },
-    { "name": "RL_60", "namespace_id": "5060", "simple": { "limit": 60, "period": 60 } }
+    { "name": "RL_60", "namespace_id": "5060", "simple": { "limit": 60, "period": 60 } },
+    { "name": "RL_120", "namespace_id": "5120", "simple": { "limit": 120, "period": 60 } }
   ],
   "r2_buckets": [ { "binding": "DATOS", "bucket_name": "datosmexico-datos" } ],
   "hyperdrive": [ { "binding": "HYPERDRIVE", "id": "6f8943e63f0e4a69bdba2f1ce35dfd5d" } ],
@@ -24,6 +25,7 @@
     { "binding": "DB_ENOE", "database_name": "datosmexico-api-enoe", "database_id": "db6e43ac-353e-43a4-ada6-134357f07c71" },
     { "binding": "DB_BISE", "database_name": "datosmexico-api-bise", "database_id": "f5365a80-d9f3-4a76-9500-679ac299ed23" },
     { "binding": "DB_DENUE", "database_name": "datosmexico-api-denue", "database_id": "5372dd66-4d63-4e73-9710-a13df3101ee4" },
-    { "binding": "DB_CENSO2020", "database_name": "datosmexico-api-censo2020", "database_id": "e234f099-61be-4aec-b74c-856f7b293901" }
+    { "binding": "DB_CENSO2020", "database_name": "datosmexico-api-censo2020", "database_id": "e234f099-61be-4aec-b74c-856f7b293901" },
+    { "binding": "DB_PLATAFORMA", "database_name": "datosmexico-api-plataforma", "database_id": "b9b10f07-a333-4c96-9986-95115452e7dc" }
   ]
 }

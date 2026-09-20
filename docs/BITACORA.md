@@ -617,3 +617,58 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
   prefijo SCIAN, cercanía; Censo: resumen, 5 fichas de 286 campos, niveles,
   indicador por entidad con suma 126,014,024, 404/422; openapi 109 rutas;
   catálogo). Total **108 endpoints** (98 + DENUE 5 + Censo 5).
+
+## 2026-09-20 · Swagger completo: autenticación, erratas, demo y operación
+- Directriz del CEO precisada: modificar tablas oficiales por API no es
+  académicamente correcto. Decisión de diseño (escrita en la portada del
+  Swagger): las bases oficiales son de solo lectura; los métodos de
+  escritura existen solo donde son correctos. Los 9 CRUD del legacy sobre
+  personas, nombramientos y catálogos de la CDMX y la carga de CSV por API
+  NO se exponen (documentado como decisión); las cargas son scripts
+  versionados y verificados.
+- Nuevo: **Erratas** (`/api/v1/erratas`): registro público de posibles
+  errores en datos oficiales (base del catálogo, tabla, registro, campo,
+  valor observado, valor propuesto, fuente, comentario), con autoría
+  (usuario del JWT y fecha), revisión por administrador (aceptada /
+  rechazada, nota, revisor, fecha) y `edicion_aplicada` para ligar la
+  corrección a la edición en que se cargó. GET públicos; POST con login;
+  PUT/DELETE admin. El dato publicado nunca cambia por esta vía.
+- Autenticación con el contrato del legacy: `POST /auth/token` (OAuth2
+  password flow, form-urlencoded, JWT HS256 de 30 min firmado con el
+  secreto `SECRET_KEY` del worker), `GET /auth/me`, `POST /auth/register`
+  (403 siempre). Contraseñas verificadas con bcrypt contra los hashes
+  migrados. D1 `datosmexico-api-plataforma` (binding DB_PLATAFORMA):
+  `users` (migrados `admin` y `DemoAbril`; los otros 21 usuarios del legacy
+  eran residuos de pruebas automatizadas: testadmin_*, login_*, wrongpw_*,
+  me_*), `demo_curso_bd` (12 filas) y `erratas`. Cuentas nuevas
+  `observatorio` (admin) y `colaborador`, contraseñas en
+  `data/.secretos.env`; alta/rotación con `scripts/plataforma_usuario.py`
+  (sustituye al create_admin.py del legacy).
+- Demo del curso de Bases de Datos (ITAM): los 9 endpoints del legacy
+  (lista, detalle, resumen, toggle del bono con login, alta/edición/baja y
+  reinicio con admin), mismos cupos (60/120/30/20 por minuto; binding nuevo
+  RL_120), fechas con el formato de Pydantic y montos con dos decimales.
+- Operación: `POST /admin/refresh-materialized-views` recalcula las cinco
+  tablas del tablero desde las oficiales con las definiciones de la
+  migración 004 del legacy (percentiles, filtros por sexo, años cumplidos de
+  antigüedad). Prueba local contra la copia del padrón: las 17,417 cifras de
+  `/dashboard/stats` coinciden salvo la antigüedad (depende de la fecha de
+  hoy; el legacy tiene su instantánea de meses atrás) y un empate en el
+  décimo puesto mejor pagado (el legacy no fija desempate; el nuevo ordena
+  por conteo y nombre). En producción NO se ejecutó: se conserva la
+  instantánea del legacy para la paridad hasta que el CEO decida.
+- Portada del Swagger: 21 grupos con descripción y fuente, principio de solo
+  lectura, términos de uso, contacto, licencia, enlace al modelo
+  institucional; esquema de seguridad OAuth2 (candado en 10 operaciones).
+  Total **126 operaciones: 115 GET, 6 POST, 3 PUT, 2 DELETE** (el legacy:
+  114 con 18 escrituras sobre tablas oficiales).
+- Pruebas: 41 comprobaciones de escritura en local (0 fallos) y las mismas
+  41 en producción con las cuentas nuevas (0 fallos): tokens, 401 con
+  `WWW-Authenticate`, 403 de admin, 422 en cuerpos incompletos, ciclo
+  completo de una errata (reportar → revisar → listar → borrar), ciclo del
+  demo (toggle, alta, duplicado 409, edición, baja, reinicio); el refresco
+  en producción solo se probó en control de acceso (401/403).
+- Hallazgo local: `wrangler dev` no toma los secretos del entorno del
+  proceso, solo de `.dev.vars` (ignorado por git); y un hash bcrypt dentro de
+  comillas dobles en zsh se corrompe (`$2b$12$` se expande): los hashes se
+  escriben desde Python a un archivo SQL.

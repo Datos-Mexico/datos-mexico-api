@@ -24,6 +24,10 @@ import { CatalogoDatasets, CatalogoEsquema } from "./catalogo/endpoints";
 import { InegiCatalogo, InegiIndicador, InegiIndicadores, InegiObservaciones, InegiResumen } from "./inegi/endpoints";
 import { DenueActividades, DenueCerca, DenueResumen, DenueUnidad, DenueUnidades } from "./denue/endpoints";
 import { CensoIndicador, CensoIndicadores, CensoLocalidad, CensoLocalidades, CensoResumen } from "./censo2020/endpoints";
+import { AuthMe, AuthRegister, AuthToken } from "./auth/endpoints";
+import { ErrataBorrar, ErrataDetalle, ErrataReportar, ErrataRevisar, ErratasLista } from "./erratas/endpoints";
+import { DemoBorrar, DemoCrear, DemoEditar, DemoEstudiante, DemoEstudiantes, DemoReset, DemoResumen, DemoToggleBono } from "./demo/endpoints";
+import { AdminRefrescarTablero } from "./cdmx/operacion";
 import { MicrodatosCount, MicrodatosList, MicrodatosSchema } from "./enoe/microdatos";
 import { ErrorHttp, respuestaError } from "./lib/errores";
 import { limitarPeticiones } from "./lib/limites";
@@ -36,6 +40,8 @@ export type Env = {
   DB_BISE: D1Database;
   DB_DENUE: D1Database;
   DB_CENSO2020: D1Database;
+  DB_PLATAFORMA: D1Database;
+  SECRET_KEY: string;
   DATOS: R2Bucket;
   HYPERDRIVE: Hyperdrive;
   RL_5: RateLimit;
@@ -44,6 +50,7 @@ export type Env = {
   RL_20: RateLimit;
   RL_30: RateLimit;
   RL_60: RateLimit;
+  RL_120: RateLimit;
 };
 export type AppContext = Context<{ Bindings: Env }>;
 
@@ -76,8 +83,33 @@ const openapi = fromHono(app, {
       description: DESCRIPCION,
       contact: { name: "Observatorio Datos México", url: "https://datosmexico.org", email: "equipo@datosmexico.org" },
       license: { name: "MIT", url: "https://opensource.org/licenses/MIT" },
+      termsOfService: "https://datosmexico.org/privacidad",
     },
+    externalDocs: { description: "Modelo institucional del observatorio", url: "https://datosmexico.org/modelo" },
     servers: [{ url: "https://api.datosmexico.org", description: "Producción" }],
+    tags: [
+      { name: "consar", description: "CONSAR — Sistema de Ahorro para el Retiro: recursos, comisiones, flujos, traspasos, activo neto, rendimientos, cuentas y precios de las SIEFOREs. Fuente: CONSAR vía datos.gob.mx." },
+      { name: "enigh", description: "ENIGH 2024 Nueva Serie — microdatos completos y agregados que reproducen el comunicado oficial. Fuente: INEGI." },
+      { name: "comparativo", description: "Cruces entre el padrón de servidores públicos de la CDMX y la ENIGH." },
+      { name: "servidores", description: "Padrón de remuneraciones de servidores públicos de la Ciudad de México: búsqueda y estadísticas. Solo lectura." },
+      { name: "sectores", description: "Sectores del padrón CDMX: lista, estadísticas y comparación." },
+      { name: "catalogos", description: "Catálogos del padrón CDMX (sexos, puestos, contratación, personal, nómina, universos, sectores, niveles salariales). Solo lectura." },
+      { name: "dashboard", description: "Tablero del padrón CDMX a partir de tablas derivadas (mv_dashboard_*)." },
+      { name: "analytics", description: "Rankings y brechas del padrón CDMX." },
+      { name: "personas", description: "Personas del padrón CDMX. Solo lectura: las correcciones se reportan en Erratas." },
+      { name: "nombramientos", description: "Nombramientos del padrón CDMX. Solo lectura: las correcciones se reportan en Erratas." },
+      { name: "export", description: "Exportación CSV del padrón CDMX." },
+      { name: "enoe", description: "ENOE 15+ — indicadores laborales trimestrales por entidad y microdatos completos (101.5 millones de filas). Fuente: INEGI." },
+      { name: "inegi", description: "Banco de Indicadores del INEGI completo: 31,817 indicadores a nivel nacional, estatal y municipal, al día con la última actualización publicada." },
+      { name: "denue", description: "DENUE — las 6,138,075 unidades económicas del país con sus 42 campos (edición 05/2026). Fuente: INEGI." },
+      { name: "censo2020", description: "Censo de Población y Vivienda 2020 — 286 indicadores por localidad, municipio y entidad (ITER); AGEB y manzana en archivos Parquet. Fuente: INEGI." },
+      { name: "catalogo", description: "Qué bases tenemos, hasta cuándo llegan, con qué se verificaron y su esquema. Lo que no está aquí, no lo tenemos." },
+      { name: "erratas", description: "Registro público de posibles errores en datos oficiales: quién lo reportó, qué se observó, qué se propone, revisión y edición en que se corrigió. El dato publicado nunca cambia por esta vía." },
+      { name: "auth", description: "Autenticación OAuth2 (password flow → JWT). Las cuentas las provisiona el observatorio; el registro público está deshabilitado." },
+      { name: "admin", description: "Operación: recálculo de tablas derivadas a partir de las oficiales. Solo administradores." },
+      { name: "demo", description: "Demo del curso de Bases de Datos (ITAM, sección 001): tabla pedagógica, no oficial." },
+      { name: "demo-admin", description: "Administración de la tabla del curso. Solo administradores." },
+    ],
   },
 });
 
@@ -198,6 +230,34 @@ openapi.get("/api/v1/censo2020/localidades", CensoLocalidades);
 openapi.get("/api/v1/censo2020/localidades/:entidad/:mun/:loc", CensoLocalidad);
 openapi.get("/api/v1/censo2020/indicadores", CensoIndicadores);
 openapi.get("/api/v1/censo2020/indicadores/:columna", CensoIndicador);
+
+// Erratas (registro público de observaciones sobre datos oficiales; las bases oficiales son de solo lectura)
+openapi.get("/api/v1/erratas", ErratasLista);
+openapi.post("/api/v1/erratas", ErrataReportar);
+openapi.get("/api/v1/erratas/:id", ErrataDetalle);
+openapi.put("/api/v1/erratas/:id", ErrataRevisar);
+openapi.delete("/api/v1/erratas/:id", ErrataBorrar);
+
+// Autenticación (mismo contrato que el legacy)
+openapi.post("/api/v1/auth/register", AuthRegister);
+openapi.post("/api/v1/auth/token", AuthToken);
+openapi.get("/api/v1/auth/me", AuthMe);
+
+// Operación (recalcula tablas derivadas a partir de las oficiales; no modifica datos publicados)
+openapi.post("/api/v1/admin/refresh-materialized-views", AdminRefrescarTablero);
+
+// Demo del curso Bases de Datos (tabla pedagógica, no oficial)
+openapi.get("/api/v1/demo/estudiantes", DemoEstudiantes);
+openapi.get("/api/v1/demo/resumen", DemoResumen);
+openapi.get("/api/v1/demo/estudiantes/:id", DemoEstudiante);
+openapi.put("/api/v1/demo/estudiantes/:id/toggle-bono", DemoToggleBono);
+openapi.post("/api/v1/admin/demo/estudiantes", DemoCrear);
+openapi.put("/api/v1/admin/demo/estudiantes/:id", DemoEditar);
+openapi.delete("/api/v1/admin/demo/estudiantes/:id", DemoBorrar);
+openapi.post("/api/v1/admin/demo/reset", DemoReset);
+
+// Esquema de seguridad (candado en el Swagger): OAuth2 password flow contra /api/v1/auth/token
+openapi.registry.registerComponent("securitySchemes", "OAuth2PasswordBearer", { type: "oauth2", flows: { password: { tokenUrl: "/api/v1/auth/token", scopes: {} } } });
 // Rutas de colección sin barra final: 307 hacia la ruta con barra, como Starlette.
 for (const col of ["servidores", "sectores", "personas", "nombramientos"]) {
   app.get(`/api/v1/${col}`, (c) => { const u = new URL(c.req.url); u.pathname += "/"; return c.redirect(u.toString(), 307); });
@@ -205,7 +265,7 @@ for (const col of ["servidores", "sectores", "personas", "nombramientos"]) {
 app.get("/", (c) => c.redirect("/docs", 302));
 
 app.onError(async (err, c) => {
-  if (err instanceof ErrorHttp) return respuestaError(err.status, err.detail);
+  if (err instanceof ErrorHttp) return respuestaError(err.status, err.detail, err.headers);
   // chanfana envuelve los errores de validación en una HTTPException de Hono cuyo cuerpo
   // trae {errors:[{code,message,path}]}. Se traduce a la forma de FastAPI (422, lista type/loc/msg/input).
   if (err instanceof HTTPException && err.res) {

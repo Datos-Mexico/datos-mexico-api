@@ -23,12 +23,16 @@ const CUPOS: Record<string, number> = {
   "/api/v1/analytics/puestos/ranking": 20, "/api/v1/analytics/sectores/ranking": 20, "/api/v1/analytics/brecha-edad": 20,
   "/api/v1/personas/": 30, "/api/v1/nombramientos/": 30,
   "/api/v1/export/csv": 5,
+  "/api/v1/admin/refresh-materialized-views": 5, "/api/v1/demo/estudiantes": 60, "/api/v1/demo/resumen": 60, "/api/v1/admin/demo/estudiantes": 20, "/api/v1/admin/demo/reset": 20,
   "/api/v1/enoe/indicadores/nacional/serie": 30, "/api/v1/enoe/indicadores/nacional/snapshot": 30, "/api/v1/enoe/indicadores/entidad/serie": 30, "/api/v1/enoe/indicadores/entidad/snapshot": 30, "/api/v1/enoe/indicadores/entidad/ranking": 30,
   "/api/v1/enoe/ocupados/por-sector/snapshot": 30, "/api/v1/enoe/ocupados/por-sector/serie": 30, "/api/v1/enoe/ocupados/por-posicion/snapshot": 30, "/api/v1/enoe/ocupados/por-posicion/serie": 30,
 };
 function cupo(ruta: string): number {
   if (ruta in CUPOS) return CUPOS[ruta];
   if (/^\/api\/v1\/sectores\/[^/]+\/stats$/.test(ruta)) return 30;
+  if (/^\/api\/v1\/demo\/estudiantes\/[^/]+\/toggle-bono$/.test(ruta)) return 30;
+  if (/^\/api\/v1\/demo\/estudiantes\/[^/]+$/.test(ruta)) return 120;
+  if (/^\/api\/v1\/admin\/demo\/estudiantes\/[^/]+$/.test(ruta)) return 20;
   if (/^\/api\/v1\/enoe\/microdatos\/[^/]+\/list$/.test(ruta)) return 10;
   if (/^\/api\/v1\/enoe\/microdatos\/[^/]+\/count$/.test(ruta)) return 30;
   if (/^\/api\/v1\/inegi\/indicadores\/[^/]+\/observaciones$/.test(ruta)) return 30;
@@ -41,7 +45,7 @@ export const limitarPeticiones: MiddlewareHandler<{ Bindings: Env }> = async (c,
   const ruta = new URL(c.req.url).pathname;
   const ip = c.req.header("cf-connecting-ip") ?? "desconocida";
   const n = cupo(ruta);
-  const limitador = n === 5 ? c.env.RL_5 : n === 10 ? c.env.RL_10 : n === 15 ? c.env.RL_15 : n === 20 ? c.env.RL_20 : n === 30 ? c.env.RL_30 : c.env.RL_60;
+  const limitador = n === 5 ? c.env.RL_5 : n === 10 ? c.env.RL_10 : n === 15 ? c.env.RL_15 : n === 20 ? c.env.RL_20 : n === 30 ? c.env.RL_30 : n === 120 ? c.env.RL_120 : c.env.RL_60;
   if (limitador) {
     const { success } = await limitador.limit({ key: `${ip}:${ruta}` });
     if (!success) return respuestaError(429, "Rate limit exceeded. Try again later.");
