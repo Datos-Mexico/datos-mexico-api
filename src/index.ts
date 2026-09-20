@@ -33,6 +33,7 @@ import { AdminEspejo } from "./admin/espejo";
 import { MicrodatosCount, MicrodatosList, MicrodatosSchema } from "./enoe/microdatos";
 import { AnuiesAgregado, AnuiesCiclos, AnuiesColumnas, AnuiesDescarga, AnuiesEdades, AnuiesInstitucion, AnuiesInstituciones, AnuiesPrograma, AnuiesProgramas, AnuiesProcedencia, AnuiesResumen, AnuiesSerie, AnuiesValores } from "./anuies/endpoints";
 import { UnamAnuarioAgregado, UnamAnuarioCampos, UnamAnuarioCarreras, UnamAnuarioEdades, UnamAnuarioNiveles, UnamAnuarioPlanteles, UnamAnuarioProcedencia, UnamAnuarioSerie, UnamConcursoArchivos, UnamConcursoDistribucion, UnamConcursoEncabezados, UnamConcursoTabla, UnamConcursoUniverso, UnamDescarga, UnamResumen } from "./unam/endpoints";
+import { CuboDatos, CuboFicha, CuboMiembros, CubosCatalogo } from "./cubos/endpoints";
 import { ErrorHttp, respuestaError } from "./lib/errores";
 import { limitarPeticiones } from "./lib/limites";
 
@@ -112,6 +113,7 @@ const openapi = fromHono(app, {
       { name: "censo2020", description: "Censo de Población y Vivienda 2020 — 286 indicadores por localidad, municipio y entidad (ITER); AGEB y manzana en archivos Parquet. Fuente: INEGI." },
       { name: "anuies", description: "Anuario Estadístico de Educación Superior (ANUIES) completo: todas las instituciones del país, 2000-2001 a 2025-2026, programa por programa (matrícula, nuevo ingreso, egresados, lugares, titulados y solicitudes por sexo, edad, discapacidad, lengua indígena y procedencia). Fuente: anuario.anuies.mx." },
       { name: "unam", description: "Todo lo que tenemos de la UNAM: el Concurso de Selección a licenciatura (distribución de aciertos por carrera-plantel, encabezados oficiales, universo, cobertura, cronología; dataset del observatorio, CC BY 4.0) y la UNAM en el Anuario ANUIES ciclo por ciclo." },
+      { name: "cubos", description: "Cubos del explorador del observatorio (datosmexico.org/observatorio): una capa uniforme de medidas y dimensiones sobre las bases del catálogo, con consulta agregada en JSON o CSV y una URL que reproduce cada tabla." },
       { name: "catalogo", description: "Qué bases tenemos, hasta cuándo llegan, con qué se verificaron y su esquema. Lo que no está aquí, no lo tenemos." },
       { name: "erratas", description: "Registro público de posibles errores en datos oficiales: quién lo reportó, qué se observó, qué se propone, revisión y edición en que se corrigió. El dato publicado nunca cambia por esta vía." },
       { name: "auth", description: "Autenticación OAuth2 (password flow → JWT). Las cuentas las provisiona el observatorio; el registro público está deshabilitado." },
@@ -125,6 +127,11 @@ const openapi = fromHono(app, {
 openapi.get("/health", Salud);
 openapi.get("/api/v1/catalogo/datasets", CatalogoDatasets);
 openapi.get("/api/v1/catalogo/datasets/:dataset/esquema", CatalogoEsquema);
+// Cubos del explorador (capa declarativa sobre las bases; ver src/cubos/)
+openapi.get("/api/v1/cubos", CubosCatalogo);
+openapi.get("/api/v1/cubos/:cubo", CuboFicha);
+openapi.get("/api/v1/cubos/:cubo/miembros", CuboMiembros);
+openapi.get("/api/v1/cubos/:cubo/datos", CuboDatos);
 openapi.get("/api/v1/consar/afores", Afores);
 openapi.get("/api/v1/consar/tipos-recurso", TiposRecurso);
 openapi.get("/api/v1/consar/recursos/totales", RecursosTotales);

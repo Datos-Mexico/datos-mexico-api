@@ -977,3 +977,50 @@ Iztacala. Sin firmas de IA (autor único en los tres commits).
 arriba y que ambos quepan en una pantalla: una sola selección viva (elegir en uno suelta la del otro), altura 460 → 300
 px, ficha lateral compacta. PR #166 fusionado por rebase con go explícito (punta `f858187`), Workers Builds en verde,
 verificado en vivo (clic en Licenciatura en Psicología → FES Iztacala 55 %, CU 29.2 %, FES Zaragoza 15.8 %). Sin firmas.
+
+## 2026-09-20 — Capa de cubos para el explorador nuevo (F14)
+
+**Encargo.** El CEO abrió el rediseño del explorador del observatorio (`datosmexico.org/observatorio`), réplica del
+explorador de DataMéxico (11 capturas de su tour guiado, guardadas en el sitio como `docs/internal/observatorio-rediseno/
+referencia/`), 100 % sobre esta API; el legacy `datos-itam.org` sigue vivo con un botón pequeño. Plan completo y análisis
+captura por captura en el sitio (`docs/internal/observatorio-rediseno/MISION.md`).
+
+**Por qué una capa nueva.** La API es por dominio (156 rutas con formas distintas); el explorador necesita una forma
+uniforme —medidas, dimensiones, filtros, orden— y, sobre todo, que la pestaña «API» muestre **una URL que reproduce
+exactamente la tabla** que el usuario ve (como el LogicLayer de DataMéxico). De ahí `src/cubos/`:
+- `tipos.ts`: un cubo = binding D1 + cláusula FROM (con joins a catálogos) + condición base + medidas (expresión SQL
+  agregada, unidad, si es sumable) + dimensiones (expresión de id, de nombre, tipo categórica/temporal/geográfica, clave
+  INEGI, padre en la jerarquía, o **virtual**: sus miembros son columnas de una tabla ancha).
+- `motor.ts`: lee la consulta (`medidas`, `columnas`, `f.<dim>=a|b`, `padres`, `orden`, `sentido`, `limite`), arma
+  `SELECT … GROUP BY … ORDER BY … LIMIT n+1` con todos los valores ligados (nada del usuario se interpola: las claves se
+  validan contra la definición), despliega dimensiones virtuales y produce JSON o CSV.
+- `definiciones/`: 18 cubos en 6 temas (ANUIES 4, ENOE 4, CONSAR 7, Censo 2020 1, CDMX 1, UNAM 1). Invariantes de las
+  definiciones se comprueban al arrancar el worker.
+- `endpoints.ts`: `GET /api/v1/cubos`, `/{cubo}`, `/{cubo}/miembros`, `/{cubo}/datos`. Caché 1 h; 30/min en datos y miembros.
+
+**Decisiones de método (lo que sumaba mal y cómo quedó).**
+- ENOE: las 32 entidades suman exactamente el nacional (2025T1: 58,921,494 ocupados), así que los cubos por entidad
+  llevan `nivel = 'entidad'` y el nacional vive en su propio cubo; nunca se suman nacional y entidades en una misma tabla.
+  Las tasas van marcadas `sumable: false`.
+- Censo 2020: el universo son las localidades; las filas de totales (loc 0000, mun 000) y los agregados 9998/9999
+  (repiten población ya contenida en las localidades) quedan fuera; así entidad y país reproducen al INEGI
+  (Aguascalientes 1,425,607; país 126,014,024).
+- CONSAR: los saldos no se suman entre meses (nota en cada cubo); comisiones y rendimientos se promedian; el
+  predeterminado de recursos filtra `sar_total` porque los tipos de recurso se anidan.
+- ANUIES: entidad con clave INEGI por correspondencia estática (`entidad_cve`) para el mapa del explorador.
+
+**Lo que D1 no aguantó y la salida.** La primera versión desplegaba las dimensiones virtuales (edad: 16 miembros × 6
+medidas; procedencia: 40) con `UNION ALL`, y D1 falló con `too many terms in compound SELECT` y `too many SQL variables`.
+Quedó una sola consulta ancha (una columna por miembro × medida) que el worker despliega y ordena. Medido en D1
+remoto: ANUIES sin filtro por carrera × ciclo 11.1 s (peor caso; 953k filas → ~200k grupos), por escuela 2.3 s, entidad × ciclo
+0.7 s; Censo por localidad 0.7 s; CDMX por puesto 0.3 s; edades 2025-2026 por entidad 0.2 s. Los predeterminados de
+ANUIES filtran los últimos cinco ciclos. DENUE no entra aún: entidad × actividad excede el CPU de D1 (`7429`); irá con
+tabla preagregada.
+
+**Verificación (`scripts/verificar_cubos.py`, contra wrangler dev --remote).** Catálogo 18/18 con ficha, miembros y
+consulta predeterminada; formatos jsonrecords/jsonarrays/csv (BOM, adjunto); claves INEGI de 32 entidades; cruces:
+ANUIES 2025-2026 suma de entidades 5,760,478 = ciclo; UNAM 264,847 = /unam/anuario/serie; edades UNAM 264,847 =
+/unam/anuario/edades; procedencia 63,446 = /unam/anuario/procedencia; ENOE 32 entidades = nacional; 12 sectores suman
+ocupados; Censo entidad y país; CONSAR SAR total 2025-12-01 10,996,258.9 = /consar/recursos/totales; CDMX 246,836
+nombramientos; UNAM concurso 2026 licenciatura escolarizado 141,218 presentaron, 178 carreras-plantel; 8 errores
+404/422; límite y `limitado`. **FALLOS 0.**

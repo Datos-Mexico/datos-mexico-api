@@ -39,6 +39,7 @@ function cupo(ruta: string): number {
   if (ruta === "/api/v1/denue/unidades" || ruta === "/api/v1/denue/unidades/cerca") return 30;
   if (/^\/api\/v1\/censo2020\/indicadores\/[^/]+$/.test(ruta) || ruta === "/api/v1/censo2020/localidades") return 30;
   if (["/api/v1/anuies/agregado", "/api/v1/anuies/serie", "/api/v1/anuies/programas", "/api/v1/anuies/procedencia", "/api/v1/anuies/edades", "/api/v1/anuies/valores"].includes(ruta) || ruta.startsWith("/api/v1/unam/anuario/")) return 30;
+  if (/^\/api\/v1\/cubos\/[^/]+\/(datos|miembros)$/.test(ruta)) return 30;
   return 60;
 }
 

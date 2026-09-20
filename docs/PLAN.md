@@ -61,6 +61,17 @@ paridad base por base.
       interactivos sobre F12: matrícula, egreso y titulación por área y sexo, planteles, carreras,
       procedencia por entidad, edades, serie 2000-2025). Rama + PR + preview; producción solo con el
       go del CEO. Referencia visual: exportes de DataMéxico (SE) del perfil UNAM (datos ANUIES 2022).
+- F14 Capa de cubos para el explorador nuevo (HECHA 2026-09-20, en producción): `src/cubos/` —
+      definición declarativa por cubo (medidas como expresiones agregadas, dimensiones con id/nombre,
+      jerarquías, dimensiones virtuales sobre tablas anchas) y un motor que arma el SQL con parámetros
+      ligados. Endpoints /api/v1/cubos (catálogo por tema), /{cubo} (ficha), /{cubo}/miembros,
+      /{cubo}/datos (jsonrecords/jsonarrays/csv, filtros f.<dim>=a|b, padres, orden, límite).
+      18 cubos: ANUIES (matrícula, trayectoria, edades, procedencia), ENOE (entidad, nacional, sector,
+      posición), CONSAR (recursos, comisiones, cuentas, activo neto, rendimientos, traspasos, flujos),
+      Censo 2020 (localidad › municipio › entidad), CDMX (nombramientos), UNAM (concurso). Verificador
+      `scripts/verificar_cubos.py` (cruces contra los endpoints de cada dominio). Siguiente: cubos de
+      ENIGH, BISE, Censo completo (iter_2/iter_3), precios CONSAR y DENUE preagregado (fase D del
+      explorador; plan en el sitio, docs/internal/observatorio-rediseno/MISION.md).
 - F8  Ingesta del Banco de Indicadores del INEGI (BISE): fase 1 = los 31,817
       indicadores del catálogo a nivel nacional y por entidad (D1
       `datosmexico-api-bise`, endpoints /api/v1/inegi/*); fase 2 = municipios
