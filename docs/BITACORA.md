@@ -972,3 +972,8 @@ los 858 programas del último ciclo viajan inline y los de los 26 ciclos en el a
 Prefijo «Universidad Nacional Autónoma de México - » retirado de los rótulos (original en `title`). PR #165 fusionado
 por rebase con go explícito (punta `0a5fbc8`), Workers Builds en verde, verificado en vivo con un clic real en FES
 Iztacala. Sin firmas de IA (autor único en los tres commits).
+
+**Enlace en ambos sentidos (2026-09-20, 22:21 UTC).** El CEO pidió que el treemap de abajo también controle al de
+arriba y que ambos quepan en una pantalla: una sola selección viva (elegir en uno suelta la del otro), altura 460 → 300
+px, ficha lateral compacta. PR #166 fusionado por rebase con go explícito (punta `f858187`), Workers Builds en verde,
+verificado en vivo (clic en Licenciatura en Psicología → FES Iztacala 55 %, CU 29.2 %, FES Zaragoza 15.8 %). Sin firmas.
