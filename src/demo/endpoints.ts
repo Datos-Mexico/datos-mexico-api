@@ -48,7 +48,7 @@ export class DemoEstudiantes extends OpenAPIRoute {
 export class DemoEstudiante extends OpenAPIRoute {
   schema = {
     tags: PUBLICO, operationId: "get_estudiante_api_v1_demo_estudiantes__id__get", summary: "Detalle de una persona del curso",
-    description: "Un registro de la tabla del curso por su `id`. Lectura pública sin auth.",
+    description: "Devuelve los campos completos (`nombre_completo`, `rol`, `tipo`, `seccion`, `sueldo_diario_mxn`, `reclamar_bono`, fechas) de una persona del curso por su `id`. Lectura pública sin auth.",
     request: { params: z.object({ id: z.number().int() }) },
     responses: { "200": { description: "Detalle del registro.", ...contentJson(EstudianteRow) }, ...E404, ...RESP_422, ...r429(120) },
   };
@@ -58,7 +58,7 @@ const Resumen = z.object({ total_empleados: z.number().int(), bonos_reclamados: 
 export class DemoResumen extends OpenAPIRoute {
   schema = {
     tags: PUBLICO, operationId: "get_resumen_api_v1_demo_resumen_get", summary: "Agregados para la KPI bar del dashboard /demo",
-    description: "Total de empleados, bonos reclamados (bono flat de $50,000 MXN por reclamación), montos distribuido, disponible y total posible, y nómina diaria total. Lectura pública sin auth.",
+    description: "Totales en una sola llamada: empleados, bonos reclamados, monto distribuido (N × $50,000 MXN), monto disponible (resto del pool), monto total posible (12 × $50,000 = $600,000 MXN), y nómina diaria total.",
     responses: { "200": { description: "Agregados del curso.", ...contentJson(Resumen) }, ...r429(60) },
   };
   async handle(c: AppContext) {
