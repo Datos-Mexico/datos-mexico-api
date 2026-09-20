@@ -62,7 +62,7 @@ export type Env = {
 export type AppContext = Context<{ Bindings: Env }>;
 
 const app = new Hono<{ Bindings: Env }>();
-app.use("*", cors({ origin: "*", allowMethods: ["GET", "OPTIONS"] }));
+app.use("*", cors({ origin: "*", allowMethods: ["GET", "OPTIONS"], exposeHeaders: ["*"] }));
 app.use("/api/v1/*", limitarPeticiones);
 app.use("/api/v1/*", cacheControl);
 

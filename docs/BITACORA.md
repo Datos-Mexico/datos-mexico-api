@@ -1028,3 +1028,7 @@ nombramientos; UNAM concurso 2026 licenciatura escolarizado 141,218 presentaron,
 **Producción (2026-09-20).** Commit `7f996b3`, `wrangler deploy` versión `3cdd6f5b`; `scripts/verificar_cubos.py
 https://api.datosmexico.org` → **FALLOS 0** (los 18 cubos y todos los cruces); el verificador previo de ANUIES/UNAM
 sigue en FALLOS 0. Publicado en github.com/Datos-Mexico/datos-mexico-api. Sin firmas de IA.
+
+**CORS (2026-09-20, tarde).** La pestaña API del explorador muestra los encabezados reales de la respuesta y el navegador
+solo dejaba ver `cache-control` y `content-type`: faltaba `Access-Control-Expose-Headers`. Ahora `exposeHeaders: ["*"]`
+(peticiones sin credenciales). Desplegado; verificador de cubos en FALLOS 0.
