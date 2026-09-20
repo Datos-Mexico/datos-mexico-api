@@ -45,7 +45,8 @@ paridad base por base.
       la API nueva ya no depende de Neon/Hyperdrive; Neon y el legacy siguen
       encendidos al menos hasta un mes después del Datatón (decisión del CEO).
 - F11 Publicación del repositorio en la org Datos-Mexico como `datos-mexico-api`
-      (público, sin firmas IA) tras revisión final: EN CURSO 2026-09-20.
+      (público, sin firmas IA) tras revisión final: HECHO 2026-09-20 —
+      https://github.com/Datos-Mexico/datos-mexico-api
 - F8  Ingesta del Banco de Indicadores del INEGI (BISE): fase 1 = los 31,817
       indicadores del catálogo a nivel nacional y por entidad (D1
       `datosmexico-api-bise`, endpoints /api/v1/inegi/*); fase 2 = municipios

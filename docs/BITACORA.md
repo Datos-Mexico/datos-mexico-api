@@ -866,3 +866,13 @@ No migrados por decisión: auth (3), ingest (1), admin (2), demo (7), catalogos/
 - Almacén R2 final: 79,793 objetos, 50.76 GB (fuentes 18.68, tabulados 14.24,
   microdatos 11.99, ENOE particiones 2.93 + trimestres 2.55, censo2020 0.37).
   Costo ≈ 0.61 USD/mes sobre los 10 GB incluidos.
+
+## 2026-09-20 · Repositorio publicado
+- Revisión final: 126 archivos versionados (src, scripts, docs, README,
+  configuración); ningún secreto ni `.dev.vars` ni `data/` en el historial;
+  sin firmas de IA en commits, código ni documentación; un solo autor; rutas
+  personales retiradas de scripts y documentos del legacy; `pg_dump.err`
+  eliminado.
+- Publicado como público en la organización:
+  https://github.com/Datos-Mexico/datos-mexico-api (rama `main`, remoto
+  `origin`). Conforme a la política de nombres `datos-mexico-{tipo}`.
