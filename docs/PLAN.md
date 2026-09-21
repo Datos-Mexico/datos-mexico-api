@@ -101,9 +101,10 @@ paridad base por base.
       7 CERRADA (segunda sesión): los cinco Censos Económicos completos desde los datos abiertos del INEGI (33 CSV por
       edición, scripts/ce_datos_abiertos.py, 33.6 M celdas cotejadas contra el SAIC), D1 con saic_mun para 1.0-1.8 M filas
       municipales por censo. 3 HECHA: tabulados explorables (scripts/tabulados_explorables.py, D1 datosmexico-api-tabulados,
-      6 cubos tabulados-*: Censo 2020 básicos, Intercensal 2015, Censo 2010 básicos, Conteo 2005, cuentas por sectores
-      institucionales anuales y trimestrales; 407 cuadros, 5.69 M celdas). PENDIENTES MENORES: Censo 2010 ampliado y
-      complementarios 2020 con el mismo lector; decisiones del CEO (15 ediciones DENUE, licencia INSP).
+      9 cubos tabulados-*: Censo 2020 básicos y complementarios, Intercensal 2015, Censo 2010 básicos y ampliado, Conteo
+      2005, Censo 2000, cuentas por sectores institucionales anuales y trimestrales; 593 cuadros, 7.51 M celdas). Librería
+      de Python 0.4.0 con `client.inegi` en PR #21 (merge y PyPI con go). PENDIENTE: decisiones del CEO (15 ediciones
+      DENUE, licencia INSP).
 - F8  Ingesta del Banco de Indicadores del INEGI (BISE): fase 1 = los 31,817
       indicadores del catálogo a nivel nacional y por entidad (D1
       `datosmexico-api-bise`, endpoints /api/v1/inegi/*); fase 2 = municipios

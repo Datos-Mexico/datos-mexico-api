@@ -1526,3 +1526,25 @@ iguales; Censo 2020 por entidad igual; sin errores de cifra encontrados. Hallazg
 distintas de las unidades económicas están vacías por confidencialidad en unos dos tercios de las filas de cada censo (nota en
 el cubo), y el cuadro de población de la Intercensal es «en viviendas particulares habitadas» (119,530,753 ≠ 119,938,473 del
 Banco de Indicadores, que incluye viviendas colectivas): ambas cosas son del INEGI, no nuestras, y quedan documentadas.
+
+## 2026-09-21 — F16: tabulados explorables, segunda pasada (nueve familias) y librería de Python 0.4.0
+
+**Tres familias más con el mismo lector** (`tabulados_explorables.py`): **censo2010-ampliado** (77 cuadros de estimaciones del
+cuestionario ampliado, 976,950 celdas; el INEGI publica 80, tres —08_21A, 08_22A, 10_01A— no existen en Excel en su sitio),
+**censo2020-complementarios** (población sin vivienda, indicadores de Pretoria, escrituras y la matriz origen-destino
+2015-2020 entre municipios: 526,012 celdas) y **censo2000** (95 cuadros de la muestra censal, 73,846 celdas). Para el diseño
+libre de 2000 el lector aprendió tres cosas sin transformar nada: descartar las líneas de guiones de los encabezados, pegar las
+palabras cortadas con guion entre filas («SIN DISCA-» + «PACIDAD») y anteponer la etiqueta partida en dos renglones a la
+siguiente fila («IGLESIA DEL DIOS VIVO, COLUMNA Y APOYO» + «DE LA VERDAD, LA LUZ DEL MUNDO»).
+
+**Control nuevo y corrección honesta.** El lector ahora reporta las hojas que no logra convertir en cuadro (antes se saltaban
+en silencio). Con eso se vio que la primera carga había omitido hojas con subencabezados numéricos (hijos nacidos vivos,
+cuartos): Censo 2020 pasa de 107 a 113 cuadros, Intercensal de 108 a 110, Conteo 2005 de 37 a 41; hoy no queda ninguna hoja
+omitida en las nueve familias. Total: 9 familias, 593 cuadros, 7,514,652 celdas; D1 tabulados 1.45 GB.
+
+**Verificación y producción.** Worker 13deb4a8: `verificar_cubos.py` FALLOS 0 (260 comprobaciones; cifras nuevas: población
+estimada 2010 111,960,139 del cuadro 01_01A, población 2000 97,014,867 del C2KDI01, población sin vivienda 2020 5,778) y
+`--verificar` 360/360 celdas al azar iguales al Excel en vista previa. Explorador en vivo revisado en Chrome: tema «Cuentas
+nacionales» y cubos `tabulados-*` visibles sin cambios en el sitio. Librería de Python: PR #21 (`client.inegi`: cubos, tabulados,
+Censos Económicos, bancos de indicadores; 0.4.0; ruff, mypy, 241 pruebas y 3 de integración en vivo en verde) esperando merge y
+go para PyPI.

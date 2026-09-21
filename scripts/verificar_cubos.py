@@ -27,7 +27,7 @@ def check(cond, msg):
     else: print("ok", msg)
 
 cat, ms, _ = get("/api/v1/cubos")
-check(cat and cat["n_cubos"] >= 49, f"catálogo con {cat and cat['n_cubos']} cubos ({ms} ms)")
+check(cat and cat["n_cubos"] >= 53, f"catálogo con {cat and cat['n_cubos']} cubos ({ms} ms)")
 cubos = [c for t in cat["temas"] for c in t["cubos"]]
 for c in cubos:
     f, ms, _ = get(c["ficha_url"])
@@ -276,7 +276,7 @@ d, _, _ = get("/api/v1/inegi/saic/datos?anio=2003&nivel_act=0&cve_ent=00&variabl
 check(d and d["total"] == 1 and d["items"][0]["UE"] == 3005157 and d["items"][0]["H010A"] is not None, f"SAIC 2003 nacional: {d and d['items'][0]['UE']:,} unidades económicas = Censos Económicos 2004 (3,005,157); variable de saic_b presente")
 # Tabulados explorables (scripts/tabulados_explorables.py): familias, cuadros, celdas exactas contra los cuadros publicados
 tf, _, _ = get("/api/v1/inegi/tabulados"); fams = {x["familia"]: x for x in tf["items"]}
-check(tf["n"] == 6 and all(fams[f]["cuadros"] > 0 and fams[f]["celdas"] > 0 for f in ("censo2020", "intercensal2015", "censo2010", "conteo2005", "csi-anual", "csi-trimestral")), f"tabulados: 6 familias ({ {f: (v['cuadros'], v['celdas']) for f, v in fams.items()} })")
+check(tf["n"] == 9 and all(fams[f]["cuadros"] > 0 and fams[f]["celdas"] > 0 for f in ("censo2020", "censo2020-complementarios", "intercensal2015", "censo2010", "censo2010-ampliado", "conteo2005", "censo2000", "csi-anual", "csi-trimestral")) and fams["censo2020"]["cuadros"] == 113, f"tabulados: 9 familias ({ {f: (v['cuadros'], v['celdas']) for f, v in fams.items()} })")
 def celda(fam, cuadro, cols, **dims):
     qs = "&".join(f"{k}={urllib.parse.quote(v)}" for k, v in dims.items())
     r, _, _ = get(f"/api/v1/inegi/tabulados/{fam}/{urllib.parse.quote(cuadro, safe='')}?columna={urllib.parse.quote(cols)}&{qs}")
@@ -287,6 +287,9 @@ v = celda("intercensal2015", "01_poblacion:02", "Población total", d1="Estados 
 # el cuadro es «población total en viviendas particulares habitadas» (119,530,753); el Banco de Indicadores (119,938,473) incluye viviendas colectivas
 check(v == 119530753, f"tabulados intercensal 2015 cuadro 02: población en viviendas particulares habitadas {v and v:,} = 119,530,753 publicado (el total con viviendas colectivas es 119,938,473)")
 v = celda("censo2010", "01_02B_ESTATAL", "Población total", d1="Estados Unidos Mexicanos", d2="Total", d3="Total"); check(v == 112336538, f"tabulados censo2010 01_02B: {v and v:,} = 112,336,538")
+v = celda("censo2010-ampliado", "01_01A_ESTATAL", "Población total", d1="Estados Unidos Mexicanos", d2="Total", d3="Parámetro"); check(v == 111960139, f"tabulados censo2010 ampliado 01_01A: población estimada {v and v:,} = 111,960,139")
+v = celda("censo2000", "C2KDI01", "POBLACIÓN › TOTAL", d1="ESTADOS UNIDOS MEXICANOS"); check(v == 97014867, f"tabulados censo2000 C2KDI01: {v and v:,} = 97,014,867")
+v = celda("censo2020-complementarios", "cpv2020_c_eum_Poblacionsinvivienda", "Población sin vivienda", d1="Estados Unidos Mexicanos", d2="Total", d3="Total"); check(v == 5778, f"tabulados censo2020 complementarios: población sin vivienda {v and v:,} = 5,778")
 v = celda("conteo2005", "Cont2005_NAL_Poblacion:Cont2005_Nal_POB2", "Población total", d1="Estados Unidos Mexicanos", d2="Total Nacional", d3="Total", d4="Total"); check(v == 103263388, f"tabulados conteo2005 POB2: {v and v:,} = 103,263,388")
 v = celda("csi-anual", "CSI_100", "2003", d1="I - Cuenta de producción", d2="P.1 - Producción", d3="R/P - Recursos/Pasivos"); check(v and abs(v - 13989250.87) < 0.001, f"tabulados CSI_100 producción 2003: {v} = 13,989,250.87 millones")
 d, _, _ = get("/api/v1/cubos/tabulados-censo2020/datos?medidas=valor&columnas=d1&f.cuadro=cpv2020_b_eum_01_poblacion%3A02&f.d2=Total&f.d3=Total&f.columna=Poblaci%C3%B3n%20total")

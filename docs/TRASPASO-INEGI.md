@@ -6,7 +6,7 @@ Reglas vigentes: rigor académico máximo; cero atribución a IA en commits, PRs
 (api.datos-itam.org, Neon) se queda en producción, ya alineado, y sus microdatos no se tocan; NO refresco automático
 hasta nueva orden del CEO; ANUIES nunca en el hero ni cerca; todo queda en `docs/BITACORA.md` y en `docs/PLAN.md`.
 
-## 1. Estado (producción: API versión c131d59d, 2026-09-21; `scripts/verificar_cubos.py` FALLOS 0 en vista previa y producción, 248 comprobaciones; `tabulados_explorables.py --verificar` 240/240 celdas)
+## 1. Estado (producción: API versión 13deb4a8, 2026-09-21; `scripts/verificar_cubos.py` FALLOS 0 en vista previa y producción, 260 comprobaciones; `tabulados_explorables.py --verificar` 360/360 celdas)
 
 | Frente | Qué hay | Verificación |
 |---|---|---|
@@ -19,9 +19,9 @@ hasta nueva orden del CEO; ANUIES nunca en el hero ni cerca; todo queda en `docs
 | Clasificadores | SCIAN 2023/2018/2013 (+ productos), SINCO 2019/2011, CMO histórica, AGEEML (32 / 2,478 / 296,633 localidades con coordenadas) | conteos por nivel = publicados por el INEGI en cada catálogo |
 | Registros vitales, encuestas | defunciones 1990-2024, nacimientos 1985-2024; ENIGH 2024, ENVIPE 2017-2026 **incluida 2020** y **prevalencia delictiva**, ENSU, ENDUTIH, ENADID, ENDIREH, **ENSANUT 2018 (IMC)** | cada cubo exacto contra una cifra publicada (bitácora 21-sep) |
 | Censo 2020 | ITER por localidad, AGEB/manzana en Parquet | 126,014,024 exacto |
-| Tabulados explorables | 407 cuadros / 5.69 M celdas tal cual: Censo 2020 básicos (107), Intercensal 2015 (108, con precisión), Censo 2010 básicos estatales (81), Conteo 2005 (37), cuentas por sectores institucionales anuales 2003-2024 (10) y trimestrales 2008-2026 (66); D1 `datosmexico-api-tabulados`, `/api/v1/inegi/tabulados/*`, cubos `tabulados-*` | celdas leídas = celdas numéricas de cada hoja; poblaciones totales 2005/2010/2015/2020 = BISE; muestra al azar de celdas vs API |
+| Tabulados explorables | 593 cuadros / 7.51 M celdas tal cual, 9 familias: Censo 2020 básicos (113) y complementarios (4), Intercensal 2015 (110, con precisión), Censo 2010 básicos (81) y ampliado (77), Conteo 2005 (41), Censo 2000 (95), cuentas por sectores institucionales anuales (10) y trimestrales (66); D1 `datosmexico-api-tabulados`, `/api/v1/inegi/tabulados/*`, cubos `tabulados-*` | celdas leídas = celdas numéricas de cada hoja; poblaciones totales 2005/2010/2015/2020 = BISE; muestra al azar de celdas vs API |
 | Censos Económicos 2004-2024 | **los cinco censos completos** desde los datos abiertos del INEGI (33 CSV por edición = el cuadro del SAIC): nacional, 32 entidades y todos los municipios × 6 niveles de actividad × 6 estratos × 98 variables; Parquet por año en R2 (1.1-1.9 M filas); D1 con las 98 para nacional/entidades y las 9 del cubo para municipios | 33.6 M celdas cotejadas contra la API del SAIC (Δ máx 0.00055, redondeo); UE nacionales = BISE 5300000001; municipios suman la entidad por sector |
-| Sitio | explorador (50 cubos, 13 temas, catálogo dinámico: los cubos nuevos aparecen sin cambios en el sitio) | clics reales |
+| Sitio | explorador (53 cubos, 13 temas, catálogo dinámico: los cubos nuevos aparecen sin cambios en el sitio) | clics reales |
 | Librería Python | 0.3.0 en PyPI | 27/27 integración |
 
 ## 2. Exclusiones declaradas: estado y plan
@@ -43,8 +43,9 @@ hasta nueva orden del CEO; ANUIES nunca en el hero ni cerca; todo queda en `docs
    `-intercensal2015`, `-censo2010`, `-conteo2005`, `-csi-anual`, `-csi-trimestral`, tema nuevo `cuentas-nacionales`) y endpoints
    `/api/v1/inegi/tabulados`, `/{familia}`, `/{familia}/{cuadro}` (celdas filtrables por d1…d5 y columna), `/archivo` (el Excel
    original desde R2). Control de no pérdida por hoja y verificación de celdas conocidas + muestra al azar contra la API.
-   Fuera: Censo 2000 (xls de diseño libre) y 1990/1995 (no están en la descarga masiva); pendiente menor: 2010 «ampliado»
-   (82 cuadros de estimaciones, mismo lector) y los tabulados complementarios de 2020 (origen-destino, Pretoria).
+   Nueve familias (censo2000, conteo2005, censo2010 y -ampliado, intercensal2015, censo2020 y -complementarios, csi-anual,
+   csi-trimestral). Fuera: 1990/1995 (no están en la descarga masiva) y tres cuadros del ampliado 2010 sin Excel en el sitio.
+   El lector reporta las hojas que no convierte (hoy ninguna): revisar ese aviso en cada familia nueva.
 4. **Catálogos y clasificadores — HECHO.** `scripts/catalogos_inegi.py` (descarga y normaliza; `data/catalogos/README.md`)
    → `scripts/clasificadores_d1.py --cargar` (D1 `datosmexico-api-clasificadores`); `/api/v1/clasificadores/*`, `/api/v1/geo/*`.
 5. **Microdatos ENOE 2005T1-2025T1 — HECHO.** `scripts/enoe_particiones_csv.py` (llave por conteo: sin `tipo` hasta 2020T1,
@@ -121,12 +122,10 @@ Costo (segunda sesión): D1 censo2020 191 MB → 713 MB (Censos Económicos muni
 ## 6. Prompt de la siguiente sesión
 
 > Contexto: datos-mexico-api, F16 «tenemos todos los datos del INEGI», leer `docs/TRASPASO-INEGI.md` (estado al 2026-09-21, segunda
-> sesión: 8 de 9 exclusiones cerradas; producción c131d59d, verificador FALLOS 0). Objetivo: (1) rematar la exclusión 3 con el
-> mismo lector (`scripts/tabulados_explorables.py`): Censo 2010 «ampliado» (82 cuadros `*A_ESTATAL.xls` del sitio), tabulados
-> complementarios 2020 (origen-destino, Pretoria, población sin vivienda) y, si el lector aguanta, Censo 2000 (xls de diseño
-> libre) — cada familia con celdas leídas = celdas de la hoja y muestra contra la API; (2) resolver con el CEO las decisiones
+> sesión: 8 de 9 exclusiones cerradas, tabulados en nueve familias; producción 13deb4a8, verificador FALLOS 0; librería PR #21
+> abierto). Objetivo: (1) fusionar el PR #21 de datos-mexico-py y publicar 0.4.0 en PyPI si hay go; (2) resolver con el CEO las decisiones
 > abiertas (15 ediciones del DENUE con diferencias de 1-852 unidades; licencia del INSP; borrar `enoe/particiones/` viejas);
-> (3) librería de Python: helpers para `/inegi/tabulados` y `/inegi/saic` municipal (publicar en PyPI solo con go); (4) sitio:
-> comprobar en el explorador los 6 cubos `tabulados-*` y el tema «Cuentas nacionales» (rama + PR, producción solo con go).
+> (3) si el CEO quiere más tabulados explorables, la lista de la descarga masiva tiene 181 programas con Excel: mismo lector,
+> una entrada en `FAMILIAS` por familia, con el control de hojas omitidas en cero antes de cargar.
 > Reglas: verificador FALLOS 0 antes de desplegar, cero atribución a IA, sin secretos, API directo a main tras verificar,
 > sin refresco automático, ANUIES nunca en el hero. Cierra con traspaso, bitácora, plan y memoria al día.

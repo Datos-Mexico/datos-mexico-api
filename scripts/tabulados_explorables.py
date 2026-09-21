@@ -28,6 +28,9 @@ FAMILIAS = {
     'intercensal2015': {'nombre': 'Encuesta Intercensal 2015: tabulados (estimadores y precisión)', 'programa': 'encuesta-intercensal', 'edicion': '2015', 'patron': r'\.xls$', 'fuente_url': 'https://www.inegi.org.mx/programas/intercensal/2015/#tabulados', 'lector': 'censo'},
     'censo2010': {'nombre': 'Censo de Población y Vivienda 2010: tabulados básicos estatales', 'programa': 'censos-y-conteos-de-poblacion-y-vivienda', 'edicion': '2010', 'patron': r'_\d\dB\d?_?\w*_ESTATAL\.pdf$', 'fuente_url': 'https://www.inegi.org.mx/programas/ccpv/2010/#tabulados', 'lector': 'censo', 'xls_del_sitio': True},
     'conteo2005': {'nombre': 'II Conteo de Población y Vivienda 2005: tabulados básicos nacionales', 'programa': 'censos-y-conteos-de-poblacion-y-vivienda', 'edicion': '2005', 'patron': r'Cont2005_NAL_.*\.xls$', 'fuente_url': 'https://www.inegi.org.mx/programas/ccpv/2005/#tabulados', 'lector': 'censo'},
+    'censo2010-ampliado': {'nombre': 'Censo de Población y Vivienda 2010: tabulados del cuestionario ampliado (estimaciones estatales)', 'programa': 'censos-y-conteos-de-poblacion-y-vivienda', 'edicion': '2010', 'patron': r'_\d\dA\d?_?\w*_ESTATAL\.pdf$', 'fuente_url': 'https://www.inegi.org.mx/programas/ccpv/2010/#tabulados', 'lector': 'censo', 'xls_del_sitio': True},
+    'censo2020-complementarios': {'nombre': 'Censo de Población y Vivienda 2020: tabulados complementarios (población sin vivienda, Declaración de Pretoria, migración origen-destino)', 'programa': 'censos-y-conteos-de-poblacion-y-vivienda', 'edicion': '2020', 'patron': r'cpv2020_c_eum_.*\.xlsx$', 'fuente_url': 'https://www.inegi.org.mx/programas/ccpv/2020/#tabulados', 'lector': 'censo'},
+    'censo2000': {'nombre': 'XII Censo General de Población y Vivienda 2000: tabulados', 'programa': 'censos-y-conteos-de-poblacion-y-vivienda', 'edicion': '2000', 'patron': r'\.xls$', 'fuente_url': 'https://www.inegi.org.mx/programas/ccpv/2000/#tabulados', 'lector': 'censo'},
     'csi-anual': {'nombre': 'Cuentas por sectores institucionales, anuales 2003-2024 (base 2018)', 'programa': 'cuentas-por-sectores-institucionales-anuales', 'edicion': '2003-2024', 'patron': r'CSI_\d+\.xlsx$', 'fuente_url': 'https://www.inegi.org.mx/programas/csi/', 'lector': 'csi'},
     'csi-trimestral': {'nombre': 'Cuentas por sectores institucionales, trimestrales 2008-2026 (base 2018)', 'programa': 'cuentas-por-sectores-institucionales-trimestrales', 'edicion': '2008_1T-2026_1T', 'patron': r'CSIT_\d+\.xlsx$', 'fuente_url': 'https://www.inegi.org.mx/programas/csi/', 'lector': 'csi'},
 }
@@ -128,16 +131,22 @@ def leer_censo(nombre_hoja, M, archivo):
                 while cc > dims[-1] and r[cc] is None: cc -= 1
                 v = r[cc] if cc > dims[-1] and any(r2[c] is not None for r2 in enc[k + 1:]) else None
             if v is not None: partes.append(nota(limpio(texto(v))))
-        etiquetas[c] = ' › '.join(p for p in partes if p)
+        partes = [x for x in partes if x.strip('- ')]  # líneas de guiones de los cuadros de 2000
+        et = ''
+        for x in partes: et = (et[:-1] + x) if et.endswith('-') else (et + ' › ' + x if et else x)  # palabra cortada con guion entre filas
+        etiquetas[c] = et
     # filas: rellenar dimensiones hacia abajo cuando el cuadro deja la celda en blanco por repetición (no ocurre en 2020/2015, sí en algunos 2005/2010)
-    salida = []; ult = [None] * len(dims); n_num = 0
+    salida = []; ult = [None] * len(dims); n_num = 0; prefijo = None
     for r in datos:
+        if not any(es_num(r[c]) for c in range(len(dims), ncol)) and r[dims[0]] is not None and all(r[c] is None for c in dims[1:]):
+            prefijo = (prefijo + ' ' if prefijo else '') + limpio(texto(r[dims[0]])); continue  # etiqueta partida en dos filas (2000): se antepone a la siguiente
         d = []
         for k, c in enumerate(dims):
             v = r[c]
             if v is None: v = ult[k]
             else: ult[k] = v
             d.append(limpio(texto(v)) if v is not None else '')
+        if prefijo: d[0] = (prefijo + ' ' + d[0]).strip(); prefijo = None
         for c in range(len(dims), ncol):
             v = r[c]
             if v is None: continue
@@ -198,7 +207,7 @@ def leer(fams):
     """Lee todos los archivos de cada familia y escribe data/tabulados/<familia>.jsonl (un cuadro por línea) y <familia>.datos.csv (largo)."""
     for fam in fams:
         f = FAMILIAS[fam]; lector = leer_censo if f['lector'] == 'censo' else leer_csi; cuadros = []; n_celdas = 0; t0 = time.time()
-        titulos_r2 = {x['clave_r2'].split('/')[-1]: x['titulo'] for x in archivos_de(fam)}
+        titulos_r2 = {x['clave_r2'].split('/')[-1]: x['titulo'] for x in archivos_de(fam)}; omitidas = []
         with open(DIR / f'{fam}.datos.csv', 'w', newline='') as out:
             w = csv.writer(out)
             for ruta in sorted((ARCH / fam).iterdir()):
@@ -207,7 +216,7 @@ def leer(fams):
                 for hoja, M in hojas(ruta):
                     if hoja.lower().startswith(('índice', 'indice', 'metainfo')) or not M: continue
                     r = lector(hoja, M, ruta.name)
-                    if not r or not r['celdas']: continue
+                    if not r or not r['celdas']: omitidas.append(f'{ruta.name}:{hoja}'); continue
                     clave = f"{ruta.stem}:{hoja}" if f['lector'] == 'censo' and len(list(hojas(ruta))) > 1 else ruta.stem
                     clave = re.sub(r'[^A-Za-z0-9_.:-]', '_', clave)
                     if f['lector'] == 'csi': r['titulo'] = limpio(titulos_r2.get(ruta.name, '').replace('|', ' › ') + (' › ' + r['titulo'] if r['titulo'] else ''))
@@ -216,7 +225,7 @@ def leer(fams):
                         d = (d + [''] * NDIM)[:NDIM]; w.writerow([fam, clave, *d, col, '' if val is None else repr(val), txt or '', k]); n_celdas += 1
         (DIR / f'{fam}.cuadros.json').write_text(json.dumps(cuadros, ensure_ascii=False, indent=0))
         dims = C.Counter(len(c['dimensiones']) for c in cuadros)
-        log(f"{fam}: {len(cuadros)} cuadros, {n_celdas:,} celdas ({sum(c['numeros'] for c in cuadros):,} numéricas), dimensiones por cuadro {dict(sorted(dims.items()))}, {time.time() - t0:.0f} s")
+        log(f"{fam}: {len(cuadros)} cuadros, {n_celdas:,} celdas ({sum(c['numeros'] for c in cuadros):,} numéricas), dimensiones por cuadro {dict(sorted(dims.items()))}, {time.time() - t0:.0f} s" + (f'; HOJAS OMITIDAS (sin cuadro legible): {omitidas}' if omitidas else ''))
         if max(dims, default=0) > NDIM: raise RuntimeError(f'{fam}: cuadros con más de {NDIM} dimensiones')
 
 def d1(sql, archivo=True):
