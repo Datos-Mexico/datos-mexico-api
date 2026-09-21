@@ -75,7 +75,7 @@ paridad base por base.
       completo (iter_2/iter_3 con los agregados 9998/9999), precios CONSAR y DENUE sobre la tabla
       preagregada `denue_resumen` (scripts/denue_resumen_d1.py). Plan del explorador en el sitio,
       docs/internal/observatorio-rediseno/MISION.md.
-- F15 Auditoría INEGI del observatorio (EN CURSO 2026-09-21; orden fijado por el CEO, sin refresco
+- F15 Auditoría INEGI del observatorio (CERRADA 2026-09-21 con el CEO; traspaso en docs/TRASPASO-INEGI.md; sin refresco
       automático por ahora). HECHO en la API: partición `nivel` en el cubo BISE (fin del triple conteo),
       catálogo `periodos` (fin del 500), cortes legibles, árbol temático del INEGI (`/inegi/arbol`,
       `ruta` en búsqueda/ficha/cubo; scripts/bise_arbol.py + bise_arbol_d1.py), ENOE recalculada
@@ -84,10 +84,13 @@ paridad base por base.
       ENIGH 4, ENDUTIH, ENADID, BIE) en cuatro D1 nuevas (vitales, seguridad, encuestas, bie), todos
       exactos contra lo publicado por el INEGI; BIE completo (88,675 series) por la API interna del sitio
       del INEGI; búsqueda con sinónimos; microdatos ENOE 2025T2-2026T2; librería de Python 0.3.0 (PR #19).
-      Sitio (PR #171, espera el go): mapa municipal, 422 legibles, /observatorio/datos-abiertos, hero
-      sin «Banxico». Sin cubo: Censos Económicos (microdatos no públicos; SAIC sería otro frente) y la
-      prevalencia delictiva de la ENVIPE (no reproducible). Pendiente aparte: microdatos ENOE
-      2025T2-2026T2 en /enoe/microdatos.
+      Sitio en producción (PRs #171-#173): mapa municipal, 422 legibles, /observatorio/datos-abiertos, hero
+      «INEGI · CONSAR». Sistema anterior alineado a la ENOE exacta (Neon). Librería Python 0.3.0 en PyPI. Sin cubo: Censos Económicos (microdatos no públicos; SAIC sería otro frente) y la
+      prevalencia delictiva de la ENVIPE (no reproducible). Microdatos ENOE 2025T2-2026T2 en /enoe/microdatos hechos.
+- F16 «Tenemos todos los datos del INEGI» (SIGUIENTE): cerrar las nueve exclusiones declaradas en
+      docs/TRASPASO-INEGI.md §2 (DENUE histórico, Marco Geoestadístico completo, tabulados explorables,
+      catálogos y clasificadores, microdatos ENOE 2005T1-2025T1 completos, ediciones fuera de la descarga
+      masiva, SAIC, metodologías no reproducidas), cada una verificada contra una cifra del INEGI.
 - F8  Ingesta del Banco de Indicadores del INEGI (BISE): fase 1 = los 31,817
       indicadores del catálogo a nivel nacional y por entidad (D1
       `datosmexico-api-bise`, endpoints /api/v1/inegi/*); fase 2 = municipios

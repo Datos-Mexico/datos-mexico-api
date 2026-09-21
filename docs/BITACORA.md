@@ -1271,3 +1271,10 @@ reemplazó en Neon, en una sola transacción (DELETE + COPY), las cuatro tablas 
 estadisticas_globales. Comprobado en vivo en api.datos-itam.org: 2025T1 ocupados 59,001,009 y PEA 60,491,235 (= INEGI);
 2026T2 disponible con las mismas cifras que api.datosmexico.org; cobertura 2005T1-2026T2, 85 trimestres. Desde hoy las
 dos APIs y la librería de Python (0.3.0 en PyPI) publican la misma ENOE. Los microdatos del sistema anterior no se tocan.
+
+## 2026-09-21 — Cierre de la auditoría INEGI y traspaso
+
+El CEO dio por validada la auditoría con las cifras de cobertura (BIE 88,678/88,678 series según el propio INEGI; descarga
+masiva 4,259/4,259 microdatos y 18,150/18,150 tabulados verificados; 39 cubos, 25 del INEGI) y con las exclusiones
+declaradas por su nombre. Todo el estado, los métodos, los quirks y el plan para cerrar cada exclusión quedan en
+`docs/TRASPASO-INEGI.md`, punto de entrada de la siguiente sesión (F16 en PLAN.md).
