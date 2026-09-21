@@ -1198,3 +1198,10 @@ el sistema anterior (datos-itam.org) sigue sirviendo su serie y no se toca (regl
 (probado con ids del árbol, de la tabla de equivalencias y del buscador, áreas 0700 y 00, fuentes BIE y BISE). El sitio
 del INEGI sirve el BIE por su API interna (interna_v1_3) con tokens de cliente públicos: `scripts/bie_arbol.py` recorre el
 árbol (14 raíces, 89,032 series) y `scripts/bie_descarga.py` baja cada serie por área (JSON-stat). Sigue la carga y la API.
+
+**ENDUTIH 2015-2025 (D1 nueva `datosmexico-api-encuestas`, `scripts/endutih_d1.py`, cubo `endutih-usuarios`, tema
+«Tecnologías de la información»).** Personas de 6+ usuarias de internet (p7_1) y de computadora (p6_1) por edición,
+entidad, sexo y grupo de edad, con el factor de la persona seleccionada. Verificación: el porcentaje nacional reproduce
+los indicadores 6206972693 y 6206972694 en las once ediciones (2024 y 2025 a cuatro decimales; 2017-2019 y 2021 al
+decimal con que el INEGI los publica). 2019 no trae entidad (levantamiento reducido) y 2015 no trae sexo ni edad. El uso
+de teléfono celular no se publica: ninguna variable reproduce el 84.6 % oficial.

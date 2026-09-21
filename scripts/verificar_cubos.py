@@ -27,7 +27,7 @@ def check(cond, msg):
     else: print("ok", msg)
 
 cat, ms, _ = get("/api/v1/cubos")
-check(cat and cat["n_cubos"] >= 35, f"catálogo con {cat and cat['n_cubos']} cubos ({ms} ms)")
+check(cat and cat["n_cubos"] >= 36, f"catálogo con {cat and cat['n_cubos']} cubos ({ms} ms)")
 cubos = [c for t in cat["temas"] for c in t["cubos"]]
 for c in cubos:
     f, ms, _ = get(c["ficha_url"])
@@ -179,6 +179,9 @@ d, _, _ = get("/api/v1/enoe/microdatos/sdem/count?periodo=2025T1")
 check(d and d["total"] == 409796, "ENOE microdatos 2025T1 (legado) intacto: 409,796")
 s2, _, _ = get("/api/v1/inegi/indicadores?q=desempleo&con_datos=true&limit=5")
 check(s2 and s2["total"] >= 4 and "desocupada" in s2["terminos"] and any("desocupada" in i["descripcion"].lower() for i in s2["items"]), f"búsqueda con sinónimos: 'desempleo' → {s2 and s2['total']} indicadores vía {s2 and s2['terminos']} (el primero: {s2 and s2['items'][0]['descripcion'][:40]})")
+# ENDUTIH: el porcentaje nacional de usuarios de internet 2025 reproduce el indicador 6206972693
+d, _, _ = get("/api/v1/cubos/endutih-usuarios/datos?medidas=pct_internet,pct_computadora,personas&columnas=edicion&f.edicion=2025")
+check(d and abs(d["filas"][0]["pct_internet"] - 86.0526459579267) < 0.001 and abs(d["filas"][0]["pct_computadora"] - 38.1445287729211) < 0.001, f"ENDUTIH 2025: internet {d and d['filas'][0]['pct_internet']:.4f} %, computadora {d and d['filas'][0]['pct_computadora']:.4f} % = INEGI")
 # Censo: los otros dos cubos suman igual por entidad (PEA nacional, viviendas)
 d, _, _ = get("/api/v1/cubos/censo2020-hogares-vivienda/datos?medidas=pea,vivpar_hab,tothog&columnas=entidad&f.entidad=01")
 cl, _, _ = get("/api/v1/censo2020/localidades/01/000/0000")

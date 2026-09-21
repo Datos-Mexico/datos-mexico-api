@@ -77,6 +77,12 @@ export const DATASETS: DatasetDef[] = [
     notas: ["La API de desarrolladores del INEGI responde «No se encontraron resultados» para toda serie del BIE (comprobado el 2026-09-21); las series se toman de la API interna del sitio del INEGI, la misma que usa su explorador público.", "Cada valor se conserva como texto decimal original y como número."],
   },
   {
+    clave: "encuestas", nombre: "INEGI — Encuestas en hogares agregadas (ENDUTIH 2015-2025)", fuente: "INEGI, microdatos de la ENDUTIH (descarga masiva)", fuente_url: "https://www.inegi.org.mx/programas/dutih/", licencia: "Términos de libre uso INEGI",
+    descripcion: "Personas de 6 años y más usuarias de internet y de computadora por entidad, sexo y grupo de edad, expandidas con el factor de la persona seleccionada; el porcentaje nacional reproduce los indicadores del Banco de Indicadores en cada edición. Los microdatos completos están en /api/v1/inegi/datos-abiertos (programa endutih).",
+    binding: "DB_ENCUESTAS", prefijo_api: "/api/v1/cubos", periodicidad: "anual", sql_corte: "SELECT MAX(edicion) AS corte FROM endutih_usuarios", unidad_corte: "última edición cargada",
+    notas: ["2019: levantamiento reducido sin entidad; 2015: sin sexo ni edad en la tabla de usuarios."],
+  },
+  {
     clave: "seguridad", nombre: "INEGI — Percepción de inseguridad: ENVIPE 2017-2026 por entidad y ENSU 2016-2026 por ciudad", fuente: "INEGI, microdatos de la ENVIPE (TPer_Vic1) y de la ENSU (CB), descarga masiva", fuente_url: "https://www.inegi.org.mx/programas/envipe/", licencia: "Términos de libre uso INEGI",
     descripcion: "Personas de 18 años y más que consideran inseguro vivir en su colonia, municipio o entidad (ENVIPE, 10 ediciones, por entidad y sexo) y en su ciudad (ENSU, 40 trimestres, hasta 90 ciudades), expandidas con el factor; verificadas contra el Banco de Indicadores (6200118581) y el cuadro 1.7 de los tabulados de junio 2026. Los microdatos completos están en /api/v1/inegi/datos-abiertos (programas envipe y ensu).",
     binding: "DB_SEGURIDAD", prefijo_api: "/api/v1/cubos", periodicidad: "ENVIPE anual (septiembre); ENSU trimestral",

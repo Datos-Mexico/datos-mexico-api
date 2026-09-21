@@ -28,6 +28,7 @@
     { "binding": "DB_VITALES", "database_name": "datosmexico-api-vitales", "database_id": "a8accca8-e388-4a5f-8e17-2c6b1145231a" },
     { "binding": "DB_SEGURIDAD", "database_name": "datosmexico-api-seguridad", "database_id": "4e37d71f-b31f-4407-aaad-3f68dac3bd1b" },
     { "binding": "DB_BIE", "database_name": "datosmexico-api-bie", "database_id": "f4cf1db5-b188-4b63-8052-f2896adba53d" },
+    { "binding": "DB_ENCUESTAS", "database_name": "datosmexico-api-encuestas", "database_id": "63a7323d-d457-4f11-886e-7c6c08256d82" },
     { "binding": "DB_CENSO2020", "database_name": "datosmexico-api-censo2020", "database_id": "e234f099-61be-4aec-b74c-856f7b293901" },
     { "binding": "DB_PLATAFORMA", "database_name": "datosmexico-api-plataforma", "database_id": "b9b10f07-a333-4c96-9986-95115452e7dc" },
     { "binding": "DB_ANUIES", "database_name": "datosmexico-api-anuies", "database_id": "7a70874c-750d-4cb4-b067-391bd6905d37" },
