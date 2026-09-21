@@ -1397,3 +1397,33 @@ del comunicado; los sectoriales de esa edición dan +1). La tabla completa está
 las demás quedan visibles en el catálogo, en `/api/v1/denue/historico` (serie con la bandera) y descargables en Parquet.
 Decisión abierta para el CEO: si las diferencias de una decena de unidades se consideran del INEGI y no nuestras, basta
 quitar la condición `donde` de los dos cubos para incluir las 25 ediciones.
+
+## 2026-09-21 — F16: SAIC, los Censos Económicos 2004-2024 por municipio, actividad y estrato (exclusión 7, primera fase en producción)
+
+**Qué es y cómo se descubrió.** El SAIC (www.inegi.org.mx/app/saic/) sirve los resultados de los cinco censos económicos
+(años censales 2003, 2008, 2013, 2018, 2023) por área geográfica (nacional, 32 entidades, 2,478 municipios), actividad
+(total, 19 sectores, 88 subsectores, 279 ramas, 553 subramas, 905 clases del SCIAN) y estrato de personal ocupado (suma,
+0-10, 11-50, 51-250, 251 y más, agrupados por confidencialidad) para 98 variables censales. Sus métodos se identificaron con
+las peticiones de red del navegador y el JavaScript de la página: catálogos por GET (`/app/api/saic/{anios,ageos,acteco,
+varcen,estrato}/seg/<clave>/<opción>/6/`, árboles con `child`) y datos por POST (`consulta/total/6/` y `consulta/tabla/6/`
+con `{anios, ageos, actecos, varcens:[{nom,pos}], stratums, indicators:[], calcs:[], total, orden, desc, page, reg}`; las
+variables deben ser hojas, los grupos AA-AI responden «No existe información»; `reg` hasta 1,000).
+
+**Cuello de botella medido y cómo se atacó.** El servidor cobra ~0.65 s por variable y 1,000 filas (98 variables: 11 s por
+página en solitario, 66 s con 8 hilos: no paraleliza; con 10 variables 3.8 s, con 1, 0.7 s), así que el costo total es
+variables × filas y no se abarata por lotes. `scripts/saic_descarga.py` reordena las 1,660 tareas por valor: nacional y
+entidades con todos los niveles y estratos; municipios por sector con todos los estratos; municipios por subsector, rama y
+clase con el estrato total; al final subramas y los estratos restantes. Reanudable (manifiesto con el total anunciado por
+`consulta/total` y las filas recibidas, que deben coincidir) y corriendo con nohup; el crudo queda en data/saic/crudo/.
+
+**Carga y verificación (`scripts/saic_cargar.py --parquet --subir --cargar`).** Parquet por año censal (todas las variables,
+`saic/saic_<año>.parquet` en R2) y D1 (datosmexico-api-censo2020) en dos tablas anchas `saic_a` / `saic_b` (D1 admite 100
+columnas), con catálogos de variables, actividades, estratos y entidades y `saic_anios` que declara si el año está completo.
+Verificación: las unidades económicas nacionales del SAIC son exactamente las del indicador 5300000001 del Banco de
+Indicadores («Unidades económicas. Sector privado y paraestatal») en 2013 (4,230,745) y 2018 (4,800,157); 2023 = 5,468,180
+unidades y 27,965,433 personas ocupadas (el Banco de Indicadores aún no publica 2023 de esa serie); las 32 entidades suman
+el nacional y los 19 sectores también. En producción: `/api/v1/inegi/saic` (resumen con `completo` por año), `/saic/variables`,
+`/saic/actividades`, `/saic/datos` (año y nivel obligatorios; variables a elegir; municipios con `cve_mun=todos`),
+`/saic/descarga/{año}` y el cubo `saic-censos` (9 medidas principales; ámbito, nivel y estrato como particiones).
+Estado al cierre: 2023, 2018 y 2013 cargados con la fase nacional (2023 también con entidades por sector y subsector);
+la descarga sigue en segundo plano y basta repetir `--parquet --subir --cargar` (borrando el Parquet del año) para actualizar.

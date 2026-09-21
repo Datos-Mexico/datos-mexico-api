@@ -253,6 +253,16 @@ check(mg["edicion"] == "2025" and all(v["obtenido"] == v["publicado"] for v in m
 mm, _, _ = get("/api/v1/inegi/mg/capas/mun"); check(mm["objetos"] == 2478 and len(mm["por_entidad"]) == 32 and sum(x["objetos"] for x in mm["por_entidad"]) == 2478, "MG 2025 municipios: 2,478 en 32 entidades")
 es, _, _ = get("/api/v1/inegi/mg/estados"); check(es["n"] == 32, f"MG 2025: {es['n']} zips estatales en R2")
 get("/api/v1/inegi/mg/capas/zzz", 404)
+# SAIC (Censos Económicos; scripts/saic_descarga.py + saic_cargar.py): totales nacionales = indicador 5300000001 del Banco de Indicadores
+sa, _, _ = get("/api/v1/inegi/saic"); anios_saic = {a["anio"]: a for a in sa["anios"]}
+bise, _, _ = get("/api/v1/inegi/indicadores/5300000001/observaciones?geografia=00"); obs = {o["periodo"]: o["valor"] for o in bise.get("observaciones", bise.get("items", []))}
+check(all(anios_saic[a]["unidades_economicas"] == obs[a] for a in anios_saic if a in obs) and sum(1 for a in anios_saic if a in obs) >= 2, f"SAIC: unidades económicas nacionales = Banco de Indicadores 5300000001 en {[a for a in anios_saic if a in obs]} ({ {a: anios_saic[a]['unidades_economicas'] for a in anios_saic} })")
+check(anios_saic["2023"]["unidades_economicas"] == 5468180 and anios_saic["2023"]["personal_ocupado"] == 27965433 and sa["variables"] == 98, "SAIC 2023 (Censos Económicos 2024): 5,468,180 unidades y 27,965,433 personas ocupadas, 98 variables")
+d, _, _ = get("/api/v1/cubos/saic-censos/datos?medidas=ue&columnas=entidad&f.anio=2023&f.nivel=0&f.estrato=0&f.ambito=entidad")
+check(d["n"] == 32 and sum(f["ue"] for f in d["filas"]) == 5468180, f"SAIC cubo 2023: 32 entidades suman {sum(f['ue'] for f in d['filas']):,} = nacional")
+get("/api/v1/cubos/saic-censos/datos?medidas=ue&columnas=actividad&f.anio=2023", 422); get("/api/v1/inegi/saic/datos?anio=2023", 422)
+d, _, _ = get("/api/v1/inegi/saic/datos?anio=2023&nivel_act=1&cve_ent=00&variables=UE,H001A,A131A")
+check(d["total"] == 19 and sum(x["UE"] for x in d["items"]) == 5468180 and all(x["A131A"] is not None for x in d["items"]), "SAIC datos 2023 por sector: 19 sectores suman el total nacional; valor agregado presente")
 # CONSAR precios
 d, _, _ = get("/api/v1/cubos/consar-precios/datos?medidas=precio,cotizaciones&columnas=afore&f.siefore=sb%2060-64&f.dia=2025-12-31")
 check(d["n"] >= 8 and all(f["cotizaciones"] == 1 for f in d["filas"]), f"CONSAR precios 2025-12-31 SB 60-64: {d['n']} AFOREs con una cotización")
