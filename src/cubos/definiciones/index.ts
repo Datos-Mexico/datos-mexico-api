@@ -10,14 +10,18 @@ import { BISE_INDICADORES } from "./bise";
 import { DENUE_UNIDADES } from "./denue";
 import { CDMX_NOMBRAMIENTOS } from "./cdmx";
 import { UNAM_CONCURSO } from "./unam";
+import { DEF_CAUSA, DEF_LISTA, DEF_MUNICIPIO, NAC_MADRE, NAC_MUNICIPIO } from "./vitales";
+import { ENIGH_GASTOS, ENIGH_INGRESOS, ENIGH_PERSONAS, ENIGH_VIVIENDAS } from "./enigh_mas";
+import { ENSU_PERCEPCION, ENVIPE_PERCEPCION } from "./seguridad";
 
 export const TEMAS: Tema[] = [
   { clave: "educacion-superior", nombre: "Educación superior", descripcion: "Anuario Estadístico de Educación Superior (ANUIES): todas las instituciones, 2000-2001 a 2025-2026." },
   { clave: "trabajo", nombre: "Trabajo", descripcion: "Encuesta Nacional de Ocupación y Empleo (INEGI): indicadores trimestrales por entidad." },
   { clave: "retiro", nombre: "Ahorro para el retiro", descripcion: "Sistema de Ahorro para el Retiro (CONSAR): recursos, comisiones, cuentas, rendimientos, traspasos y flujos por AFORE." },
-  { clave: "poblacion", nombre: "Población", descripcion: "Censo de Población y Vivienda 2020 (INEGI) por localidad, municipio y entidad." },
+  { clave: "poblacion", nombre: "Población", descripcion: "Censo de Población y Vivienda 2020 (INEGI) por localidad, municipio y entidad; nacimientos registrados 1985-2024 y defunciones registradas 1990-2024 por municipio, causa y edad." },
   { clave: "economia", nombre: "Economía", descripcion: "Unidades económicas del DENUE (INEGI) por lugar, actividad y tamaño." },
-  { clave: "ingreso-gasto", nombre: "Ingreso y gasto de los hogares", descripcion: "ENIGH 2024 (INEGI): hogares, ingresos y gastos por entidad, decil y tipo de hogar." },
+  { clave: "ingreso-gasto", nombre: "Ingreso y gasto de los hogares", descripcion: "ENIGH 2024 (INEGI): hogares, personas, viviendas, ingresos por fuente y gastos por rubro, por entidad, decil y tipo de hogar." },
+  { clave: "seguridad", nombre: "Seguridad pública", descripcion: "Percepción de inseguridad: ENVIPE (anual, por entidad, 2017-2026) y ENSU (trimestral, por ciudad, 2016-2026), del INEGI." },
   { clave: "cdmx", nombre: "Gobierno de la Ciudad de México", descripcion: "Padrón de remuneraciones de servidores públicos de la CDMX." },
   { clave: "unam", nombre: "UNAM", descripcion: "Concurso de Selección a licenciatura (dataset del observatorio)." },
   { clave: "inegi", nombre: "Banco de Indicadores del INEGI", descripcion: "Los 31,039 indicadores con datos del INEGI por país, entidad y municipio." },
@@ -27,7 +31,7 @@ export const CUBOS: Cubo[] = [
   ANUIES_MATRICULA, ANUIES_TRAYECTORIA, ANUIES_EDADES, ANUIES_PROCEDENCIA,
   ENOE_ENTIDAD, ENOE_NACIONAL, ENOE_SECTOR, ENOE_POSICION,
   CONSAR_RECURSOS, CONSAR_COMISIONES, CONSAR_CUENTAS, CONSAR_ACTIVO, CONSAR_RENDIMIENTOS, CONSAR_TRASPASOS, CONSAR_FLUJOS, CONSAR_PRECIOS,
-  CENSO_ITER, CENSO_CARACTERISTICAS, CENSO_HOGARES, DENUE_UNIDADES, ENIGH_HOGARES, CDMX_NOMBRAMIENTOS, UNAM_CONCURSO, BISE_INDICADORES,
+  CENSO_ITER, CENSO_CARACTERISTICAS, CENSO_HOGARES, NAC_MUNICIPIO, NAC_MADRE, DEF_MUNICIPIO, DEF_CAUSA, DEF_LISTA, DENUE_UNIDADES, ENIGH_HOGARES, ENIGH_PERSONAS, ENIGH_VIVIENDAS, ENIGH_GASTOS, ENIGH_INGRESOS, ENVIPE_PERCEPCION, ENSU_PERCEPCION, CDMX_NOMBRAMIENTOS, UNAM_CONCURSO, BISE_INDICADORES,
 ];
 
 // Invariantes de las definiciones (fallan al arrancar el worker, no en producción a media consulta).

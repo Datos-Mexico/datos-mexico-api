@@ -44,6 +44,8 @@ export type Env = {
   DB_ENOE: D1Database;
   DB_BISE: D1Database;
   DB_DENUE: D1Database;
+  DB_VITALES: D1Database;
+  DB_SEGURIDAD: D1Database;
   DB_CENSO2020: D1Database;
   DB_PLATAFORMA: D1Database;
   DB_ANUIES: D1Database;

@@ -80,10 +80,12 @@ paridad base por base.
       catálogo `periodos` (fin del 500), cortes legibles, árbol temático del INEGI (`/inegi/arbol`,
       `ruta` en búsqueda/ficha/cubo; scripts/bise_arbol.py + bise_arbol_d1.py), ENOE recalculada
       2005T1-2026T2 exacta contra el Banco de Indicadores (scripts/enoe_indicadores_inegi.py),
-      DENUE /resumen sobre la tabla preagregada. SIGUE: sitio (mensajes 422 legibles en el explorador,
-      hero sin «Banxico»), cubos nuevos sobre lo ya guardado (registros vitales, Censos Económicos,
-      ENVIPE/ENSU, ENIGH personas/viviendas/gastos), mapa municipal en el explorador, índice legible de
-      los 18,150 tabulados. Pendiente aparte: microdatos ENOE 2025T2-2026T2 en /enoe/microdatos.
+      DENUE /resumen sobre la tabla preagregada; 11 cubos nuevos (registros vitales 5, seguridad 2,
+      ENIGH 4) en dos D1 nuevas (vitales, seguridad), todos exactos contra lo publicado por el INEGI.
+      Sitio (PR #171, espera el go): mapa municipal, 422 legibles, /observatorio/datos-abiertos, hero
+      sin «Banxico». Sin cubo: Censos Económicos (microdatos no públicos; SAIC sería otro frente) y la
+      prevalencia delictiva de la ENVIPE (no reproducible). Pendiente aparte: microdatos ENOE
+      2025T2-2026T2 en /enoe/microdatos.
 - F8  Ingesta del Banco de Indicadores del INEGI (BISE): fase 1 = los 31,817
       indicadores del catálogo a nivel nacional y por entidad (D1
       `datosmexico-api-bise`, endpoints /api/v1/inegi/*); fase 2 = municipios

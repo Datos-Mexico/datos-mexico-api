@@ -1116,3 +1116,54 @@ servidos por /enoe/microdatos siguen hasta 2025T1 (particiones desde Neon): exte
 
 **Verificación.** `scripts/verificar_cubos.py` con 13 comprobaciones nuevas (partición, catálogos, ruta, árbol, cortes,
 ENOE exacta contra el Banco de Indicadores en 2025T1 y 2026T2) → **FALLOS 0** en la vista previa (a5722d53) y en producción.
+
+## 2026-09-21 — Auditoría INEGI, segunda entrega: registros vitales, seguridad pública y ENIGH completa (11 cubos nuevos, 35 en total)
+
+**Registros vitales (D1 nueva `datosmexico-api-vitales`, `scripts/vitales_d1.py`).** Los 75 archivos anuales de
+microdatos que ya estaban en R2 (EDR defunciones 1990-2024, ENR nacimientos 1985-2024; 120,523,123 registros) se
+agregan en cinco tablas (defunciones por municipio 691,762 filas; por causa y edad 1,122,995; por causa detallada
+349,602; nacimientos por municipio 588,733; por edad de la madre 160,305) y cinco cubos. Decisión clave: todo por lugar de
+RESIDENCIA habitual, porque es la base de las series «registradas» del INEGI: por residencia, 2024 cuadra con el Banco
+de Indicadores en las 32 entidades y en 2,450/2,450 municipios (defunciones) y 2,443/2,443 (nacimientos); por lugar de
+registro u ocurrencia no cuadra ninguna entidad. Verificación completa contra 1002000030-34 y 1002000026-28 (1994-2024,
+nacional + entidades + municipios): defunciones totales, por sexo y de menores de un año **76,238 / 75,918 / 75,806 /
+60,395 comparaciones, 0 distintas**; nacimientos 76,180 comparaciones, 2 distintas (Solidaridad y Tulum, Quintana Roo,
+2008: el INEGI reasignó 239 nacimientos al municipio creado ese año; la suma de ambos coincide). Codificación verificada
+contra la columna `edad` (edad_agru 1 = menores de 1 año … 30 = no especificada). Los archivos 1990-1997 usan CIE-9 sin
+lista mexicana: los cubos de causa empiezan en 1998. Catálogos de causas del INEGI 2024 re-decodificados de CP437
+(«C¢lera» → «Cólera»).
+
+**Seguridad pública (D1 nueva `datosmexico-api-seguridad`, `scripts/seguridad_d1.py`).** ENVIPE: la persona elegida de
+18+ y su percepción de inseguridad en colonia, municipio y entidad (ap4_3_1/2/3, fac_ele). Hallazgo metodológico: el
+indicador 6200118581 del INEGI («Percepción de la inseguridad») es exactamente el % de «inseguro en su colonia» sobre toda
+la población de 18+ incluido «no sabe»: **297/297 comparaciones exactas (±0.005 pp) en 9 ediciones × 33 geografías**.
+La edición 2020 se excluye: con ningún factor de la tabla (fac_ele 42.93 %, fac_ele_am 52.01 %) se reproduce el 48.74 %
+publicado, y no se publica lo que no cuadra. La **tasa de prevalencia delictiva no se publica**: ninguna reconstrucción
+desde el módulo de victimización (TMod_Vic) reprodujo 6200002197 (23,472.5 por 100 mil en 2025; la más cercana, «cualquier
+delito», 25,594.7; sin delitos del hogar, 20,180.4). ENSU: % que considera inseguro vivir en su ciudad (bp1_1, fac_sel),
+40 trimestres 2016-03 a 2026-06, hasta 90 ciudades; verificado contra el cuadro 1.7 de los tabulados básicos de junio
+2026 archivados en el observatorio, emparejando por población de 18+ (los nombres oficiales del cuadro pasan al
+catálogo): **91/91 (país + 90 ciudades) exactos en población, seguro e inseguro**. 2013-2015 (piloto) fuera.
+
+**ENIGH completa (sobre D1 existente).** Cuatro cubos nuevos: personas (130,325,969 expandidas), viviendas (38,356,042),
+gastos por rubro (5.3 millones de registros, 1,055 claves) e ingresos por fuente (83 claves); sus sumas reproducen las de
+cada tabla y las notas explican por qué el G1 (1.71 billones) y las fuentes (2.60 billones) no igualan gasto_mon (1.85) ni
+ing_cor (3.02) del concentrado.
+
+**Censos Económicos (no hay cubo).** Los microdatos no son públicos; en la descarga masiva del INEGI no existe el programa;
+en el Banco de Indicadores solo hay 80 indicadores con esa fuente (sin nivel municipal), ya consultables en
+`inegi-indicadores`; los 2,044 tabulados de los Censos Económicos 1999-2024 están archivados y descargables en
+/api/v1/inegi/datos-abiertos (programa `ce`). Los resultados por municipio y rama viven en el SAIC del INEGI: sería un
+frente de ingesta aparte.
+
+**Detalles de rigor que salieron al verificar.** (1) `enigh-gastos` sobre los 5.3 millones de registros tardaba 19 s por
+consulta: se creó `gastos_resumen` dentro de D1 (32 INSERT … SELECT por entidad; 55,836 filas; SUM(registros) = 5,311,497 y
+G1 idéntico al peso). (2) Las claves de residencia 33/34/35 de la EDR/ENR (Estados Unidos, otros países de Latinoamérica,
+otros países) faltaban en el catálogo y un JOIN interno perdía 873 nacimientos de 2024: catálogo completo, totales
+exactos. (3) El capítulo XXII de la CIE-10 (códigos U: COVID-19) no viene en el capgpo del INEGI: se agrega con su título
+oficial. (4) La API de Cloudflare devolvió un «Authentication error [code: 10000]» transitorio a media carga de 2.9
+millones de filas: los cargadores ahora reintentan (4 intentos) y reanudan por tabla.
+
+**Verificador.** 13 comprobaciones más (vitales exactas vs Banco de Indicadores incluido Cuauhtémoc 09015; ENIGH; ENVIPE
+32 entidades ±0.005; partición de ámbito; ENSU junio 2026 = cuadro 1.7) → **FALLOS 0** en la vista previa (41179ac6) y en
+producción (versión 6e810896).

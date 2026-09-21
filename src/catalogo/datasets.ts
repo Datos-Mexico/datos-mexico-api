@@ -63,6 +63,20 @@ export const DATASETS: DatasetDef[] = [
     notas: ["La tabla de 286 columnas se guarda en tres partes (iter, iter_2, iter_3) con la misma llave entidad+mun+loc por el límite de 100 columnas de D1.", "Los resultados por AGEB y manzana urbana (32 archivos) se publican aparte como Parquet en almacenamiento de objetos.", "Resumen verificable en /api/v1/censo2020/resumen (la población total nacional debe ser 126,014,024)."],
   },
   {
+    clave: "vitales", nombre: "INEGI — Registros vitales: defunciones registradas 1990-2024 y nacimientos registrados 1985-2024", fuente: "INEGI, microdatos de las Estadísticas de defunciones registradas (EDR) y de nacimientos registrados (ENR), descarga masiva", fuente_url: "https://www.inegi.org.mx/programas/edr/", licencia: "Términos de libre uso INEGI",
+    descripcion: "Los 75 archivos anuales de microdatos (120.5 millones de registros) agregados por año de registro, entidad y municipio de residencia, sexo, edad, causa (CIE-10 y lista mexicana, desde 1998), edad de la madre y orden del parto; verificados cada año contra el Banco de Indicadores del INEGI (nacional, entidad y municipio). Los microdatos completos están en /api/v1/inegi/datos-abiertos (programas edr y enr).",
+    binding: "DB_VITALES", prefijo_api: "/api/v1/cubos", periodicidad: "anual (el INEGI publica el año anterior hacia octubre)",
+    sql_corte: "SELECT MAX(anio_regis) AS corte FROM defunciones_municipio", unidad_corte: "último año de registro cargado",
+    notas: ["Todo por lugar de residencia habitual: es la base de las series «registradas» del INEGI; por lugar de registro u ocurrencia las cifras no coinciden.", "Los catálogos de causas (capítulos CIE-10, 59 grupos y 422 causas de la lista mexicana) son los del INEGI 2024, re-decodificados de CP437."],
+  },
+  {
+    clave: "seguridad", nombre: "INEGI — Percepción de inseguridad: ENVIPE 2017-2026 por entidad y ENSU 2016-2026 por ciudad", fuente: "INEGI, microdatos de la ENVIPE (TPer_Vic1) y de la ENSU (CB), descarga masiva", fuente_url: "https://www.inegi.org.mx/programas/envipe/", licencia: "Términos de libre uso INEGI",
+    descripcion: "Personas de 18 años y más que consideran inseguro vivir en su colonia, municipio o entidad (ENVIPE, 10 ediciones, por entidad y sexo) y en su ciudad (ENSU, 40 trimestres, hasta 90 ciudades), expandidas con el factor; verificadas contra el Banco de Indicadores (6200118581) y el cuadro 1.7 de los tabulados de junio 2026. Los microdatos completos están en /api/v1/inegi/datos-abiertos (programas envipe y ensu).",
+    binding: "DB_SEGURIDAD", prefijo_api: "/api/v1/cubos", periodicidad: "ENVIPE anual (septiembre); ENSU trimestral",
+    sql_corte: "SELECT MAX(periodo) AS corte FROM ensu_percepcion", unidad_corte: "último trimestre de la ENSU cargado",
+    notas: ["La tasa de prevalencia delictiva de la ENVIPE no se publica: ninguna reconstrucción desde el módulo de victimización reprodujo la cifra oficial (ver la bitácora)."],
+  },
+  {
     clave: "anuies", nombre: "ANUIES — Anuario Estadístico de Educación Superior (todas las instituciones, 2000-2001 en adelante)", fuente: "ANUIES, consulta interactiva del anuario", fuente_url: "https://anuario.anuies.mx/", licencia: "© ANUIES; datos públicos citados con su fuente",
     descripcion: "Programa por programa (carrera en una escuela o campus de una institución, por nivel y modalidad): matrícula, nuevo ingreso, egresados, lugares ofertados, titulados y solicitudes, por sexo, edad, discapacidad, hablantes de lengua indígena y procedencia del nuevo ingreso. Todas las instituciones del país, ciclo por ciclo desde 2000-2001, con la conciliación de cada ciclo contra el agregado nacional del propio servicio.",
     binding: "DB_ANUIES", prefijo_api: "/api/v1/anuies", periodicidad: "anual (ciclo escolar; ANUIES publica cada anuario al año siguiente)",
