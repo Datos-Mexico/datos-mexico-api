@@ -42,6 +42,12 @@ export type Dimension = {
   miembros?: { desde: string; id: string; nombre: string; donde?: string; orden?: string };
   /** Dimensión virtual: sus miembros son columnas de una tabla ancha; la consulta se despliega en el worker. */
   virtual?: MiembroVirtual[];
+  /**
+   * Dimensión de partición: sus miembros son universos que se contienen (país ⊃ entidades ⊃ municipios), de modo que
+   * agregar a través de ellos suma varias veces lo mismo. Toda consulta debe filtrarla o llevarla en columnas; también
+   * basta que alguna de las dimensiones de `implicita_en` vaya en columnas (agrupar por geografía ya separa los niveles).
+   */
+  particion?: { implicita_en?: string[] };
   descripcion?: string;
 };
 

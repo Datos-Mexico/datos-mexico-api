@@ -23,7 +23,7 @@ export const DATASETS: DatasetDef[] = [
     clave: "enigh", nombre: "ENIGH 2024 Nueva Serie", fuente: "INEGI", fuente_url: "https://www.inegi.org.mx/programas/enigh/nc/2024/", licencia: "Términos de libre uso INEGI",
     descripcion: "Microdatos completos de la Encuesta Nacional de Ingresos y Gastos de los Hogares 2024 (91,414 hogares muestra, 38.8 millones expandidos) con sus 111 catálogos, más los agregados que reproducen el Comunicado INEGI 112/25 al peso.",
     binding: "DB_ENIGH", prefijo_api: "/api/v1/enigh", periodicidad: "bienal (edición 2024; la siguiente, con datos 2026, se publica en 2027)",
-    sql_corte: null, unidad_corte: "edición",
+    sql_corte: "SELECT '2024' AS corte", unidad_corte: "año de levantamiento de la edición cargada",
     notas: ["Las tablas anchas (concentradohogar, hogares, poblacion, noagro) se guardan en dos partes por el límite de 100 columnas de D1; la parte 2 lleva el sufijo _2 y la misma llave.", "13 cifras oficiales del Comunicado 112/25 reproducidas: ver /api/v1/enigh/validaciones."],
   },
   {
@@ -36,7 +36,7 @@ export const DATASETS: DatasetDef[] = [
   },
   {
     clave: "enoe", nombre: "ENOE — Encuesta Nacional de Ocupación y Empleo (15+)", fuente: "INEGI", fuente_url: "https://www.inegi.org.mx/programas/enoe/15ymas/", licencia: "Términos de libre uso INEGI",
-    descripcion: "13 indicadores laborales trimestrales (nacional y por entidad, 2005T1-2025T1), cortes de ocupados por sector y posición, y catálogos. Los 101.5 millones de filas de microdatos no están en esta base: se publican aparte.",
+    descripcion: "13 indicadores laborales trimestrales (nacional y por entidad, 2005T1-2026T2, recalculados desde los microdatos oficiales y exactos contra el Banco de Indicadores del INEGI), cortes de ocupados por sector y posición, y catálogos. Los 101.5 millones de filas de microdatos no están en esta base: se publican aparte.",
     binding: "DB_ENOE", prefijo_api: "/api/v1/enoe", periodicidad: "trimestral",
     sql_corte: "SELECT max(periodo) AS corte FROM indicadores_nacionales", unidad_corte: "último trimestre con indicadores",
     notas: ["Gap documental en 2020T2 (ETOE telefónica, sin microdatos).", "Microdatos (viv, hog, sdem, coe1, coe2): 101.5 millones de filas consultables en /api/v1/enoe/microdatos/{tabla}/list, /count y /schema; se sirven desde particiones Parquet por trimestre y entidad en almacenamiento de objetos (paginación por cursor), con los Parquet por trimestre como respaldo permanente."],
@@ -45,14 +45,14 @@ export const DATASETS: DatasetDef[] = [
     clave: "inegi", nombre: "INEGI — Banco de Indicadores (BISE)", fuente: "INEGI, API de indicadores", fuente_url: "https://www.inegi.org.mx/servicios/api_indicadores.html", licencia: "Términos de libre uso INEGI",
     descripcion: "Los 31,817 indicadores del catálogo oficial del Banco de Indicadores del INEGI con todas sus observaciones a nivel nacional, por entidad federativa y, en los 594 indicadores que el INEGI publica por municipio, para los 2,478 municipios; además, el catálogo de todos los datos abiertos de la descarga masiva del INEGI (4,259 archivos de microdatos de 103 programas convertidos a Parquet con sus originales, y 18,150 tabulados de 183 programas archivados) consultable en /api/v1/inegi/datos-abiertos; más los catálogos de unidades, frecuencias, temas, fuentes, notas y multiplicadores. Cada valor se conserva como lo publica el INEGI (decimal original como texto).",
     binding: "DB_BISE", prefijo_api: "/api/v1/inegi", periodicidad: "la de cada indicador (mensual, trimestral, anual, quinquenal, decenal...)",
-    sql_corte: "SELECT max(ultimo_periodo) AS corte FROM indicadores", unidad_corte: "periodo más reciente con observaciones (formato del INEGI)",
+    sql_corte: "SELECT substr(max(ultima_actualizacion), 1, 10) AS corte FROM indicadores", unidad_corte: "fecha de la última actualización publicada por el INEGI entre todos los indicadores (los periodos llegan hasta 2050 en las proyecciones de población)",
     notas: ["Cobertura geográfica: nacional (00), 32 entidades (01-32) y 2,478 municipios (claves de 5 dígitos, Marco Geoestadístico 2025) en los indicadores con datos municipales.", "Los indicadores con con_datos = 0 existen en el catálogo pero no tienen observaciones en ninguno de los tres niveles.", "El INEGI repite algunas observaciones en sus respuestas (36,462 en 300 indicadores el 2026-09-19); se conserva la primera aparición y las repeticiones quedan auditadas fuera de la base.", "Resumen verificable en /api/v1/inegi/resumen."],
   },
   {
     clave: "denue", nombre: "INEGI — DENUE (Directorio Estadístico Nacional de Unidades Económicas)", fuente: "INEGI, descarga masiva por entidad", fuente_url: "https://www.inegi.org.mx/app/descarga/?ti=6", licencia: "Términos de libre uso INEGI",
     descripcion: "Todas las unidades económicas del DENUE de los 32 estados (edición 05/2026) con sus 42 campos originales: nombre, razón social, actividad SCIAN 2018, personal ocupado, domicilio completo, claves geoestadísticas hasta manzana, contacto y coordenadas; más el catálogo de actividades derivado y el diccionario de datos del INEGI.",
     binding: "DB_DENUE", prefijo_api: "/api/v1/denue", periodicidad: "el INEGI publica actualizaciones del directorio dos veces al año",
-    sql_corte: "SELECT valor AS corte FROM edicion WHERE clave = 'fecha_diccionario'", unidad_corte: "fecha del diccionario de datos de la edición cargada",
+    sql_corte: "SELECT substr(valor, 7, 4) || '-' || substr(valor, 4, 2) || '-' || substr(valor, 1, 2) AS corte FROM edicion WHERE clave = 'fecha_diccionario'", unidad_corte: "fecha del diccionario de datos de la edición cargada (el INEGI la publica como dd/mm/aaaa)",
     notas: ["Los campos se conservan tal cual (textos del INEGI, con espacios finales recortados; vacíos como nulos).", "Búsqueda por nombre, actividad, estado, municipio, código postal y cercanía a una coordenada; resumen verificable en /api/v1/denue/resumen."],
   },
   {

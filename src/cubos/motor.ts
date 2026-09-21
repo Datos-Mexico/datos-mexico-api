@@ -43,6 +43,11 @@ export function leerConsulta(cubo: Cubo, q: Record<string, string>): Consulta {
     filtros[dim] = valores;
   }
   for (const d of cubo.filtro_obligatorio ?? []) if (!filtros[d]?.length) throw err422(`f.${d}`, `este cubo exige un filtro por '${d}' en cada consulta (por ejemplo f.${d}=${cubo.predeterminado.filtros?.[d]?.[0] ?? "…"}); los miembros están en /api/v1/cubos/${cubo.clave}/miembros?dimension=${d}&q=`, null);
+  for (const d of cubo.dimensiones) {
+    if (!d.particion) continue;
+    const cubierta = Boolean(filtros[d.clave]?.length) || columnas.includes(d.clave) || (d.particion.implicita_en ?? []).some((x) => columnas.includes(x));
+    if (!cubierta) throw err422(`f.${d.clave}`, `la dimensión '${d.clave}' parte el universo en niveles que se contienen (sumarlos cuenta varias veces lo mismo): filtre un nivel (por ejemplo f.${d.clave}=${cubo.predeterminado.filtros?.[d.clave]?.[0] ?? "…"}) o inclúyala en columnas${d.particion.implicita_en?.length ? ` (o agrupe por ${d.particion.implicita_en.join(", ")})` : ""}`, null);
+  }
   const padres = q.padres === "1" || q.padres === "true";
   const orden = q.orden?.trim() || null;
   if (orden && !medidas.includes(orden) && !columnas.includes(orden)) throw err422("orden", `'${orden}' no está entre las medidas ni las columnas de la consulta`, orden);
@@ -209,6 +214,7 @@ export async function miembros(c: AppContext, cubo: Cubo, dim: Dimension, filtro
     const r = await filas<{ id: unknown; nombre: unknown }>(c.env[cubo.binding] as D1Database, sql, params);
     return r.map((x) => ({ id: String(x.id), nombre: x.nombre === null || x.nombre === undefined ? String(x.id) : String(x.nombre), n: null }));
   }
+  for (const d of cubo.filtro_obligatorio ?? []) if (d !== dim.clave && !filtros[d]?.length) throw err422(`f.${d}`, `los miembros de '${dim.clave}' se leen de la tabla de hechos y este cubo exige un filtro por '${d}' para recorrerla (por ejemplo f.${d}=${cubo.predeterminado.filtros?.[d]?.[0] ?? "…"})`, null);
   const partes: string[] = []; const params: unknown[] = [];
   if (cubo.donde) partes.push(`(${cubo.donde})`);
   for (const [k, valores] of Object.entries(filtros)) {

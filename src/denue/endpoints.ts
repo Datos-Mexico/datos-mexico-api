@@ -5,6 +5,7 @@ import { OpenAPIRoute, contentJson } from "chanfana";
 import { z } from "zod";
 import type { AppContext } from "../index";
 import { fila, filas } from "../lib/db";
+import { memo } from "../cubos/motor";
 import { RESP_429 } from "../lib/comun";
 import { ErrorHttp } from "../lib/errores";
 import type { Detalle } from "../lib/validacion";
@@ -43,9 +44,14 @@ export class DenueResumen extends OpenAPIRoute {
   async handle(c: AppContext) {
     const db = c.env.DB_DENUE;
     const ed = Object.fromEntries((await filas<{ clave: string; valor: string }>(db, "SELECT clave, valor FROM edicion")).map((r) => [r.clave, r.valor]));
-    const t = (await fila<{ n: number; mun: number }>(db, "SELECT COUNT(*) AS n, COUNT(DISTINCT cve_ent || cve_mun) AS mun FROM unidades_economicas"))!;
-    const act = (await fila<{ n: number }>(db, "SELECT COUNT(*) AS n FROM actividades"))!.n;
-    const estratos = await filas<{ per_ocu: string | null; n: number }>(db, "SELECT per_ocu, COUNT(*) AS n FROM unidades_economicas GROUP BY per_ocu ORDER BY n DESC");
+    // Los conteos salen de denue_resumen (preagregada por entidad, municipio, actividad y estrato; SUM(n) = COUNT(*) de
+    // unidades_economicas, verificado al cargarla): contar las 6.1 millones de filas tardaba 18-33 s y a veces excedía el
+    // tiempo de D1 (500). Se memoriza 30 minutos.
+    const { t, act, estratos } = await memo("denue:resumen", 30, async () => ({
+      t: (await fila<{ n: number; mun: number }>(db, "SELECT SUM(n) AS n, COUNT(DISTINCT cve_ent || cve_mun) AS mun FROM denue_resumen"))!,
+      act: (await fila<{ n: number }>(db, "SELECT COUNT(*) AS n FROM actividades"))!.n,
+      estratos: await filas<{ per_ocu: string | null; n: number }>(db, "SELECT per_ocu, SUM(n) AS n FROM denue_resumen GROUP BY per_ocu ORDER BY n DESC"),
+    }));
     return { fuente: "INEGI — DENUE, descarga masiva por entidad", fuente_url: ed.fuente_url ?? "https://www.inegi.org.mx/app/descarga/?ti=6", edicion: ed.titulo ?? null, fecha_diccionario: ed.fecha_diccionario ?? null, unidades_economicas: t.n, estados: 32, municipios: t.mun, actividades: act, por_estrato: estratos, descargado_en: ed.descargado_en ?? null };
   }
 }

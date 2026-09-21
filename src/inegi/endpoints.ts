@@ -28,6 +28,7 @@ const Resumen = z.object({
   primer_periodo: z.string().nullable(), ultimo_periodo: z.string().nullable(),
   ultima_actualizacion_inegi: z.string().nullable(), descargado_en: z.string().nullable(),
   catalogos: z.record(z.string(), z.number().int()),
+  arbol: z.object({ temas: z.number().int(), indicadores_con_ruta: z.number().int(), indicadores_con_nombre_repetido: z.number().int(), url: z.string() }),
 });
 export class InegiResumen extends OpenAPIRoute {
   schema = {
@@ -46,6 +47,7 @@ export class InegiResumen extends OpenAPIRoute {
       indicadores_catalogo: ind.n, indicadores_con_datos: ind.con, indicadores_sin_datos: ind.n - ind.con,
       observaciones: ind.obs, geografias: catalogos.geografias, cobertura_geografica: "nacional (00), 32 entidades federativas (01-32) y 2,478 municipios (claves de 5 dígitos, Marco Geoestadístico 2025) en los indicadores que el INEGI publica a ese nivel",
       primer_periodo: ind.p1, ultimo_periodo: ind.p2, ultima_actualizacion_inegi: ind.act, descargado_en: ind.desc, catalogos,
+      arbol: { temas: (await fila<{ n: number }>(db, "SELECT COUNT(*) AS n FROM arbol_temas"))!.n, indicadores_con_ruta: (await fila<{ n: number }>(db, "SELECT COUNT(*) AS n FROM indicadores WHERE ruta IS NOT NULL"))!.n, indicadores_con_nombre_repetido: (await fila<{ n: number }>(db, "SELECT COUNT(*) AS n FROM indicadores i WHERE con_datos = 1 AND EXISTS (SELECT 1 FROM indicadores j WHERE j.con_datos = 1 AND j.descripcion = i.descripcion AND j.id <> i.id)"))!.n, url: "/api/v1/inegi/arbol" },
     };
   }
 }
@@ -79,11 +81,12 @@ const IndicadorResumen = z.object({
   id: z.string(), descripcion: z.string().nullable(), tema: z.string().nullable(), tema_descripcion: z.string().nullable(),
   frecuencia: z.string().nullable(), frecuencia_descripcion: z.string().nullable(), unidad: z.string().nullable(), unidad_descripcion: z.string().nullable(),
   con_datos: z.boolean(), n_observaciones: z.number().int(), n_geografias: z.number().int(), primer_periodo: z.string().nullable(), ultimo_periodo: z.string().nullable(), ultima_actualizacion: z.string().nullable(),
+  ruta: z.string().nullable(), tema_arbol: z.string().nullable(), orden_arbol: z.number().int().nullable(),
 });
 const SQL_IND = `SELECT i.id, i.descripcion, i.tema, t.descripcion AS tema_descripcion, i.frecuencia, f.descripcion AS frecuencia_descripcion, i.unidad, u.descripcion AS unidad_descripcion,
-  i.con_datos, i.n_observaciones, i.n_geografias, i.primer_periodo, i.ultimo_periodo, i.ultima_actualizacion
+  i.con_datos, i.n_observaciones, i.n_geografias, i.primer_periodo, i.ultimo_periodo, i.ultima_actualizacion, i.ruta, i.tema_arbol, i.orden_arbol
   FROM indicadores i LEFT JOIN temas t ON t.clave = i.tema LEFT JOIN frecuencias f ON f.clave = i.frecuencia LEFT JOIN unidades u ON u.clave = i.unidad`;
-type FilaInd = { id: string; descripcion: string | null; tema: string | null; tema_descripcion: string | null; frecuencia: string | null; frecuencia_descripcion: string | null; unidad: string | null; unidad_descripcion: string | null; con_datos: number; n_observaciones: number; n_geografias: number; primer_periodo: string | null; ultimo_periodo: string | null; ultima_actualizacion: string | null };
+type FilaInd = { id: string; descripcion: string | null; tema: string | null; tema_descripcion: string | null; frecuencia: string | null; frecuencia_descripcion: string | null; unidad: string | null; unidad_descripcion: string | null; con_datos: number; n_observaciones: number; n_geografias: number; primer_periodo: string | null; ultimo_periodo: string | null; ultima_actualizacion: string | null; ruta: string | null; tema_arbol: string | null; orden_arbol: number | null };
 const aResumen = (r: FilaInd) => ({ ...r, con_datos: r.con_datos === 1 });
 
 function bandera(valor: string | undefined, nombre: string): boolean | null {
@@ -97,23 +100,25 @@ function bandera(valor: string | undefined, nombre: string): boolean | null {
 export class InegiIndicadores extends OpenAPIRoute {
   schema = {
     tags: TAG, operationId: "inegi_indicadores", summary: "Buscar indicadores del INEGI",
-    description: "Busca en los 31,817 indicadores del catálogo del Banco de Indicadores. `q` busca (contiene, sin distinguir mayúsculas) en la descripción del indicador y en la de su tema; el INEGI publica nombres cortos ('Total', 'Mujeres'), por lo que el tema es la forma de ubicarlos. Filtros exactos por `tema`, `frecuencia` y `unidad` (claves de los catálogos) y `con_datos`. Paginado con `limit` (1-500) y `offset`.",
-    request: { query: z.object({ q: z.string().optional(), tema: z.string().optional(), frecuencia: z.string().optional(), unidad: z.string().optional(), con_datos: z.boolean().optional(), limit: z.number().int().min(1).max(500).default(50).optional(), offset: z.number().int().min(0).default(0).optional() }) },
+    description: "Busca en los 31,817 indicadores del catálogo del Banco de Indicadores. `q` busca (contiene, sin distinguir mayúsculas) en la descripción del indicador, en la de su tema y en su ruta temática (`ruta`: tema › subtema › … tal como el INEGI lo muestra en su sitio); el INEGI publica nombres cortos ('Total', 'Mujeres') que miles de indicadores comparten, por lo que la ruta y la posición en el tema (`orden_arbol`) son la forma de ubicarlos. Filtros exactos por `tema`, `frecuencia` y `unidad` (claves de los catálogos), por `tema_arbol` (tema hoja del árbol, ver /api/v1/inegi/arbol) y `con_datos`. Paginado con `limit` (1-500) y `offset`.",
+    request: { query: z.object({ q: z.string().optional(), tema: z.string().optional(), tema_arbol: z.string().optional(), frecuencia: z.string().optional(), unidad: z.string().optional(), con_datos: z.boolean().optional(), limit: z.number().int().min(1).max(500).default(50).optional(), offset: z.number().int().min(0).default(0).optional() }) },
     responses: { ...ok("Indicadores que cumplen los filtros.", z.object({ total: z.number().int(), limit: z.number().int(), offset: z.number().int(), items: z.array(IndicadorResumen) })), ...RESP_422, ...RESP_429 },
   };
   async handle(c: AppContext) {
-    const q = c.req.query("q"); const tema = textoConPatron(c.req.query("tema"), "tema", "^\\d+$"); const frecuencia = textoConPatron(c.req.query("frecuencia"), "frecuencia", "^\\d+$"); const unidad = textoConPatron(c.req.query("unidad"), "unidad", "^\\d+$");
+    const q = c.req.query("q"); const tema = textoConPatron(c.req.query("tema"), "tema", "^\\d+$"); const temaArbol = textoConPatron(c.req.query("tema_arbol"), "tema_arbol", "^\\d+$"); const frecuencia = textoConPatron(c.req.query("frecuencia"), "frecuencia", "^\\d+$"); const unidad = textoConPatron(c.req.query("unidad"), "unidad", "^\\d+$");
     const conDatos = bandera(c.req.query("con_datos"), "con_datos");
     const limit = enteroOpcional(c.req.query("limit"), "limit", 1, 500) ?? 50; const offset = enteroOpcional(c.req.query("offset"), "offset", 0) ?? 0;
     const cond: string[] = []; const params: unknown[] = [];
-    if (q) { cond.push("(i.descripcion LIKE ? COLLATE NOCASE OR t.descripcion LIKE ? COLLATE NOCASE)"); params.push(`%${q}%`, `%${q}%`); }
+    if (q) { cond.push("(i.descripcion LIKE ? COLLATE NOCASE OR t.descripcion LIKE ? COLLATE NOCASE OR i.ruta LIKE ? COLLATE NOCASE)"); params.push(`%${q}%`, `%${q}%`, `%${q}%`); }
     if (tema) { cond.push("i.tema = ?"); params.push(tema); }
+    if (temaArbol) { cond.push("i.tema_arbol = ?"); params.push(temaArbol); }
     if (frecuencia) { cond.push("i.frecuencia = ?"); params.push(frecuencia); }
     if (unidad) { cond.push("i.unidad = ?"); params.push(unidad); }
     if (conDatos !== null) { cond.push("i.con_datos = ?"); params.push(conDatos ? 1 : 0); }
     const where = cond.length ? " WHERE " + cond.join(" AND ") : "";
     const total = (await fila<{ n: number }>(c.env.DB_BISE, `SELECT COUNT(*) AS n FROM indicadores i LEFT JOIN temas t ON t.clave = i.tema${where}`, params))!.n;
-    const items = await filas<FilaInd>(c.env.DB_BISE, `${SQL_IND}${where} ORDER BY CAST(i.id AS INTEGER), i.id LIMIT ? OFFSET ?`, [...params, limit, offset]);
+    const orden = temaArbol ? "i.orden_arbol, CAST(i.id AS INTEGER), i.id" : "CAST(i.id AS INTEGER), i.id";
+    const items = await filas<FilaInd>(c.env.DB_BISE, `${SQL_IND}${where} ORDER BY ${orden} LIMIT ? OFFSET ?`, [...params, limit, offset]);
     return { total, limit, offset, items: items.map(aResumen) };
   }
 }
@@ -123,7 +128,22 @@ const Ficha = IndicadorResumen.extend({
   multiplicador: z.string().nullable(), multiplicador_descripcion: z.string().nullable(), nota: z.string().nullable(), nota_descripcion: z.string().nullable(),
   fuentes: z.array(z.object({ clave: z.string(), descripcion: z.string().nullable() })), estatus: z.string().nullable(), ultima_actualizacion_texto: z.string().nullable(), descargado_en: z.string().nullable(),
   geografias: z.array(z.object({ clave: z.string(), nombre: z.string(), nivel: z.string(), n_observaciones: z.number().int() })), observaciones_url: z.string(),
+  ruta_temas: z.array(z.array(z.object({ tema: z.string(), nombre: z.string(), nivel: z.number().int() }))),
 });
+type NodoTema = { tema: string; nombre: string; tema_superior: string | null; orden: number | null; nivel: number; url_tema: string | null };
+let arbolMemo: { hasta: number; temas: Map<string, NodoTema> } | null = null;
+/** Los 182 temas del árbol del Banco de Indicadores (scripts/bise_arbol.py), en memoria por 30 minutos. */
+async function arbolTemas(c: AppContext): Promise<Map<string, NodoTema>> {
+  if (arbolMemo && arbolMemo.hasta > Date.now()) return arbolMemo.temas;
+  const r = await filas<NodoTema>(c.env.DB_BISE, "SELECT tema, nombre, tema_superior, orden, nivel, url_tema FROM arbol_temas");
+  arbolMemo = { hasta: Date.now() + 30 * 60_000, temas: new Map(r.map((t) => [t.tema, t])) };
+  return arbolMemo.temas;
+}
+function rutaDe(temas: Map<string, NodoTema>, hoja: string): { tema: string; nombre: string; nivel: number }[] {
+  const out: { tema: string; nombre: string; nivel: number }[] = [];
+  for (let t: string | null = hoja; t; t = temas.get(t)?.tema_superior ?? null) { const n = temas.get(t); if (!n) break; out.unshift({ tema: n.tema, nombre: n.nombre, nivel: n.nivel }); }
+  return out;
+}
 async function indicadorOr404(c: AppContext, id: string) {
   const r = await fila<FilaInd & { multiplicador: string | null; nota: string | null; fuentes: string | null; estatus: string | null; ultima_actualizacion_texto: string | null; descargado_en: string | null }>(c.env.DB_BISE,
     `${SQL_IND.replace("i.ultima_actualizacion", "i.ultima_actualizacion, i.multiplicador, i.nota, i.fuentes, i.estatus, i.ultima_actualizacion_texto, i.descargado_en")} WHERE i.id = ?`, [id]);
@@ -133,7 +153,7 @@ async function indicadorOr404(c: AppContext, id: string) {
 export class InegiIndicador extends OpenAPIRoute {
   schema = {
     tags: TAG, operationId: "inegi_indicador", summary: "Ficha de un indicador del INEGI",
-    description: "Metadatos completos de un indicador: descripción, tema, frecuencia, unidad, multiplicador, nota metodológica, fuentes, estatus y última actualización publicada por el INEGI, más las geografías para las que hay observaciones (con su nivel: nacional, entidad, municipio) y el enlace a la serie.",
+    description: "Metadatos completos de un indicador: descripción, tema, frecuencia, unidad, multiplicador, nota metodológica, fuentes, estatus y última actualización publicada por el INEGI, la ruta temática completa del Banco de Indicadores (`ruta_temas`: una lista de temas de la raíz a la hoja por cada tema donde el INEGI lo muestra) con su posición dentro del tema hoja (`orden_arbol`), más las geografías para las que hay observaciones (con su nivel: nacional, entidad, municipio) y el enlace a la serie.",
     request: { params: z.object({ id: z.string() }) },
     responses: { ...ok("Ficha del indicador.", Ficha), ...RESP_404, ...RESP_429 },
   };
@@ -147,8 +167,10 @@ export class InegiIndicador extends OpenAPIRoute {
     const mult = r.multiplicador ? (await fila<{ d: string | null }>(db, "SELECT descripcion AS d FROM multiplicadores WHERE clave = ?", [r.multiplicador]))?.d ?? null : null;
     const nota = r.nota ? (await fila<{ d: string | null }>(db, "SELECT descripcion AS d FROM notas WHERE clave = ?", [r.nota]))?.d ?? null : null;
     const geografias = await filas<{ clave: string; nombre: string; nivel: string; n_observaciones: number }>(db, "SELECT o.geografia AS clave, g.nombre, g.nivel, COUNT(*) AS n_observaciones FROM observaciones o JOIN geografias g ON g.clave = o.geografia WHERE o.indicador = ? GROUP BY o.geografia ORDER BY o.geografia", [id]);
+    const temas = await arbolTemas(c);
+    const hojas = await filas<{ tema: string }>(db, "SELECT tema FROM indicador_temas WHERE indicador = ? ORDER BY orden, tema", [id]);
     const { multiplicador, nota: _n, fuentes: _f, estatus, ultima_actualizacion_texto, descargado_en, ...base } = r;
-    return { ...aResumen(base), multiplicador, multiplicador_descripcion: mult, nota: r.nota, nota_descripcion: nota, fuentes, estatus, ultima_actualizacion_texto, descargado_en, geografias, observaciones_url: `/api/v1/inegi/indicadores/${id}/observaciones` };
+    return { ...aResumen(base), multiplicador, multiplicador_descripcion: mult, nota: r.nota, nota_descripcion: nota, fuentes, estatus, ultima_actualizacion_texto, descargado_en, geografias, observaciones_url: `/api/v1/inegi/indicadores/${id}/observaciones`, ruta_temas: hojas.map((h) => rutaDe(temas, h.tema)) };
   }
 }
 
@@ -175,5 +197,36 @@ export class InegiObservaciones extends OpenAPIRoute {
     const total = (await fila<{ n: number }>(c.env.DB_BISE, `SELECT COUNT(*) AS n FROM observaciones${where}`, params))!.n;
     const observaciones = await filas<z.infer<typeof Observacion>>(c.env.DB_BISE, `SELECT geografia, periodo, valor, valor_texto, excepcion, estatus, fuente, nota FROM observaciones${where} ORDER BY geografia, periodo LIMIT ? OFFSET ?`, [...params, limit, offset]);
     return { indicador: id, descripcion: r.descripcion, frecuencia: r.frecuencia_descripcion, unidad: r.unidad_descripcion, total, limit, offset, observaciones };
+  }
+}
+
+// ---------------------------------------------------------------- árbol temático
+const NodoZ = z.object({ tema: z.string(), nombre: z.string(), nivel: z.number().int(), orden: z.number().int().nullable(), n_subtemas: z.number().int(), n_indicadores: z.number().int(), url_inegi: z.string().nullable() });
+export class InegiArbol extends OpenAPIRoute {
+  schema = {
+    tags: TAG, operationId: "inegi_arbol", summary: "Árbol temático del Banco de Indicadores",
+    description: "La jerarquía tema › subtema › … › indicador con la que el INEGI organiza el Banco de Indicadores en su sitio (www.inegi.org.mx/app/indicadores/), recorrida completa el 2026-09-20: 182 temas en hasta cinco niveles. Sin `tema` devuelve los temas raíz; con `tema` devuelve la ruta hasta ese tema, sus subtemas y los indicadores que cuelgan directamente de él en el orden del INEGI (`limit` 1-500 y `offset` paginan los indicadores). El INEGI repite el nombre corto en miles de series (las 2,672 del PIB por actividad económica, por ejemplo): la posición (`orden_arbol`) es lo que las distingue.",
+    request: { query: z.object({ tema: z.string().optional(), limit: z.number().int().min(1).max(500).default(100).optional(), offset: z.number().int().min(0).default(0).optional() }) },
+    responses: { ...ok("Nodo del árbol.", z.object({ fuente: z.string(), ruta: z.array(NodoZ.pick({ tema: true, nombre: true, nivel: true })), tema: NodoZ.nullable(), subtemas: z.array(NodoZ), indicadores_total: z.number().int(), limit: z.number().int(), offset: z.number().int(), indicadores: z.array(IndicadorResumen) })), ...RESP_404, ...RESP_422, ...RESP_429 },
+  };
+  async handle(c: AppContext) {
+    const tema = textoConPatron(c.req.query("tema"), "tema", "^\\d+$");
+    const limit = enteroOpcional(c.req.query("limit"), "limit", 1, 500) ?? 100; const offset = enteroOpcional(c.req.query("offset"), "offset", 0) ?? 0;
+    const temas = await arbolTemas(c);
+    if (tema && !temas.has(tema)) throw new ErrorHttp(404, `el tema '${tema}' no existe en el árbol del Banco de Indicadores`);
+    const db = c.env.DB_BISE;
+    const conteos = await filas<{ tema: string; n: number }>(db, "SELECT tema, COUNT(*) AS n FROM indicador_temas GROUP BY tema");
+    const directos = new Map(conteos.map((x) => [x.tema, x.n]));
+    const hijosDe = new Map<string | null, NodoTema[]>();
+    for (const t of temas.values()) { const k = t.tema_superior || null; if (!hijosDe.has(k)) hijosDe.set(k, []); hijosDe.get(k)!.push(t); }
+    const totalBajo = (t: string): number => (directos.get(t) ?? 0) + (hijosDe.get(t) ?? []).reduce((s, h) => s + totalBajo(h.tema), 0);
+    const nodo = (t: NodoTema) => ({ tema: t.tema, nombre: t.nombre, nivel: t.nivel, orden: t.orden, n_subtemas: (hijosDe.get(t.tema) ?? []).length, n_indicadores: totalBajo(t.tema), url_inegi: t.url_tema ? `https://www.inegi.org.mx${t.url_tema}` : null });
+    const subtemas = (hijosDe.get(tema ?? null) ?? []).slice().sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0) || a.tema.localeCompare(b.tema)).map(nodo);
+    let indicadores_total = 0; let items: FilaInd[] = [];
+    if (tema) {
+      indicadores_total = directos.get(tema) ?? 0;
+      items = await filas<FilaInd>(db, `${SQL_IND} JOIN indicador_temas it ON it.indicador = i.id WHERE it.tema = ? ORDER BY it.orden, CAST(i.id AS INTEGER), i.id LIMIT ? OFFSET ?`, [tema, limit, offset]);
+    }
+    return { fuente: "INEGI — Banco de Indicadores, árbol temático del sitio (www.inegi.org.mx/app/indicadores/), recorrido el 2026-09-20", ruta: tema ? rutaDe(temas, tema) : [], tema: tema ? nodo(temas.get(tema)!) : null, subtemas, indicadores_total, limit, offset, indicadores: items.map(aResumen) };
   }
 }

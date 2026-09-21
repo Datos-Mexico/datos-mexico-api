@@ -1063,3 +1063,56 @@ hasta 0.05 %.
 117,033.88; 38,830,230 hogares); BISE población total 2020 país 126,014,024 y CDMX 9,209,944; DENUE 6,138,075 en 20
 sectores con nombre; precios 2025-12-31 SB 60-64 en 10 AFOREs. `scripts/verificar_cubos.py` → **FALLOS 0** en local y en
 producción.
+
+## 2026-09-21 — Auditoría INEGI del observatorio: los tres errores de rigor, la ruta temática y la ENOE al día
+
+Origen: auditoría adversarial de /observatorio frente al INEGI (informe al CEO, 2026-09-20). Se cubre en orden todo lo
+encontrado salvo el refresco automático (pospuesto por decisión del CEO).
+
+**1. Triple conteo en el Banco de Indicadores (corregido).** Sin filtro de nivel, `inegi-indicadores` sumaba país +
+entidades + municipios (población 2020: 376,273,161 en vez de 126,014,024). Mecanismo nuevo en el motor:
+`Dimension.particion` (`{ implicita_en: [...] }`): toda consulta debe filtrar esa dimensión o llevarla en columnas (o
+agrupar por una dimensión que la implica, como geografía); si no, 422 con la explicación. Aplicado a `nivel` del cubo BISE.
+Verificado: agrupar por nivel da nacional = suma de entidades = 126,014,024.
+
+**2. Error 500 al pedir los periodos sin indicador (corregido).** La lista de miembros de `periodo` recorría 7.4 millones
+de filas. Catálogo nuevo `periodos` en D1 (474 periodos, 7,456,265 observaciones = total exacto; `data/bise/sql/periodos.sql`
+derivado de los CSV) y `nivel` desde `(SELECT DISTINCT nivel FROM geografias)`. Además el motor rechaza con 422 (en vez
+de intentar el barrido) los miembros de una dimensión sin catálogo cuando falta el filtro obligatorio del cubo.
+
+**3. Cortes del catálogo (corregido).** INEGI decía «2050» (proyecciones de población): ahora es la fecha de la última
+actualización publicada por el INEGI entre todos los indicadores (2026-09-18); ENIGH pasa de nulo a «2024» (año de
+levantamiento); DENUE de «20/05/2026» a «2026-05-20». Verificador: formatos legibles obligatorios.
+
+**4. Nombres de indicadores con su ruta temática (nuevo).** 17,682 de los 31,039 indicadores con datos comparten el
+nombre corto con otro («Total», «Mujeres», «Total nacional»…). El sitio del INEGI los organiza en un árbol de temas que su
+API de desarrolladores no publica; lo sirve la API interna del propio sitio (interna_v1_3, métodos `NodosTemas` y
+`EstructuraIndicador`, identificados con las peticiones de red del navegador el 2026-09-20; token de cliente público del
+sitio, guardado en `data/.secretos.env` como INEGI_TOKEN_WEB, no versionado). `scripts/bise_arbol.py` recorre el árbol
+(182 temas en 5 niveles, 25,412 relaciones directas + 5,633 rutas pedidas indicador por indicador; 0 errores, 0 sin ruta;
+6 indicadores cuelgan de dos temas) y `scripts/bise_arbol_d1.py` carga `arbol_temas`, `indicador_temas` y las columnas
+`indicadores.ruta / tema_arbol / orden_arbol`. En la API: `ruta`, `tema_arbol`, `orden_arbol` en la búsqueda y la ficha
+(`ruta_temas` completa), `q` busca también en la ruta, filtro `tema_arbol`, endpoint nuevo `/api/v1/inegi/arbol`, y el
+cubo nombra cada indicador «nombre — ruta · n.º posición (unidad)». Límite honesto: el INEGI mismo muestra 2,672 series
+del PIB por actividad económica como «Total nacional (Pesos a precios 2013), Estados Unidos Mexicanos, 2021» repetido (lo
+comprobé en su sitio); con ruta y unidad siguen coincidiendo 16,625 nombres, y solo la posición los distingue. Queda dicho en
+la ficha del cubo y en el resumen (`arbol.indicadores_con_nombre_repetido`).
+
+**5. ENOE al día y exacta (serie recalculada 2005T1-2026T2).** La serie heredada llegaba a 2025T1; el INEGI publica hasta
+2026T2 y los CSV de la descarga masiva ya estaban en R2 (datos abiertos). `scripts/enoe_indicadores_inegi.py` recalcula
+los 13 indicadores (nacional y 32 entidades), ocupados por sector (rama_est2) y por posición (pos_ocu) para los 85
+trimestres desde el SDEM oficial (fac_tri; fac hasta 2020T1; ent o cve_ent desde 2025T3) con dominio 15+ en todos los
+conteos y población de 15 y más = PEA + PNEA (clase1 IN (1,2), como la publica el INEGI). Verificación contra el Banco de
+Indicadores (6200093963, 6200093960, 6200032077, 6200093954, 6200093973): **2,805 comparaciones por indicador, diferencia
+0 en las cinco** (población 15+, PEA, PNEA, ocupados, desocupados; 85 trimestres × 33 geografías). Hallazgo sobre la
+serie heredada: estaba 0.7 % por debajo de forma uniforme (2025T1: 58,921,494 ocupados contra 59,001,009 del INEGI) porque
+el cargador de DBF descartaba filas repetidas en la llave (ON CONFLICT DO NOTHING) y no acotaba ocupados/desocupados a 15+;
+la validación de entonces lo atribuyó a «post-estratificación». Las cuatro tablas de D1 se reemplazaron (1,105 + 35,360 +
+33,660 + 11,220 filas; `bound_oficial` y `delta_rel_pct` guardan la cifra del INEGI y la diferencia, 0). Los microdatos
+servidos por /enoe/microdatos siguen hasta 2025T1 (particiones desde Neon): extenderlos con los CSV es tarea aparte.
+
+**6. DENUE /resumen (corregido de paso).** Contaba 6.1 millones de filas en cada llamada (18-33 s) y a veces excedía D1
+(500). Ahora lee `denue_resumen` (SUM(n) = 6,138,075, 2,478 municipios, estratos idénticos) y se memoriza 30 min: 2.3 s.
+
+**Verificación.** `scripts/verificar_cubos.py` con 13 comprobaciones nuevas (partición, catálogos, ruta, árbol, cortes,
+ENOE exacta contra el Banco de Indicadores en 2025T1 y 2026T2) → **FALLOS 0** en la vista previa (a5722d53) y en producción.

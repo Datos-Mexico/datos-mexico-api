@@ -21,7 +21,7 @@ import { NombramientoDetalle, NombramientosLista, PersonaDetalle, PersonasLista 
 import { cacheControl } from "./lib/cache";
 import { CatalogoEntidades, CatalogoEtapas, CatalogoIndicadores, EnoeHealthEndpoint, EnoeMetadataEndpoint, EntidadRanking, EntidadSerie, EntidadSnapshot, NacionalSerie, NacionalSnapshot, PosicionSerie, PosicionSnapshot, SectorSerie, SectorSnapshot } from "./enoe/endpoints";
 import { CatalogoDatasets, CatalogoEsquema } from "./catalogo/endpoints";
-import { InegiCatalogo, InegiIndicador, InegiIndicadores, InegiObservaciones, InegiResumen } from "./inegi/endpoints";
+import { InegiCatalogo, InegiArbol, InegiIndicador, InegiIndicadores, InegiObservaciones, InegiResumen } from "./inegi/endpoints";
 import { DatosAbiertosDescarga, DatosAbiertosPrograma, DatosAbiertosProgramas, DatosAbiertosResumen, DatosAbiertosTabulados } from "./inegi/datos_abiertos";
 import { DenueActividades, DenueCerca, DenueResumen, DenueUnidad, DenueUnidades } from "./denue/endpoints";
 import { CensoIndicador, CensoIndicadores, CensoLocalidad, CensoLocalidades, CensoResumen } from "./censo2020/endpoints";
@@ -232,6 +232,7 @@ openapi.get("/api/v1/inegi/indicadores", InegiIndicadores);
 openapi.get("/api/v1/inegi/indicadores/:id", InegiIndicador);
 openapi.get("/api/v1/inegi/indicadores/:id/observaciones", InegiObservaciones);
 openapi.get("/api/v1/inegi/catalogos/:catalogo", InegiCatalogo);
+openapi.get("/api/v1/inegi/arbol", InegiArbol);
 
 // Datos abiertos del INEGI ingeridos (microdatos en Parquet + tabulados archivados, con manifiesto)
 openapi.get("/api/v1/inegi/datos-abiertos/resumen", DatosAbiertosResumen);

@@ -1,10 +1,11 @@
 // Cubos de la ENOE (indicadores trimestrales por entidad y cortes de ocupados). Las 32 entidades suman exactamente el
-// nacional (verificado 2025T1: 58,921,494 ocupados), así que los cubos por entidad contienen el país completo.
+// nacional (verificado 2025T1: 59,001,009 ocupados = cifra del INEGI), así que los cubos por entidad contienen el país
+// completo. Serie recalculada desde los CSV oficiales por scripts/enoe_indicadores_inegi.py (exacta contra el Banco de Indicadores).
 import { POSICION_NOMBRE, SECTOR_NOMBRE } from "../../enoe/constantes";
 import type { Cubo, Dimension, Medida } from "../tipos";
 
 const FUENTE = { fuente: "INEGI — Encuesta Nacional de Ocupación y Empleo (ENOE), población de 15 años y más", fuente_url: "https://www.inegi.org.mx/programas/enoe/15ymas/", licencia: "Términos de libre uso INEGI" };
-const D_PERIODO: Dimension = { clave: "periodo", titulo: "Trimestre", id: "periodo", tipo: "temporal", descripcion: "Trimestre en formato AAAATn (2005T1 a 2025T1; 2020T2 no existe: ETOE telefónica)." };
+const D_PERIODO: Dimension = { clave: "periodo", titulo: "Trimestre", id: "periodo", tipo: "temporal", descripcion: "Trimestre en formato AAAATn (2005T1 a 2026T2; 2020T2 no existe: ETOE telefónica)." };
 const D_ENTIDAD = (col: string): Dimension => ({ clave: "entidad", titulo: "Entidad", id: col, nombre: "e.nombre", tipo: "geografica", geo: "entidad", orden: "1" });
 const D_ETAPA: Dimension = { clave: "etapa", titulo: "Etapa metodológica", id: "etapa", tipo: "categorica", descripcion: "clasica (2005-2020T1) o enoe_n (2020T3 en adelante, marco del Censo 2020)." };
 
@@ -17,12 +18,12 @@ const medidasIndicadores = (): Medida[] => INDICADORES.map(([k, t, u]) => ({ cla
 
 export const ENOE_ENTIDAD: Cubo = {
   clave: "enoe-indicadores-entidad", nombre: "Indicadores laborales por entidad", tema: "trabajo", ...FUENTE,
-  descripcion: "Los 13 indicadores laborales de la ENOE (población de 15 y más, PEA, ocupados, desocupados, subocupados, informales, condiciones críticas y sus tasas) por trimestre y entidad federativa, 2005T1 a 2025T1.",
+  descripcion: "Los 13 indicadores laborales de la ENOE (población de 15 y más, PEA, ocupados, desocupados, subocupados, informales, condiciones críticas y sus tasas) por trimestre y entidad federativa, 2005T1 a 2026T2.",
   binding: "DB_ENOE", desde: "indicadores_entidad i LEFT JOIN cat_entidad e ON e.clave = i.entidad_clave",
   medidas: medidasIndicadores(), dimensiones: [D_PERIODO, D_ENTIDAD("i.entidad_clave"), D_ETAPA],
-  predeterminado: { medidas: ["ocupados_total", "tasa_desocupacion"], columnas: ["entidad"], filtros: { periodo: ["2025T1"] } },
+  predeterminado: { medidas: ["ocupados_total", "tasa_desocupacion"], columnas: ["entidad"], filtros: { periodo: ["2026T2"] } },
   sql_corte: "SELECT MAX(periodo) AS corte FROM indicadores_entidad",
-  notas: ["Los conteos son personas con factor de expansión; las 32 entidades suman el nacional.", "Las tasas son porcentajes: sumarlas no tiene sentido; agrúpelas siempre con trimestre y entidad."],
+  notas: ["Los conteos son personas con factor de expansión; las 32 entidades suman el nacional.", "Las tasas son porcentajes: sumarlas no tiene sentido; agrúpelas siempre con trimestre y entidad.", "Serie recalculada el 2026-09-20 desde los microdatos SDEM oficiales (CSV de la descarga masiva del INEGI) con dominio de 15 años y más en todos los conteos: población de 15 y más, PEA, PNEA, ocupados y desocupados coinciden exactamente con el Banco de Indicadores del INEGI en los 85 trimestres y las 33 geografías (2,805 comparaciones por indicador, diferencia 0). La serie anterior (2005T1-2025T1) estaba 0.7 % por debajo por filas descartadas al cargar los DBF."],
   api_dominio: "/api/v1/enoe",
 };
 export const ENOE_NACIONAL: Cubo = {
@@ -40,7 +41,7 @@ export const ENOE_SECTOR: Cubo = {
   binding: "DB_ENOE", desde: "poblacion_ocupada_por_sector s LEFT JOIN cat_entidad e ON e.clave = s.geo_clave", donde: "s.nivel = 'entidad'",
   medidas: [{ clave: "ocupados", titulo: "Ocupados", sql: "SUM(total_personas)", unidad: "personas", sumable: true }, { clave: "participacion", titulo: "Participación en los ocupados de la entidad", sql: "AVG(pct_ocupados)", unidad: "porcentaje", sumable: false, decimales: 2 }],
   dimensiones: [D_PERIODO, D_ENTIDAD("s.geo_clave"), { clave: "sector", titulo: "Sector de actividad", id: "s.sector_clave", nombre: caso("s.sector_clave", SECTOR_NOMBRE as Map<string | number, string>), tipo: "categorica", orden: "CAST(s.sector_clave AS INTEGER)" }, { ...D_ETAPA, id: "s.etapa" }],
-  predeterminado: { medidas: ["ocupados"], columnas: ["sector"], filtros: { periodo: ["2025T1"] } },
+  predeterminado: { medidas: ["ocupados"], columnas: ["sector"], filtros: { periodo: ["2026T2"] } },
   sql_corte: "SELECT MAX(periodo) AS corte FROM poblacion_ocupada_por_sector", notas: ["Personas con factor de expansión (fac_tri); las 32 entidades suman el nacional.", "La participación es el % del sector en los ocupados de su entidad y trimestre; el promedio entre entidades no es la participación nacional."], api_dominio: "/api/v1/enoe",
 };
 export const ENOE_POSICION: Cubo = {
@@ -49,6 +50,6 @@ export const ENOE_POSICION: Cubo = {
   binding: "DB_ENOE", desde: "poblacion_ocupada_por_posicion s LEFT JOIN cat_entidad e ON e.clave = s.geo_clave", donde: "s.nivel = 'entidad'",
   medidas: [{ clave: "ocupados", titulo: "Ocupados", sql: "SUM(total_personas)", unidad: "personas", sumable: true }, { clave: "participacion", titulo: "Participación en los ocupados de la entidad", sql: "AVG(pct_ocupados)", unidad: "porcentaje", sumable: false, decimales: 2 }],
   dimensiones: [D_PERIODO, D_ENTIDAD("s.geo_clave"), { clave: "posicion", titulo: "Posición en la ocupación", id: "s.pos_clave", nombre: caso("s.pos_clave", POSICION_NOMBRE as Map<string | number, string>), tipo: "categorica", orden: "1" }, { ...D_ETAPA, id: "s.etapa" }],
-  predeterminado: { medidas: ["ocupados"], columnas: ["posicion"], filtros: { periodo: ["2025T1"] } },
+  predeterminado: { medidas: ["ocupados"], columnas: ["posicion"], filtros: { periodo: ["2026T2"] } },
   sql_corte: "SELECT MAX(periodo) AS corte FROM poblacion_ocupada_por_posicion", notas: ["Personas con factor de expansión (fac_tri); las 32 entidades suman el nacional."], api_dominio: "/api/v1/enoe",
 };

@@ -204,7 +204,7 @@ export class NacionalSnapshot extends OpenAPIRoute {
     const q = (k: string) => c.req.query(k); requerido(q, "periodo");
     const periodo = validarPeriodo(q("periodo"), "periodo")!;
     const rows = await filas<{ indicador: string; valor: number; unidad: string; etapa: string }>(c.env.DB_ENOE, "SELECT indicador, valor, unidad, etapa FROM indicadores_nacionales WHERE periodo = ?1 ORDER BY indicador", [periodo]);
-    if (!rows.length) throw new ErrorHttp(404, `No hay datos para periodo=${repr(periodo)} (cobertura: 2005T1-2025T1, gap 2020T2). Consultar GET /api/v1/enoe/health para últimos valores.`);
+    if (!rows.length) throw new ErrorHttp(404, `No hay datos para periodo=${repr(periodo)} (cobertura: 2005T1-2026T2, gap 2020T2). Consultar GET /api/v1/enoe/health para últimos valores.`);
     const cv = new Map<string, Caveat>();
     for (const r of rows) for (const cvt of caveatsIndicador(r.indicador, periodo, periodo)) if (!cv.has(cvt.slug)) cv.set(cvt.slug, cvt);
     return { periodo, etapa: rows[0].etapa, n_indicadores: rows.length, indicadores: rows.map((r) => ({ indicador: r.indicador, nombre: INDICADOR_BY_SLUG.get(r.indicador)?.nombre ?? r.indicador, unidad: r.unidad, valor: redondear(Number(r.valor), 6) })), caveats: [...cv.values()], source: SOURCE_ENOE };
@@ -244,7 +244,7 @@ export class EntidadSnapshot extends OpenAPIRoute {
     const q = (k: string) => c.req.query(k); requerido(q, "periodo", "indicador");
     const periodo = validarPeriodo(q("periodo"), "periodo")!; const defn = validarIndicador(q("indicador")!);
     const rows = await filas<{ entidad_clave: string; entidad_nombre: string; entidad_abreviatura: string | null; valor: number; etapa: string }>(c.env.DB_ENOE, "SELECT ie.entidad_clave, ce.nombre AS entidad_nombre, ce.abreviatura AS entidad_abreviatura, ie.valor AS valor, ie.etapa AS etapa FROM indicadores_entidad ie JOIN cat_entidad ce ON ce.clave = ie.entidad_clave WHERE ie.periodo = ?1 AND ie.indicador = ?2 ORDER BY ie.entidad_clave", [periodo, defn.slug]);
-    if (!rows.length) throw new ErrorHttp(404, `No hay datos para periodo=${repr(periodo)} indicador=${repr(defn.slug)} (cobertura: 2005T1-2025T1, gap 2020T2).`);
+    if (!rows.length) throw new ErrorHttp(404, `No hay datos para periodo=${repr(periodo)} indicador=${repr(defn.slug)} (cobertura: 2005T1-2026T2, gap 2020T2).`);
     return { periodo, etapa: rows[0].etapa, indicador: defn.slug, nombre: defn.nombre, unidad: defn.unidad, categoria: defn.categoria, n_entidades: rows.length, datos: rows.map((r) => ({ entidad_clave: r.entidad_clave, entidad_nombre: r.entidad_nombre, entidad_abreviatura: r.entidad_abreviatura, valor: redondear(Number(r.valor), 6) })), caveats: caveatsIndicador(defn.slug, periodo, periodo), source: SOURCE_ENOE };
   }
 }
@@ -262,7 +262,7 @@ export class EntidadRanking extends OpenAPIRoute {
     const periodo = validarPeriodo(q("periodo"), "periodo")!; const defn = validarIndicador(q("indicador")!); const orden = q("orden") ?? "desc";
     if (!["asc", "desc"].includes(orden)) throw new ErrorHttp(422, `'orden' debe ser 'asc' o 'desc'; recibido: ${repr(orden)}`);
     const rows = await filas<{ entidad_clave: string; entidad_nombre: string; entidad_abreviatura: string | null; valor: number; etapa: string }>(c.env.DB_ENOE, `SELECT ie.entidad_clave, ce.nombre AS entidad_nombre, ce.abreviatura AS entidad_abreviatura, ie.valor AS valor, ie.etapa AS etapa FROM indicadores_entidad ie JOIN cat_entidad ce ON ce.clave = ie.entidad_clave WHERE ie.periodo = ?1 AND ie.indicador = ?2 ORDER BY ie.valor ${orden === "desc" ? "DESC" : "ASC"}, ie.entidad_clave LIMIT ?3`, [periodo, defn.slug, limit]);
-    if (!rows.length) throw new ErrorHttp(404, `No hay datos para periodo=${repr(periodo)} indicador=${repr(defn.slug)} (cobertura: 2005T1-2025T1, gap 2020T2).`);
+    if (!rows.length) throw new ErrorHttp(404, `No hay datos para periodo=${repr(periodo)} indicador=${repr(defn.slug)} (cobertura: 2005T1-2026T2, gap 2020T2).`);
     return { periodo, etapa: rows[0].etapa, indicador: defn.slug, nombre: defn.nombre, unidad: defn.unidad, orden, limit, total_resultados: rows.length, ranking: rows.map((r, i) => ({ rank: i + 1, entidad_clave: r.entidad_clave, entidad_nombre: r.entidad_nombre, entidad_abreviatura: r.entidad_abreviatura, valor: redondear(Number(r.valor), 6) })), caveats: caveatsIndicador(defn.slug, periodo, periodo), source: SOURCE_ENOE };
   }
 }
@@ -289,7 +289,7 @@ export class SectorSnapshot extends OpenAPIRoute {
     const periodo = validarPeriodo(q("periodo"), "periodo")!; const nivel = q("nivel") ?? "nacional"; validarNivel(nivel);
     const ctx = await geoContexto(c, nivel, q("geo_clave"), (g) => `entidad_clave ${repr(g)} no existe. Las claves válidas son '01'..'32'. Consultar GET /api/v1/enoe/catalogos/entidades.`);
     const rows = await filas<{ sector_clave: string; total_personas: number; pct_ocupados: number; etapa: string }>(c.env.DB_ENOE, "SELECT sector_clave, total_personas, pct_ocupados, etapa FROM poblacion_ocupada_por_sector WHERE periodo = ?1 AND nivel = ?2 AND geo_clave = ?3 ORDER BY sector_clave", [periodo, nivel, ctx.g]);
-    if (!rows.length) throw new ErrorHttp(404, `No hay datos para periodo=${repr(periodo)} nivel=${repr(nivel)} geo_clave=${repr(ctx.g)} (cobertura: 2005T1-2025T1, gap 2020T2).`);
+    if (!rows.length) throw new ErrorHttp(404, `No hay datos para periodo=${repr(periodo)} nivel=${repr(nivel)} geo_clave=${repr(ctx.g)} (cobertura: 2005T1-2026T2, gap 2020T2).`);
     const distribucion = rows.map((r) => ({ periodo: null, sector_clave: r.sector_clave, sector_nombre: SECTOR_NOMBRE.get(r.sector_clave) ?? `(sector ${r.sector_clave})`, total_ocupados: Number(r.total_personas), participacion_porcentaje: redondear(Number(r.pct_ocupados), 4), etapa: null }));
     return { periodo, etapa: rows[0].etapa, nivel, geo_clave: ctx.geo_clave, geo_nombre: ctx.geo_nombre, total_ocupados_nivel: rows.reduce((s, r) => s + Number(r.total_personas), 0), n_sectores: distribucion.length, distribucion, caveats: caveatsDistribucion(periodo, periodo), source: SOURCE_ENOE, source_url: URL_ENOE };
   }
@@ -327,7 +327,7 @@ export class PosicionSnapshot extends OpenAPIRoute {
     const periodo = validarPeriodo(q("periodo"), "periodo")!; const nivel = q("nivel") ?? "nacional"; validarNivel(nivel);
     const ctx = await geoContexto(c, nivel, q("geo_clave"), m404corto);
     const rows = await filas<{ pos_clave: number; total_personas: number; pct_ocupados: number; etapa: string }>(c.env.DB_ENOE, "SELECT pos_clave, total_personas, pct_ocupados, etapa FROM poblacion_ocupada_por_posicion WHERE periodo = ?1 AND nivel = ?2 AND geo_clave = ?3 ORDER BY pos_clave", [periodo, nivel, ctx.g]);
-    if (!rows.length) throw new ErrorHttp(404, `No hay datos para periodo=${repr(periodo)} nivel=${repr(nivel)} geo_clave=${repr(ctx.g)} (cobertura: 2005T1-2025T1, gap 2020T2).`);
+    if (!rows.length) throw new ErrorHttp(404, `No hay datos para periodo=${repr(periodo)} nivel=${repr(nivel)} geo_clave=${repr(ctx.g)} (cobertura: 2005T1-2026T2, gap 2020T2).`);
     const distribucion = rows.map((r) => ({ periodo: null, pos_clave: Number(r.pos_clave), pos_nombre: POSICION_NOMBRE.get(Number(r.pos_clave)) ?? `(posicion ${r.pos_clave})`, total_ocupados: Number(r.total_personas), participacion_porcentaje: redondear(Number(r.pct_ocupados), 4), etapa: null }));
     return { periodo, etapa: rows[0].etapa, nivel, geo_clave: ctx.geo_clave, geo_nombre: ctx.geo_nombre, total_ocupados_nivel: rows.reduce((s, r) => s + Number(r.total_personas), 0), n_posiciones: distribucion.length, distribucion, caveats: caveatsDistribucion(periodo, periodo), source: SOURCE_ENOE, source_url: URL_ENOE };
   }

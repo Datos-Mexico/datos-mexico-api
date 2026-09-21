@@ -73,9 +73,9 @@ check(d["n"] == 40 and sum(f["ni"] or 0 for f in d["filas"]) == p["suma_proceden
 # ENOE: las 32 entidades suman el nacional
 d, _, _ = get("/api/v1/cubos/enoe-indicadores-entidad/datos?medidas=ocupados_total&columnas=entidad&f.periodo=2025T1")
 n, _, _ = get("/api/v1/cubos/enoe-indicadores-nacional/datos?medidas=ocupados_total&columnas=periodo&f.periodo=2025T1")
-check(d["n"] == 32 and sum(f["ocupados_total"] for f in d["filas"]) == n["filas"][0]["ocupados_total"] == 58921494, f"ENOE 2025T1: 32 entidades suman {sum(f['ocupados_total'] for f in d['filas']):,} = nacional")
+check(d["n"] == 32 and sum(f["ocupados_total"] for f in d["filas"]) == n["filas"][0]["ocupados_total"] == 59001009, f"ENOE 2025T1: 32 entidades suman {sum(f['ocupados_total'] for f in d['filas']):,} = nacional")
 d, _, _ = get("/api/v1/cubos/enoe-ocupados-sector/datos?medidas=ocupados&columnas=sector&f.periodo=2025T1")
-check(d["n"] == 12 and sum(f["ocupados"] for f in d["filas"]) == 58921494 and all(f["sector"] for f in d["filas"]), "ENOE sectores 2025T1: 12 sectores con nombre suman los ocupados")
+check(d["n"] == 12 and sum(f["ocupados"] for f in d["filas"]) == 59001009 and all(f["sector"] for f in d["filas"]), "ENOE sectores 2025T1: 12 sectores con nombre suman los ocupados")
 
 # Censo: suma de localidades = fila total del INEGI
 d, _, _ = get("/api/v1/cubos/censo2020-poblacion/datos?medidas=pobtot,localidades&columnas=entidad&f.entidad=01")
@@ -116,6 +116,30 @@ m, ms, _ = get("/api/v1/cubos/inegi-indicadores/miembros?dimension=indicador&q=p
 check(m and any(i["id"] == "1002000001" for i in m["items"]) and ms < 3000, f"BISE miembros por catálogo: {m and m['n']} coincidencias de 'población total' en {ms} ms")
 d, _, _ = get("/api/v1/cubos/inegi-indicadores/datos?medidas=valor&columnas=geografia,periodo&f.indicador=1002000001&f.geografia=00|09&f.periodo=2020")
 check(d["n"] == 2 and {f["geografia_id"]: f["valor"] for f in d["filas"]} == {"00": 126014024, "09": 9209944}, "BISE población total 2020: país 126,014,024 y CDMX 9,209,944")
+# BISE: dimensión de partición (nivel), catálogos de periodo y nivel, ruta temática en los nombres, árbol
+get("/api/v1/cubos/inegi-indicadores/datos?medidas=valor&columnas=periodo&f.indicador=1002000001", 422)
+d, _, _ = get("/api/v1/cubos/inegi-indicadores/datos?medidas=valor&columnas=nivel&f.indicador=1002000001&f.periodo=2020")
+check(d and {f["nivel"]: f["valor"] for f in d["filas"]}.get("nacional") == 126014024 and {f["nivel"]: f["valor"] for f in d["filas"]}.get("entidad") == 126014024, "BISE agrupado por nivel: nacional = suma de entidades = 126,014,024 (sin triple conteo)")
+m, ms, _ = get("/api/v1/cubos/inegi-indicadores/miembros?dimension=periodo&limite=5000")
+check(m and m["n"] == 474 and ms < 3000, f"BISE miembros de periodo por catálogo: {m and m['n']} periodos en {ms} ms")
+m, _, _ = get("/api/v1/cubos/inegi-indicadores/miembros?dimension=nivel")
+check(m and [i["id"] for i in m["items"]] == ["nacional", "entidad", "municipio"], "BISE miembros de nivel: nacional, entidad, municipio")
+m, _, _ = get("/api/v1/cubos/inegi-indicadores/miembros?dimension=indicador&q=1002000001")
+check(m and m["items"] and " › " in m["items"][0]["nombre"] and "n.º" in m["items"][0]["nombre"], f"BISE nombre con ruta temática: {m and m['items'] and m['items'][0]['nombre']}")
+a, _, _ = get("/api/v1/inegi/arbol")
+check(a and sum(t["n_indicadores"] for t in a["subtemas"]) == 31045 and len(a["subtemas"]) == 4, "árbol del INEGI: 4 temas raíz con 31,045 relaciones indicador-tema")
+r, _, _ = get("/api/v1/inegi/resumen")
+check(r and r["arbol"]["temas"] == 182 and r["arbol"]["indicadores_con_ruta"] == 31039, "resumen INEGI: 182 temas, 31,039 indicadores con ruta")
+cd, _, _ = get("/api/v1/catalogo/datasets")
+cortes = {x["clave"]: x["corte"] for x in (cd if isinstance(cd, list) else cd.get("datasets", cd.get("items", [])))}
+check(all(cortes.get(k) and __import__("re").match(p, cortes[k]) for k, p in [("inegi", r"^\d{4}-\d{2}-\d{2}$"), ("denue", r"^\d{4}-\d{2}-\d{2}$"), ("enigh", r"^\d{4}$"), ("enoe", r"^2026T2$")]), f"cortes del catálogo legibles: {cortes}")
+# ENOE recalculada: exacta contra el Banco de Indicadores (PEA 2025T1 = 60,491,235; ocupados 2025T1 = 59,001,009)
+d, _, _ = get("/api/v1/cubos/enoe-indicadores-nacional/datos?medidas=pea_total,ocupados_total,pob_15ymas&columnas=periodo&f.periodo=2025T1|2026T2")
+v = d and {f["periodo"]: f for f in d["filas"]}
+check(v and v["2025T1"]["pea_total"] == 60491235 and v["2025T1"]["ocupados_total"] == 59001009 and v["2026T2"]["pea_total"] > 0, f"ENOE nacional 2025T1: PEA {v and v['2025T1']['pea_total']:,}, ocupados {v and v['2025T1']['ocupados_total']:,} = INEGI; 2026T2 presente")
+d, _, _ = get("/api/v1/cubos/enoe-indicadores-entidad/datos?medidas=ocupados_total&columnas=periodo&f.periodo=2026T2")
+b, _, _ = get("/api/v1/inegi/indicadores/6200093954/observaciones?geografia=00&desde=2026/02&hasta=2026/02")
+check(d and b and d["filas"][0]["ocupados_total"] == b["observaciones"][0]["valor"], f"ENOE 2026T2: suma de entidades {d and d['filas'][0]['ocupados_total']:,} = Banco de Indicadores {b and b['observaciones'][0]['valor']:,}")
 # Censo: los otros dos cubos suman igual por entidad (PEA nacional, viviendas)
 d, _, _ = get("/api/v1/cubos/censo2020-hogares-vivienda/datos?medidas=pea,vivpar_hab,tothog&columnas=entidad&f.entidad=01")
 cl, _, _ = get("/api/v1/censo2020/localidades/01/000/0000")

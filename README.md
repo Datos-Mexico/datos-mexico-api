@@ -11,8 +11,8 @@ Documentación interactiva en [`/docs`](https://api.datosmexico.org/docs) (Swagg
 | CONSAR | Ahorro para el retiro: cuentas, recursos, rendimientos, comisiones, por AFORE y periodo | `/api/v1/consar/*` |
 | ENIGH | Ingreso y gasto de los hogares (INEGI), tabulados y microdatos agregados | `/api/v1/enigh/*` |
 | CDMX | Nómina y servidores públicos del Gobierno de la Ciudad de México | `/api/v1/servidores/*`, `/api/v1/sectores/*`, … |
-| ENOE | Indicadores laborales trimestrales por entidad y los microdatos completos (101.5 millones de filas, paginados por cursor) | `/api/v1/enoe/*` |
-| INEGI Banco de Indicadores | Los 31,817 indicadores con sus observaciones nacionales, estatales y municipales | `/api/v1/inegi/*` |
+| ENOE | Indicadores laborales trimestrales 2005T1-2026T2 (nacional y por entidad, recalculados desde los microdatos oficiales y exactos contra el Banco de Indicadores del INEGI) y los microdatos completos (101.5 millones de filas, paginados por cursor) | `/api/v1/enoe/*` |
+| INEGI Banco de Indicadores | Los 31,817 indicadores con sus observaciones nacionales, estatales y municipales, y el árbol temático del INEGI (182 temas) que da a cada indicador su ruta | `/api/v1/inegi/*` |
 | INEGI datos abiertos | Catálogo y descarga de todos los microdatos (4,259 archivos de 103 programas, convertidos a Parquet con sus catálogos y sus originales) y de los 18,150 tabulados de 183 programas | `/api/v1/inegi/datos-abiertos/*` |
 | DENUE | Las 6,138,075 unidades económicas, con búsqueda por cercanía | `/api/v1/denue/*` |
 | Censo 2020 | Indicadores por localidad (ITER) y por AGEB y manzana | `/api/v1/censo2020/*` |

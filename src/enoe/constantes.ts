@@ -14,7 +14,7 @@ export const CAVEATS_BY_SLUG = new Map(CAVEATS_GLOBALES.map((c) => [c.slug, c]))
 
 export type IndicadorDef = { slug: string; nombre: string; descripcion: string; unidad: string; categoria: string; formula: string; caveat_slug: string | null };
 export const INDICADORES_DEFS: IndicadorDef[] = [
-  { slug: "pob_15ymas", nombre: "Población de 15 años o más", descripcion: "Universo de referencia del ENOE 15+. Suma expandida vía fac_tri.", unidad: "personas", categoria: "conteo", formula: "SUM(fac_tri) WHERE eda >= 15", caveat_slug: "dominio_15_plus" },
+  { slug: "pob_15ymas", nombre: "Población de 15 años o más", descripcion: "Universo de referencia del ENOE 15+ (población en edad de trabajar = PEA + PNEA, como la publica el INEGI). Suma expandida vía fac_tri.", unidad: "personas", categoria: "conteo", formula: "SUM(fac_tri) WHERE eda >= 15 AND clase1 IN (1, 2)", caveat_slug: "dominio_15_plus" },
   { slug: "pea_total", nombre: "Población Económicamente Activa (PEA)", descripcion: "Personas 15+ ocupadas o buscando empleo (clase1=1).", unidad: "personas", categoria: "conteo", formula: "SUM(fac_tri) WHERE eda >= 15 AND clase1 = 1", caveat_slug: null },
   { slug: "pnea_total", nombre: "Población No Económicamente Activa (PNEA)", descripcion: "Personas 15+ que no participan en el mercado laboral (clase1=2).", unidad: "personas", categoria: "conteo", formula: "SUM(fac_tri) WHERE eda >= 15 AND clase1 = 2", caveat_slug: null },
   { slug: "ocupados_total", nombre: "Población ocupada", descripcion: "Personas 15+ con trabajo (clase2=1).", unidad: "personas", categoria: "conteo", formula: "SUM(fac_tri) WHERE clase2 = 1", caveat_slug: null },
