@@ -35,7 +35,9 @@ const META: Record<Tabla, { real: string; pk: string[] }> = {
 const LLAVE_ENTERA = new Set(["n_hog", "n_ren"]);
 // Orden de las filas dentro del trimestre: la entidad primero (es el nivel de partición) y luego el resto de la PK.
 // El legacy ordenaba por la PK tal cual (cd_a antes que ent): con filtro de entidad ambos órdenes coinciden.
-function orden(tabla: Tabla): string[] { return ["ent", ...META[tabla].pk.slice(1).filter((k) => k !== "ent")]; }
+// Desde 2025T2 las particiones vienen de los CSV oficiales con TODAS las filas: la llave del legado no es única (el mismo
+// hogar aparece con dos cuestionarios) y el índice marca `llave_extra = 'tipo'` como último componente de la llave.
+function orden(tabla: Tabla, extra: string | null = null): string[] { return ["ent", ...META[tabla].pk.slice(1).filter((k) => k !== "ent"), ...(extra ? [extra] : [])]; }
 // Columnas numeric(p,s) en Postgres que el Parquet guarda como double: se devuelven como texto con su escala, igual que el legacy.
 const DECIMALES: Record<string, number> = { ing_x_hrs: 5 };
 const CORE_SDEM = ["periodo", "cd_a", "ent", "con", "v_sel", "n_hog", "n_ren", "sex", "eda", "clase1", "clase2", "pos_ocu", "rama_est2", "fac_tri", "etapa"];
@@ -95,16 +97,16 @@ function caveatsMicro(periodo: string): Caveat[] {
 
 // ---------------------------------------------------------------- llaves y cursor
 type Llave = (string | number)[]; // valores de la llave de orden (ent, cd_a, con, v_sel[, n_hog[, n_ren]])
-function llaveDe(tabla: Tabla, r: Record<string, unknown>): Llave { return orden(tabla).map((k) => (LLAVE_ENTERA.has(k) ? Number(r[k]) : String(r[k]))); }
+function llaveDe(tabla: Tabla, r: Record<string, unknown>, extra: string | null): Llave { return orden(tabla, extra).map((k) => (LLAVE_ENTERA.has(k) ? Number(r[k]) : String(r[k]))); }
 function comparar(a: Llave, b: Llave): number {
   for (let i = 0; i < a.length; i++) { if (a[i] < b[i]) return -1; if (a[i] > b[i]) return 1; }
   return 0;
 }
 function codificarCursor(k: Llave): string { return btoa(JSON.stringify(k)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
-function leerCursor(s: string | undefined, tabla: Tabla, f: Filtros): Llave | null {
+function leerCursor(s: string | undefined, tabla: Tabla, f: Filtros, extra: string | null): Llave | null {
   if (s === undefined) return null;
   const invalido = (msg: string) => new ErrorHttp(422, [{ type: "value_error", loc: ["query", "cursor"], msg, input: s } satisfies Detalle]);
-  const campos = orden(tabla);
+  const campos = orden(tabla, extra);
   let k: unknown;
   try { k = JSON.parse(atob(s.replace(/-/g, "+").replace(/_/g, "/"))); } catch { throw invalido("'cursor' inválido: debe ser el next_cursor devuelto por una respuesta anterior de esta misma tabla."); }
   if (!Array.isArray(k) || k.length !== campos.length) throw invalido(`'cursor' no corresponde a la tabla ${repr(tabla)} (se esperaba una llave de ${campos.length} componentes).`);
@@ -119,10 +121,10 @@ function leerCursor(s: string | undefined, tabla: Tabla, f: Filtros): Llave | nu
 }
 
 // ---------------------------------------------------------------- particiones en R2
-type Particion = { ent: string; filas: number; bytes: number; clave: string };
+type Particion = { ent: string; filas: number; bytes: number; clave: string; llave_extra: string | null };
 type Archivo = { file: AsyncBuffer; metadata: FileMetaData };
 async function particiones(c: AppContext, tabla: Tabla, periodo: string, ent: string | null): Promise<Particion[]> {
-  return filas<Particion>(c.env.DB_ENOE, `SELECT ent, filas, bytes, clave FROM microdatos_particiones WHERE tabla = ? AND periodo = ?${ent !== null ? " AND ent = ?" : ""} ORDER BY ent`, ent !== null ? [tabla, periodo, ent] : [tabla, periodo]);
+  return filas<Particion>(c.env.DB_ENOE, `SELECT ent, filas, bytes, clave, llave_extra FROM microdatos_particiones WHERE tabla = ? AND periodo = ?${ent !== null ? " AND ent = ?" : ""} ORDER BY ent`, ent !== null ? [tabla, periodo, ent] : [tabla, periodo]);
 }
 async function abrir(c: AppContext, p: Particion): Promise<Archivo> {
   const obj = await c.env.DATOS.get(p.clave);
@@ -193,11 +195,12 @@ export class MicrodatosList extends OpenAPIRoute {
     if (c.req.query("page") !== undefined) throw new ErrorHttp(422, [{ type: "value_error", loc: ["query", "page"], msg: `El parámetro 'page' no existe en esta API: ${NOTA_PAGINACION}`, input: c.req.query("page") } satisfies Detalle]);
     const ie = c.req.query("include_extras"); const include_extras = ie === undefined ? true : ["true", "1", "yes", "on"].includes(ie.toLowerCase()) ? true : ["false", "0", "no", "off"].includes(ie.toLowerCase()) ? false : (() => { throw new ErrorHttp(422, [{ type: "bool_parsing", loc: ["query", "include_extras"], msg: "Input should be a valid boolean, unable to interpret input", input: ie } satisfies Detalle]); })();
     const per_page = enteroOpcional(c.req.query("per_page"), "per_page", 1, 1000) ?? 100;
-    const cursor = leerCursor(c.req.query("cursor"), tabla, f);
     const columnas = include_extras || tabla !== "sdem" ? undefined : CORE_SDEM;
     const filtroFila = conFiltroFila(tabla, f);
     const t0 = Date.now();
     const parts = await particiones(c, tabla, f.periodo, f.entidad_clave);
+    const extra = parts[0]?.llave_extra ?? null;
+    const cursor = leerCursor(c.req.query("cursor"), tabla, f, extra);
     const total = parts.length === 0 ? 0 : filtroFila ? await contarConFiltros(c, parts, f) : parts.reduce((s, p) => s + p.filas, 0);
     // Recorre las particiones desde la del cursor; junta hasta per_page+1 coincidencias para saber si hay más.
     const data: Record<string, unknown>[] = []; let siguiente: Llave | null = null; let hayMas = false;
@@ -205,13 +208,13 @@ export class MicrodatosList extends OpenAPIRoute {
       if (cursor !== null && p.ent < (cursor[0] as string)) continue;
       if (data.length === per_page) { if (!filtroFila) { hayMas = p.filas > 0; if (hayMas) break; continue; } }
       const a = await abrir(c, p);
-      const llaves = await leer(a, [...orden(tabla), ...(filtroFila ? ["sex", "eda"] : [])]);
+      const llaves = await leer(a, [...orden(tabla, extra), ...(filtroFila ? ["sex", "eda"] : [])]);
       let i = 0;
-      if (cursor !== null && p.ent === cursor[0]) { let lo = 0, hi = llaves.length; while (lo < hi) { const m = (lo + hi) >> 1; if (comparar(llaveDe(tabla, llaves[m]), cursor) <= 0) lo = m + 1; else hi = m; } i = lo; }
+      if (cursor !== null && p.ent === cursor[0]) { let lo = 0, hi = llaves.length; while (lo < hi) { const m = (lo + hi) >> 1; if (comparar(llaveDe(tabla, llaves[m], extra), cursor) <= 0) lo = m + 1; else hi = m; } i = lo; }
       const indices: number[] = [];
       for (; i < llaves.length && data.length + indices.length <= per_page; i++) if (!filtroFila || coincide(llaves[i], f)) indices.push(i);
       const sobra = data.length + indices.length > per_page; if (sobra) { indices.pop(); hayMas = true; }
-      if (indices.length) { data.push(...(await filasPorIndice(a, indices, columnas))); siguiente = llaveDe(tabla, llaves[indices[indices.length - 1]]); }
+      if (indices.length) { data.push(...(await filasPorIndice(a, indices, columnas))); siguiente = llaveDe(tabla, llaves[indices[indices.length - 1]], extra); }
       if (hayMas) break;
     }
     return { tabla: meta.real, filtros: { ...eco(f), include_extras }, pagination: { total, per_page, returned: data.length, has_next: hayMas, next_cursor: hayMas && siguiente ? codificarCursor(siguiente) : null }, data, caveats: caveatsMicro(f.periodo), source: SOURCE_ENOE, tiempo_query_ms: redondear(Date.now() - t0, 2) };
@@ -242,7 +245,7 @@ export class MicrodatosSchema extends OpenAPIRoute {
     tags: TAG, operationId: "get_microdatos_schema_api_v1_enoe_microdatos__tabla__schema_get", summary: "Schema de una tabla de microdatos",
     description: "Lista las columnas y tipos (Arrow/Parquet) de una tabla de microdatos, su llave primaria, el total EXACTO de filas y la cobertura temporal, más cómo está almacenada (particiones por trimestre y entidad).\n\n**Uso:** inspeccionar columnas disponibles antes de construir consultas vía `/list`. Las columnas núcleo traen descripción; las demás siguen los identificadores del INEGI (Reconstrucción de variables 2023).",
     request: { params: TablaParam },
-    responses: { ...ok("Metadata estructural de la tabla de microdatos.", z.object({ tabla: z.string(), total_columnas: z.number().int(), total_filas: z.number().int(), cobertura_temporal: z.string().nullable(), columnas: z.array(ColumnaSchema), pk: z.array(z.string()), indexes: z.array(z.string()), almacenamiento: z.object({ formato: z.string(), particiones: z.number().int(), bytes: z.number().int(), orden: z.string() }), caveat_metodologico: z.string().nullable().default(null) })), ...RESP_429 },
+    responses: { ...ok("Metadata estructural de la tabla de microdatos.", z.object({ tabla: z.string(), total_columnas: z.number().int(), total_filas: z.number().int(), cobertura_temporal: z.string().nullable(), columnas: z.array(ColumnaSchema), pk: z.array(z.string()), indexes: z.array(z.string()), llave_desde_2025T2: z.array(z.string()), almacenamiento: z.object({ formato: z.string(), particiones: z.number().int(), bytes: z.number().int(), orden: z.string() }), caveat_metodologico: z.string().nullable().default(null) })), ...RESP_429 },
   };
   async handle(c: AppContext) {
     const tabla = validarTabla(c.req.param("tabla") ?? ""); const meta = META[tabla];
@@ -251,8 +254,8 @@ export class MicrodatosSchema extends OpenAPIRoute {
     return {
       tabla: meta.real, total_columnas: cols.length, total_filas: Number(st?.filas ?? 0), cobertura_temporal: st?.desde ? `${st.desde}-${st.hasta}` : null,
       columnas: cols.map((r) => ({ nombre: r.columna, tipo: r.tipo, nullable: r.nullable === 1, descripcion: DESCRIPCIONES[r.columna] ?? null })),
-      pk: meta.pk, indexes: [],
-      almacenamiento: { formato: "Parquet (zstd) en almacenamiento de objetos, una partición por trimestre y entidad federativa, grupos de 2,000 filas", particiones: Number(st?.n ?? 0), bytes: Number(st?.bytes ?? 0), orden: `periodo, ${orden(tabla).join(", ")}` },
+      pk: meta.pk, indexes: [], llave_desde_2025T2: [...meta.pk, "tipo"],
+      almacenamiento: { formato: "Parquet (zstd) en almacenamiento de objetos, una partición por trimestre y entidad federativa, grupos de 2,000 filas; desde 2025T2 las particiones nacen de los CSV oficiales del INEGI con todas las filas y la llave incluye `tipo` (cuestionario)", particiones: Number(st?.n ?? 0), bytes: Number(st?.bytes ?? 0), orden: `periodo, ${orden(tabla).join(", ")}` },
       caveat_metodologico: "Las columnas no listadas con descripción siguen los identificadores INEGI documentados en Reconstrucción de variables 2023 (https://www.inegi.org.mx/contenidos/programas/enoe/15ymas/doc/recons_var_15ymas.pdf). extras_jsonb contiene las columnas DBF que no se promovieron a tipadas.",
     };
   }

@@ -39,7 +39,7 @@ export type Dimension = {
   /** Expresión SQL para ordenar miembros (por omisión, el identificador). */
   orden?: string;
   /** Origen alterno de los miembros (catálogo) cuando agrupar la tabla de hechos sería demasiado caro: cláusula FROM y expresiones de id y nombre sobre ella. */
-  miembros?: { desde: string; id: string; nombre: string; donde?: string; orden?: string };
+  miembros?: { desde: string; id: string; nombre: string; donde?: string; orden?: string; /** Columna ya normalizada (sin acentos, minúsculas) sobre la que `q` busca con sinónimos (src/lib/busqueda.ts); si falta, LIKE sobre nombre e id. */ buscar?: string };
   /** Dimensión virtual: sus miembros son columnas de una tabla ancha; la consulta se despliega en el worker. */
   virtual?: MiembroVirtual[];
   /**

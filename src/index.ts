@@ -22,6 +22,7 @@ import { cacheControl } from "./lib/cache";
 import { CatalogoEntidades, CatalogoEtapas, CatalogoIndicadores, EnoeHealthEndpoint, EnoeMetadataEndpoint, EntidadRanking, EntidadSerie, EntidadSnapshot, NacionalSerie, NacionalSnapshot, PosicionSerie, PosicionSnapshot, SectorSerie, SectorSnapshot } from "./enoe/endpoints";
 import { CatalogoDatasets, CatalogoEsquema } from "./catalogo/endpoints";
 import { InegiCatalogo, InegiArbol, InegiIndicador, InegiIndicadores, InegiObservaciones, InegiResumen } from "./inegi/endpoints";
+import { BieArbol, BieObservaciones, BieResumen, BieSerie, BieSeries } from "./bie/endpoints";
 import { DatosAbiertosDescarga, DatosAbiertosPrograma, DatosAbiertosProgramas, DatosAbiertosResumen, DatosAbiertosTabulados } from "./inegi/datos_abiertos";
 import { DenueActividades, DenueCerca, DenueResumen, DenueUnidad, DenueUnidades } from "./denue/endpoints";
 import { CensoIndicador, CensoIndicadores, CensoLocalidad, CensoLocalidades, CensoResumen } from "./censo2020/endpoints";
@@ -46,6 +47,7 @@ export type Env = {
   DB_DENUE: D1Database;
   DB_VITALES: D1Database;
   DB_SEGURIDAD: D1Database;
+  DB_BIE: D1Database;
   DB_CENSO2020: D1Database;
   DB_PLATAFORMA: D1Database;
   DB_ANUIES: D1Database;
@@ -235,6 +237,11 @@ openapi.get("/api/v1/inegi/indicadores/:id", InegiIndicador);
 openapi.get("/api/v1/inegi/indicadores/:id/observaciones", InegiObservaciones);
 openapi.get("/api/v1/inegi/catalogos/:catalogo", InegiCatalogo);
 openapi.get("/api/v1/inegi/arbol", InegiArbol);
+openapi.get("/api/v1/bie/resumen", BieResumen);
+openapi.get("/api/v1/bie/series", BieSeries);
+openapi.get("/api/v1/bie/series/:id", BieSerie);
+openapi.get("/api/v1/bie/series/:id/observaciones", BieObservaciones);
+openapi.get("/api/v1/bie/arbol", BieArbol);
 
 // Datos abiertos del INEGI ingeridos (microdatos en Parquet + tabulados archivados, con manifiesto)
 openapi.get("/api/v1/inegi/datos-abiertos/resumen", DatosAbiertosResumen);

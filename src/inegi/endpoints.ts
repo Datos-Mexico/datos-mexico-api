@@ -11,6 +11,7 @@ import { RESP_429 } from "../lib/comun";
 import { ErrorHttp } from "../lib/errores";
 import type { Detalle } from "../lib/validacion";
 import { enteroOpcional, textoConPatron } from "../lib/validacion";
+import { condicionBusqueda, terminosDe } from "../lib/busqueda";
 
 const TAG = ["inegi"];
 const ok = (descripcion: string, esquema: z.ZodTypeAny) => ({ "200": { description: descripcion, ...contentJson(esquema) } });
@@ -100,16 +101,17 @@ function bandera(valor: string | undefined, nombre: string): boolean | null {
 export class InegiIndicadores extends OpenAPIRoute {
   schema = {
     tags: TAG, operationId: "inegi_indicadores", summary: "Buscar indicadores del INEGI",
-    description: "Busca en los 31,817 indicadores del catálogo del Banco de Indicadores. `q` busca (contiene, sin distinguir mayúsculas) en la descripción del indicador, en la de su tema y en su ruta temática (`ruta`: tema › subtema › … tal como el INEGI lo muestra en su sitio); el INEGI publica nombres cortos ('Total', 'Mujeres') que miles de indicadores comparten, por lo que la ruta y la posición en el tema (`orden_arbol`) son la forma de ubicarlos. Filtros exactos por `tema`, `frecuencia` y `unidad` (claves de los catálogos), por `tema_arbol` (tema hoja del árbol, ver /api/v1/inegi/arbol) y `con_datos`. Paginado con `limit` (1-500) y `offset`.",
+    description: "Busca en los 31,817 indicadores del catálogo del Banco de Indicadores. `q` busca sin distinguir acentos ni mayúsculas en la descripción del indicador, su ruta temática (`ruta`: tema › subtema › … tal como el INEGI lo muestra en su sitio), su tema y su unidad, y amplía la búsqueda con sinónimos del lenguaje común hacia el vocabulario del INEGI («desempleo» también busca «desocupada», «inflación» busca «precios al consumidor»; los términos usados vienen en `terminos`); el INEGI publica nombres cortos ('Total', 'Mujeres') que miles de indicadores comparten, por lo que la ruta y la posición en el tema (`orden_arbol`) son la forma de ubicarlos. Filtros exactos por `tema`, `frecuencia` y `unidad` (claves de los catálogos), por `tema_arbol` (tema hoja del árbol, ver /api/v1/inegi/arbol) y `con_datos`. Paginado con `limit` (1-500) y `offset`.",
     request: { query: z.object({ q: z.string().optional(), tema: z.string().optional(), tema_arbol: z.string().optional(), frecuencia: z.string().optional(), unidad: z.string().optional(), con_datos: z.boolean().optional(), limit: z.number().int().min(1).max(500).default(50).optional(), offset: z.number().int().min(0).default(0).optional() }) },
-    responses: { ...ok("Indicadores que cumplen los filtros.", z.object({ total: z.number().int(), limit: z.number().int(), offset: z.number().int(), items: z.array(IndicadorResumen) })), ...RESP_422, ...RESP_429 },
+    responses: { ...ok("Indicadores que cumplen los filtros.", z.object({ total: z.number().int(), limit: z.number().int(), offset: z.number().int(), terminos: z.array(z.string()), items: z.array(IndicadorResumen) })), ...RESP_422, ...RESP_429 },
   };
   async handle(c: AppContext) {
     const q = c.req.query("q"); const tema = textoConPatron(c.req.query("tema"), "tema", "^\\d+$"); const temaArbol = textoConPatron(c.req.query("tema_arbol"), "tema_arbol", "^\\d+$"); const frecuencia = textoConPatron(c.req.query("frecuencia"), "frecuencia", "^\\d+$"); const unidad = textoConPatron(c.req.query("unidad"), "unidad", "^\\d+$");
     const conDatos = bandera(c.req.query("con_datos"), "con_datos");
     const limit = enteroOpcional(c.req.query("limit"), "limit", 1, 500) ?? 50; const offset = enteroOpcional(c.req.query("offset"), "offset", 0) ?? 0;
     const cond: string[] = []; const params: unknown[] = [];
-    if (q) { cond.push("(i.descripcion LIKE ? COLLATE NOCASE OR t.descripcion LIKE ? COLLATE NOCASE OR i.ruta LIKE ? COLLATE NOCASE)"); params.push(`%${q}%`, `%${q}%`, `%${q}%`); }
+    let ordenQ = ""; const ordenParams: unknown[] = [];
+    if (q) { const b = condicionBusqueda("i.busqueda", q); cond.push(b.sql); params.push(...b.params); ordenQ = `${b.orden}, `; ordenParams.push(...b.ordenParams); }
     if (tema) { cond.push("i.tema = ?"); params.push(tema); }
     if (temaArbol) { cond.push("i.tema_arbol = ?"); params.push(temaArbol); }
     if (frecuencia) { cond.push("i.frecuencia = ?"); params.push(frecuencia); }
@@ -118,8 +120,8 @@ export class InegiIndicadores extends OpenAPIRoute {
     const where = cond.length ? " WHERE " + cond.join(" AND ") : "";
     const total = (await fila<{ n: number }>(c.env.DB_BISE, `SELECT COUNT(*) AS n FROM indicadores i LEFT JOIN temas t ON t.clave = i.tema${where}`, params))!.n;
     const orden = temaArbol ? "i.orden_arbol, CAST(i.id AS INTEGER), i.id" : "CAST(i.id AS INTEGER), i.id";
-    const items = await filas<FilaInd>(c.env.DB_BISE, `${SQL_IND}${where} ORDER BY ${orden} LIMIT ? OFFSET ?`, [...params, limit, offset]);
-    return { total, limit, offset, items: items.map(aResumen) };
+    const items = await filas<FilaInd>(c.env.DB_BISE, `${SQL_IND}${where} ORDER BY ${ordenQ}${orden} LIMIT ? OFFSET ?`, [...params, ...ordenParams, limit, offset]);
+    return { total, limit, offset, terminos: q ? terminosDe(q) : [], items: items.map(aResumen) };
   }
 }
 

@@ -7,6 +7,7 @@ import { CENSO_ITER } from "./censo2020";
 import { CENSO_CARACTERISTICAS, CENSO_HOGARES } from "./censo2020_mas";
 import { ENIGH_HOGARES } from "./enigh";
 import { BISE_INDICADORES } from "./bise";
+// import { BIE_SERIES } from "./bie_series"; // se publica cuando termine la carga del BIE (scripts/bie_d1.py)
 import { DENUE_UNIDADES } from "./denue";
 import { CDMX_NOMBRAMIENTOS } from "./cdmx";
 import { UNAM_CONCURSO } from "./unam";
@@ -24,7 +25,7 @@ export const TEMAS: Tema[] = [
   { clave: "seguridad", nombre: "Seguridad pública", descripcion: "Percepción de inseguridad: ENVIPE (anual, por entidad, 2017-2026) y ENSU (trimestral, por ciudad, 2016-2026), del INEGI." },
   { clave: "cdmx", nombre: "Gobierno de la Ciudad de México", descripcion: "Padrón de remuneraciones de servidores públicos de la CDMX." },
   { clave: "unam", nombre: "UNAM", descripcion: "Concurso de Selección a licenciatura (dataset del observatorio)." },
-  { clave: "inegi", nombre: "Banco de Indicadores del INEGI", descripcion: "Los 31,039 indicadores con datos del INEGI por país, entidad y municipio." },
+  { clave: "inegi", nombre: "Bancos de indicadores del INEGI", descripcion: "Banco de Indicadores (31,039 indicadores con datos por país, entidad y municipio) y Banco de Información Económica (89 mil series económicas: inflación, PIB, IGAE, comercio exterior, coyuntura)." },
 ];
 
 export const CUBOS: Cubo[] = [

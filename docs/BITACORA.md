@@ -1167,3 +1167,34 @@ millones de filas: los cargadores ahora reintentan (4 intentos) y reanudan por t
 **Verificador.** 13 comprobaciones más (vitales exactas vs Banco de Indicadores incluido Cuauhtémoc 09015; ENIGH; ENVIPE
 32 entidades ±0.005; partición de ámbito; ENSU junio 2026 = cuadro 1.7) → **FALLOS 0** en la vista previa (41179ac6) y en
 producción (versión 6e810896).
+
+## 2026-09-21 — Tercera entrega de la auditoría: búsqueda con sinónimos, microdatos ENOE 2025T2-2026T2, librería de Python
+
+**Búsqueda con sinónimos (Banco de Indicadores).** La búsqueda era literal: «desempleo» daba una cosa irrelevante y
+«desocupación» nada, porque el INEGI dice «población desocupada». Columna nueva `indicadores.busqueda` (descripción +
+ruta temática + tema + unidad, sin acentos ni mayúsculas; `scripts/bise_busqueda_d1.py`, 31,817 filas, índice) y
+`src/lib/busqueda.ts`: normaliza el texto del usuario y lo amplía con un diccionario de sinónimos del lenguaje común
+hacia el vocabulario del INEGI («desempleo» → «desocupada», «natalidad» → «nacimientos», «inflación» → «precios al
+consumidor»). Se usa en `/api/v1/inegi/indicadores` (devuelve `terminos`) y en los miembros del cubo (`miembros.buscar`).
+«Desempleo» pasa de 1 a 365 indicadores. «Inflación» sigue en 0 porque el INPC no está en el Banco de Indicadores sino
+en el BIE (ver abajo).
+
+**Microdatos ENOE 2025T2-2026T2 (`scripts/enoe_particiones_csv.py`).** Hallazgo: el legado cargó los DBF con una llave
+(cd_a, ent, con, v_sel[, n_hog[, n_ren]]) que no es única desde 2020T3 (un mismo hogar aparece con dos cuestionarios,
+`tipo`) y descartó las repetidas: 2025T1 tiene 423,302 registros SDEM en el CSV oficial y 409,796 en el legado (3.2 %
+menos). Comparación 2025T1 CSV vs legado, emparejando por llave + tipo: las cinco tablas coinciden columna por columna en
+TODAS las filas del legado (0 diferencias; `ing_x_hrs` solo difiere de formato). Con eso, los trimestres nuevos se
+proyectan al esquema del legado (mismas columnas, tipos y anchos de texto con ceros, derivados del propio legado) más la
+columna `tipo` como último componente de la llave, conservando todas las filas; el índice `microdatos_particiones` lleva
+`llave_extra = 'tipo'` y el worker ordena y pagina con esa llave (cursor de 8 componentes). 25 tablas-trimestre, 800
+particiones, conteos = CSV (sdem 2026T2: 417,128). Los trimestres 2005T1-2025T1 siguen siendo los del legado (con sus
+filas descartadas), documentado en el esquema; rehacerlos desde los CSV es un frente aparte.
+
+**Librería de Python (datos-mexico-py, PR #19).** `DEFAULT_BASE_URL` pasa a `https://api.datosmexico.org` (0.3.0):
+batería de integración 27/27 contra la API nueva. Con eso desaparece la contradicción pública de la ENOE en el cliente;
+el sistema anterior (datos-itam.org) sigue sirviendo su serie y no se toca (regla vigente).
+
+**BIE (en curso).** La API de desarrolladores del INEGI responde «No se encontraron resultados» para toda serie del BIE
+(probado con ids del árbol, de la tabla de equivalencias y del buscador, áreas 0700 y 00, fuentes BIE y BISE). El sitio
+del INEGI sirve el BIE por su API interna (interna_v1_3) con tokens de cliente públicos: `scripts/bie_arbol.py` recorre el
+árbol (14 raíces, 89,032 series) y `scripts/bie_descarga.py` baja cada serie por área (JSON-stat). Sigue la carga y la API.

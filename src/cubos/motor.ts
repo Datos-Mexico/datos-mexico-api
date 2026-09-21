@@ -4,6 +4,7 @@
 import type { AppContext } from "../index";
 import { fila, filas } from "../lib/db";
 import { ErrorHttp } from "../lib/errores";
+import { condicionBusqueda } from "../lib/busqueda";
 import type { Detalle } from "../lib/validacion";
 import type { ColumnaResultado, Consulta, Cubo, Dimension, Medida, MiembroVirtual } from "./tipos";
 
@@ -209,8 +210,11 @@ export async function miembros(c: AppContext, cubo: Cubo, dim: Dimension, filtro
   if (dim.miembros) {
     const partes: string[] = []; const params: unknown[] = [];
     if (dim.miembros.donde) partes.push(`(${dim.miembros.donde})`);
-    if (q) { partes.push(`(${dim.miembros.nombre} LIKE ? COLLATE NOCASE OR ${dim.miembros.id} LIKE ? COLLATE NOCASE)`); params.push(`%${q}%`, `%${q}%`); }
-    const sql = `SELECT ${dim.miembros.id} AS id, ${dim.miembros.nombre} AS nombre FROM ${dim.miembros.desde}${partes.length ? ` WHERE ${partes.join(" AND ")}` : ""} ORDER BY ${dim.miembros.orden ?? "2"} LIMIT ${limite}`;
+    let ordenExtra = ""; const ordenParams: unknown[] = [];
+    if (q && dim.miembros.buscar) { const b = condicionBusqueda(dim.miembros.buscar, q); partes.push(`(${b.sql} OR ${dim.miembros.id} LIKE ?)`); params.push(...b.params, `%${q}%`); ordenExtra = `${b.orden}, `; ordenParams.push(...b.ordenParams); }
+    else if (q) { partes.push(`(${dim.miembros.nombre} LIKE ? COLLATE NOCASE OR ${dim.miembros.id} LIKE ? COLLATE NOCASE)`); params.push(`%${q}%`, `%${q}%`); }
+    params.push(...ordenParams);
+    const sql = `SELECT ${dim.miembros.id} AS id, ${dim.miembros.nombre} AS nombre FROM ${dim.miembros.desde}${partes.length ? ` WHERE ${partes.join(" AND ")}` : ""} ORDER BY ${ordenExtra}${dim.miembros.orden ?? "2"} LIMIT ${limite}`;
     const r = await filas<{ id: unknown; nombre: unknown }>(c.env[cubo.binding] as D1Database, sql, params);
     return r.map((x) => ({ id: String(x.id), nombre: x.nombre === null || x.nombre === undefined ? String(x.id) : String(x.nombre), n: null }));
   }

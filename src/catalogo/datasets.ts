@@ -70,6 +70,13 @@ export const DATASETS: DatasetDef[] = [
     notas: ["Todo por lugar de residencia habitual: es la base de las series «registradas» del INEGI; por lugar de registro u ocurrencia las cifras no coinciden.", "Los catálogos de causas (capítulos CIE-10, 59 grupos y 422 causas de la lista mexicana) son los del INEGI 2024, re-decodificados de CP437."],
   },
   {
+    clave: "bie", nombre: "INEGI — Banco de Información Económica (BIE)", fuente: "INEGI, Banco de Información Económica (sitio del INEGI, API interna)", fuente_url: "https://www.inegi.org.mx/app/indicadores/?tm=3", licencia: "Términos de libre uso INEGI",
+    descripcion: "Las series económicas del INEGI (inflación INPC, PIB trimestral, IGAE, balanza comercial, indicadores de coyuntura, cuentas nacionales, manufacturas, sector externo, finanzas públicas…) completas por área geográfica, con el árbol temático del BIE. Consultables en /api/v1/bie y en el cubo bie-series.",
+    binding: "DB_BIE", prefijo_api: "/api/v1/bie", periodicidad: "la de cada serie (mensual, trimestral, anual)",
+    sql_corte: "SELECT MAX(ultima_actualizacion) AS corte FROM series", unidad_corte: "fecha de la última actualización publicada por el INEGI entre todas las series",
+    notas: ["La API de desarrolladores del INEGI responde «No se encontraron resultados» para toda serie del BIE (comprobado el 2026-09-21); las series se toman de la API interna del sitio del INEGI, la misma que usa su explorador público.", "Cada valor se conserva como texto decimal original y como número."],
+  },
+  {
     clave: "seguridad", nombre: "INEGI — Percepción de inseguridad: ENVIPE 2017-2026 por entidad y ENSU 2016-2026 por ciudad", fuente: "INEGI, microdatos de la ENVIPE (TPer_Vic1) y de la ENSU (CB), descarga masiva", fuente_url: "https://www.inegi.org.mx/programas/envipe/", licencia: "Términos de libre uso INEGI",
     descripcion: "Personas de 18 años y más que consideran inseguro vivir en su colonia, municipio o entidad (ENVIPE, 10 ediciones, por entidad y sexo) y en su ciudad (ENSU, 40 trimestres, hasta 90 ciudades), expandidas con el factor; verificadas contra el Banco de Indicadores (6200118581) y el cuadro 1.7 de los tabulados de junio 2026. Los microdatos completos están en /api/v1/inegi/datos-abiertos (programas envipe y ensu).",
     binding: "DB_SEGURIDAD", prefijo_api: "/api/v1/cubos", periodicidad: "ENVIPE anual (septiembre); ENSU trimestral",
