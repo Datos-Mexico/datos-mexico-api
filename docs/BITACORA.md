@@ -1262,3 +1262,12 @@ el INEGI; el verificador prueba resumen, cubo, partición de desglose y búsqued
 `/api/v1/bie/resumen`, `/series` (búsqueda con sinónimos), `/series/{id}`, `/series/{id}/observaciones`, `/arbol`; en
 el explorador, el cubo `bie-series` (39 cubos) con partición por desglose (nacional/estatal/municipal/país: los países se
 etiquetan «Nacional» en el INEGI y aquí quedan aparte para que no se sumen con México).
+
+## 2026-09-21 — El sistema anterior (api.datos-itam.org) alineado a la serie exacta de la ENOE
+
+Decisión del CEO: el sistema anterior se queda en producción y se alinea, no se apaga. `scripts/enoe_legado_alinear.py`
+reemplazó en Neon, en una sola transacción (DELETE + COPY), las cuatro tablas de indicadores con la serie recalculada
+2005T1-2026T2 (1,105 + 35,360 + 33,660 + 11,220 filas, antes 1,040 + 33,280 + 31,677 + 10,560 hasta 2025T1) y actualizó
+estadisticas_globales. Comprobado en vivo en api.datos-itam.org: 2025T1 ocupados 59,001,009 y PEA 60,491,235 (= INEGI);
+2026T2 disponible con las mismas cifras que api.datosmexico.org; cobertura 2005T1-2026T2, 85 trimestres. Desde hoy las
+dos APIs y la librería de Python (0.3.0 en PyPI) publican la misma ENOE. Los microdatos del sistema anterior no se tocan.
