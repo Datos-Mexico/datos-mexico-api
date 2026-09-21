@@ -10,6 +10,12 @@ solo pasa a entero/decimal si TODOS sus valores lo son sin ceros a la izquierda,
 --remote y escribe una línea por tabla en el manifiesto (con máquina y fecha). Reanudable por id de archivo.
 Claves R2: inegi/microdatos/<programa>/<edicion>/<archivo>/<tabla>.parquet e inegi/fuentes/<programa>/<edicion>/<archivo><formato>.
 Uso: data/.venv/bin/python scripts/inegi_ingesta.py [--shard k/n] [--workers 4] [--programa TEXTO] [--solo-lista]
+Modo --extra data/inegi/fuera-descarga-masiva.csv: ingiere los archivos que NO están en la descarga masiva pero sí en
+la página de cada programa (estadísticas experimentales) o en sitios asociados (ENSANUT del INSP), inventariados
+por inegi_ediciones_programas.py y ensanut_insp_inventario.py. Mismas claves en R2 y mismo manifiesto; la URL y el
+método (GET, o POST con campo de formulario para el INSP) vienen en el CSV; preferencia de formato en ese modo:
+para el INSP Stata > CSV > SPSS (sus CSV usan «;» y coma decimal; el Stata conserva los valores exactos); para los
+archivos del INEGI la misma preferencia que en la descarga masiva (CSV primero). --forzar reingiere aunque ya estén en el manifiesto.
 """
 import argparse, csv, hashlib, io, json, os, pathlib, re, shutil, socket, subprocess, sys, tempfile, time, unicodedata, urllib.request, zipfile, threading
 import concurrent.futures as cf
@@ -22,6 +28,8 @@ MANIF = BASE / f'manifiesto-{socket.gethostname().split(".")[0]}.jsonl'
 LOG = BASE / f'ingesta-{socket.gethostname().split(".")[0]}.log'
 BUCKET = 'datosmexico-datos'; CUENTA = '1f0e02cff3791c3ffbb95cd155fc4305'
 PREF = ['_csv.zip', '_dta.zip', '_stata.zip', '_sav.zip', '_dbf.zip', '_txt.zip']
+PREF_EXTRA = ['_dta.zip', '_stata.zip', '_csv.zip', '_sav.zip', '_spss.zip', '_dbf.zip', '_txt.zip']
+EXTRA = None  # ruta del CSV de --extra (None = descarga masiva)
 NO_DATOS = re.compile(r'descriptor|diccionario|cuestionario|manual|nota|metodolog|dise[ñn]o|catálogo de|catalogo de|ejemplo', re.I)
 candado = threading.Lock()
 csv.field_size_limit(1 << 30)
@@ -45,7 +53,12 @@ def slug(s):
 
 COLISIONES = set(); COLISIONES_TAB = set()
 def entradas(filtro=None):
-    filas = [x for x in csv.DictReader(open(INV, encoding='utf-8')) if x['clasificacion'] == 'microdatos']
+    if EXTRA:  # archivos fuera de la descarga masiva: solo los de datos, con su URL y método propios
+        filas = [x for x in csv.DictReader(open(EXTRA, encoding='utf-8')) if x['es_datos'] == '1']
+        for x in filas: x['anio'] = x['edicion']; x['clasificacion'] = 'microdatos'
+    else:
+        filas = [x for x in csv.DictReader(open(INV, encoding='utf-8')) if x['clasificacion'] == 'microdatos']
+    pref_de = lambda x: PREF_EXTRA if x.get('fuente') == 'insp' else PREF  # INEGI: CSV primero (como la descarga masiva); INSP: Stata primero
     # dos archivos lógicos distintos (id) con el mismo nombre en el mismo programa y edición → la clave lleva el id
     import collections
     grupos = collections.defaultdict(set)
@@ -53,10 +66,11 @@ def entradas(filtro=None):
     COLISIONES.update(k for k, v in grupos.items() if len(v) > 1)
     por_id = {}
     for x in filas:
-        if x['formato'] not in PREF or NO_DATOS.search(x['titulo']): continue
+        pref = pref_de(x)
+        if x['formato'] not in pref or (not EXTRA and NO_DATOS.search(x['titulo'])): continue  # en --extra, es_datos ya decidió
         if filtro and filtro.lower() not in x['programa'].lower(): continue
         k = x['id']; act = por_id.get(k)
-        if act is None or PREF.index(x['formato']) < PREF.index(act['formato']): por_id[k] = x
+        if act is None or pref.index(x['formato']) < pref.index(act['formato']): por_id[k] = x
     return sorted(por_id.values(), key=lambda x: (x['programa'], x['anio'], x['titulo']))
 
 def claves_de(x):
@@ -68,17 +82,23 @@ def claves_de(x):
     return prog, ed, arch, zipn, f'inegi/fuentes/{prog}/{ed}/{zipn}'
 
 def url_de(x):
+    if x.get('url_descarga'): return x['url_descarga']  # inventarios extra: URL ya resuelta (INSP: POST a la misma página)
     p = ''.join(ch for ch in x['path'] if ch >= ' ').strip()  # el inventario trae rutas con caracteres de control
     from urllib.parse import quote
     return quote(('https://www.inegi.org.mx/contenidos' + p if p.startswith('/programas/') else 'https://www.inegi.org.mx' + p) + x['formato'], safe='/:%')
 
-def descargar(url, destino):
+def descargar(url, destino, post_campo=''):
+    """GET, o POST con el campo de formulario del INSP (ArchId<base64>=, el botón de la página) que devuelve el zip
+    directamente; si el campo no coincide (PHP convierte «.» en «_»), el INSP responde la página HTML con 200."""
+    from urllib.parse import urlencode
+    datos = urlencode({post_campo: ''}).encode() if post_campo else None
     for intento in range(4):
         try:
-            with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (observatorio datosmexico)'}), timeout=300) as r, open(destino, 'wb') as f:
+            with urllib.request.urlopen(urllib.request.Request(url, data=datos, headers={'User-Agent': 'Mozilla/5.0 (observatorio datosmexico)'}), timeout=300) as r, open(destino, 'wb') as f:
                 h = hashlib.sha256(); n = 0; esperado = int(r.headers.get('Content-Length') or 0)
                 for b in iter(lambda: r.read(1 << 20), b''): f.write(b); h.update(b); n += len(b)
             if esperado and n != esperado: raise RuntimeError(f'descarga incompleta: {n} de {esperado} bytes')  # el INEGI corta descargas bajo carga
+            if str(destino).lower().endswith('.zip') and open(destino, 'rb').read(2) != b'PK': raise RuntimeError('la respuesta no es un zip (página HTML)')
             return h.hexdigest()
         except Exception as e:
             time.sleep(10 * (intento + 1)); ultimo = e
@@ -111,13 +131,16 @@ def leer_otro(ruta):
             enc = 'dbf'
         else:
             import pyreadstat
-            lector = pyreadstat.read_file_in_chunks(pyreadstat.read_dta if ext == '.dta' else pyreadstat.read_sav, str(ruta), chunksize=200000, apply_value_formats=False)
+            leer = pyreadstat.read_dta if ext == '.dta' else pyreadstat.read_sav
+            try: trozos = list(pyreadstat.read_file_in_chunks(leer, str(ruta), chunksize=200000, apply_value_formats=False)); enc_lec = ''
+            except pyreadstat.ReadstatError:  # Stata/SPSS del INSP con texto en latin-1: el lector por trozos ignora «encoding», se lee entero
+                trozos = [leer(str(ruta), apply_value_formats=False, encoding='latin1')]; enc_lec = '-latin1'
             primero = True
-            for df, meta in lector:
+            for df, meta in trozos:
                 if primero: w.writerow(list(df.columns)); primero = False
                 for fila in df.itertuples(index=False, name=None):
                     w.writerow(['' if (v is None or (isinstance(v, float) and v != v)) else (('%d' % v) if (isinstance(v, float) and v.is_integer()) else str(v)) for v in fila])
-            enc = ext[1:]
+            enc = ext[1:] + enc_lec
     cab, cols, n, _ = leer_csv(tmpcsv); tmpcsv.unlink()
     return cab, cols, n, enc
 
@@ -183,7 +206,7 @@ def procesar(x):
                 for b in iter(lambda: f.read(1 << 20), b''): h.update(b)
             sha = h.hexdigest(); origen = 'r2'
         except Exception:
-            sha = descargar(url, zipf); origen = 'inegi'; subir(clave_fuente, zipf, 'application/zip')
+            sha = descargar(url, zipf, x.get('post_campo', '')); origen = 'insp' if x.get('fuente') == 'insp' else 'inegi'; subir(clave_fuente, zipf, 'application/zip')
         # extracción miembro a miembro: algunos zips del INEGI traen nombres con codificación inconsistente
         # (zipfile los rechaza) o compresión no soportada; solo se necesitan los archivos de datos
         with zipfile.ZipFile(zipf) as z:
@@ -237,11 +260,12 @@ def procesar(x):
         shutil.rmtree(tmp, ignore_errors=True)
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument('--shard', default='0/1'); ap.add_argument('--workers', type=int, default=4); ap.add_argument('--programa'); ap.add_argument('--solo-lista', action='store_true'); a = ap.parse_args()
+    ap = argparse.ArgumentParser(); ap.add_argument('--shard', default='0/1'); ap.add_argument('--workers', type=int, default=4); ap.add_argument('--programa'); ap.add_argument('--solo-lista', action='store_true'); ap.add_argument('--extra', help='CSV de archivos fuera de la descarga masiva (data/inegi/fuera-descarga-masiva.csv)'); ap.add_argument('--forzar', action='store_true', help='reingerir aunque el id ya esté en el manifiesto'); a = ap.parse_args()
+    global EXTRA; EXTRA = a.extra
     k, n = (int(v) for v in a.shard.split('/'))
-    todos = entradas(a.programa); listos = hechos()
+    todos = entradas(a.programa); listos = set() if a.forzar else hechos()
     mios = [x for x in todos if int(hashlib.md5(x['id'].encode()).hexdigest(), 16) % n == k and x['id'] not in listos]
-    print(f'{len(todos)} archivos de datos en el universo; shard {k}/{n}: {len(mios)} pendientes ({sum(float(x["mb"]) for x in mios)/1024:.2f} GB)', flush=True)
+    print(f'{len(todos)} archivos de datos en el universo; shard {k}/{n}: {len(mios)} pendientes ({sum(float(x["mb"] or 0) for x in mios)/1024:.2f} GB)', flush=True)
     if a.solo_lista:
         for x in mios[:40]: print(' ', x['programa'][:45], x['anio'], x['formato'], x['mb'], 'MB', x['titulo'][:40])
         return

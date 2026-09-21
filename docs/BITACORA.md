@@ -1427,3 +1427,25 @@ el nacional y los 19 sectores también. En producción: `/api/v1/inegi/saic` (re
 `/saic/descarga/{año}` y el cubo `saic-censos` (9 medidas principales; ámbito, nivel y estrato como particiones).
 Estado al cierre: 2023, 2018 y 2013 cargados con la fase nacional (2023 también con entidades por sector y subsector);
 la descarga sigue en segundo plano y basta repetir `--parquet --subir --cargar` (borrando el Parquet del año) para actualizar.
+
+## 2026-09-21 — F16: ediciones fuera de la «Descarga masiva» (exclusión 6)
+
+**Inventario.** El JS del sitio del INEGI expone `/app/menu/0/<idm>/1` (árbol de programas con el `idBiinegi` de cada
+edición: 699 ediciones en 4 subsistemas) y cada edición publica su pestaña «Microdatos» con
+`/app/api/descarga/componente/descargamasiva/lista/{totalarchivosdescarga,archivoscompaginacion}` (por `idBiinegi`, o
+`proyecto` + `anio` en las estadísticas experimentales). `scripts/inegi_ediciones_programas.py` barrió las 699 ediciones
+(408 con microdatos, 4,817 archivos) y `scripts/ensanut_insp_inventario.py` el sitio del INSP (ensanut.insp.mx, descarga
+por POST del botón `ArchId<base64>=`). Resultado en `data/inegi/fuera-descarga-masiva.csv`: ENDIREH 2016 ya estaba en la
+descarga masiva (el traspaso lo daba por faltante); faltaban 7 ediciones experimentales del INEGI (ETOE, ETCO, ECOVID-ML,
+ECOVID-ED 2020; Modelo Estadístico para la continuidad del MCS-ENIGH 2016/2018/2020) y 18 ediciones de la ENSANUT en el
+INSP (ENSA 2000, 2006, 2012, MC 2016, 100k 2018, 2018 versión INSP con 36 bases, Continua 2020-2025 y estatales).
+
+**Ingesta y verificación.** `inegi_ingesta.py --extra` (mismas claves R2 y manifiesto; POST para el INSP; preferencia
+Stata > CSV > SPSS; latin-1 de respaldo): 513/513 bases, 546 tablas, 38,440,268 filas, 878 MB de originales (ENSANUT
+19.7 M filas; modelo MCS-ENIGH 17.9 M). `inegi_verificar_extra.py`: SHA-256 de los 513 originales bajados de R2 =
+manifiesto, filas recontadas con otra librería = manifiesto, HEAD y metadatos Parquet en R2 = manifiesto, FALLOS 0.
+Catálogo D1 recargado: 207 programas, 44,731 tablas de microdatos (4,772 archivos, 805.6 M filas); visibles en
+`/api/v1/inegi/datos-abiertos/programas/{ensanut,etoe,etco,ecovid-ml,ecovid-ed,modelo-estadistico-para-la-continuidad-del-mcs-enigh}`.
+Quirks: el campo POST del INSP va vacío (con sufijo `.x` PHP devuelve HTML con 200); `pyreadstat.read_file_in_chunks`
+ignora `encoding`; la API de Cloudflare falló una vez al importar (transitorio). **Pendiente del CEO:** el INSP no publica
+licencia explícita (sus preguntas frecuentes dicen que el acceso es libre): confirmar la redistribución de sus bases.

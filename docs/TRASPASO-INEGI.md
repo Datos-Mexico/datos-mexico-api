@@ -12,7 +12,7 @@ hasta nueva orden del CEO; ANUIES nunca en el hero ni cerca; todo queda en `docs
 |---|---|---|
 | Banco de Indicadores (BISE) | 31,817 indicadores, 7,456,265 observaciones (nacional, 32 entidades, 2,478 municipios), árbol de 182 temas, búsqueda con sinónimos | conteos = manifiestos; población 2020 126,014,024 |
 | BIE | 88,678 series, 8,736,757 observaciones, 154 áreas, 22,762 temas | PEA trimestral = BISE 85/85; INPC ago-2026 |
-| Descarga masiva | 202 programas; microdatos 4,259/4,259 (Parquet + original SHA-256); tabulados 18,150/18,150 | inventario del INEGI reproducido |
+| Descarga masiva + fuera de ella | 207 programas; microdatos 4,772 archivos / 44,731 tablas / 805.6 M filas (Parquet + original SHA-256), incluidas 513 bases fuera de la descarga masiva (INEGI experimentales + ENSANUT del INSP); tabulados 18,150/18,150 | inventario del INEGI reproducido; extra verificado SHA-256/filas/HEAD |
 | ENOE | indicadores 2005T1-2026T2 exactos vs BISE; **microdatos 2005T1-2026T2 completos desde los CSV oficiales** (85 trimestres; el legado descartaba 2.1 % de filas) | Δ = 0 en 2,805 × 5; 0 diferencias vs legado en 5 trimestres × 5 tablas; conteos = CSV |
 | DENUE | edición 05/2026 completa (6,138,075) + **histórico de 25 ediciones 2010-2026 por entidad** (13.4 M filas municipio × clase × estrato; Parquet completo por edición en R2) y 20 por sector archivadas | 6 ediciones exactas contra el comunicado, 4 sin cifra, 15 con diferencias de −33 a +852 (2 con archivos defectuosos del INEGI); tabla en `/api/v1/denue/ediciones` |
 | Marco Geoestadístico 2025 | íntegro: 16 capas × 32 estados como Parquet nacional por capa (WKB, EPSG:6372), zips originales, catálogos CSV | los 8 totales que declara el INEGI en el producto, exactos (2,478 mun; 64,808 AGEB urbanas; 2,634,771 manzanas…) |
@@ -46,10 +46,11 @@ hasta nueva orden del CEO; ANUIES nunca en el hero ni cerca; todo queda en `docs
    `tipo` desde 2021T3, `tipo,d_sem` en la ENOE-N 2020T3-2021T2; anchos del legado por trimestre); particiones en
    `enoe/particiones-csv/`; índice D1 apuntado en los 80 trimestres. Las particiones viejas (`enoe/particiones/`) siguen en
    R2: borrarlas es decisión del CEO.
-6. **Ediciones fuera de la descarga masiva — EN CURSO** (agente en esta sesión: inventario en
-   `data/inegi/fuera-descarga-masiva.csv`, scripts `inegi_ediciones_programas.py`, `ensanut_insp_inventario.py`, cambios en
-   `inegi_ingesta.py` / `inegi_catalogo_d1.py` sin commit). Al retomar: leer su reporte en la bitácora si lo dejó, verificar
-   y commitear.
+6. **Ediciones fuera de la descarga masiva — HECHO.** `scripts/inegi_ediciones_programas.py` (699 ediciones del sitio del
+   INEGI por `/app/menu/0/<idm>/1` y la pestaña «Microdatos») + `scripts/ensanut_insp_inventario.py` (INSP) →
+   `data/inegi/fuera-descarga-masiva.csv` → `inegi_ingesta.py --extra` → `inegi_verificar_extra.py` (FALLOS 0) →
+   `inegi_catalogo_d1.py`. 513 bases (7 ediciones experimentales del INEGI + 18 de la ENSANUT en el INSP; ENDIREH 2016 ya
+   estaba). **Decisión pendiente del CEO:** redistribución de las bases del INSP (acceso libre según sus FAQ, sin licencia).
 7. **SAIC (Censos Económicos 2004-2024 por municipio, actividad y estrato) — PRIMERA FASE EN PRODUCCIÓN, descarga en curso.**
    API interna descubierta (`scripts/saic_descarga.py`: catálogos GET `/app/api/saic/{anios,ageos,acteco,varcen,estrato}/seg/…/6/`;
    datos POST `consulta/{total,tabla}/6/` con `varcens:[{nom,pos}]` hoja); 5 años × (nacional, 32 entidades, 2,478 municipios)

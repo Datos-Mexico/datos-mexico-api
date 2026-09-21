@@ -35,6 +35,8 @@ def cargar(patron):
 def main():
     micro = cargar('manifiesto-*.jsonl'); tab = cargar('tabulados-*.jsonl')
     inv = list(csv.DictReader(open(RAIZ / 'data' / 'inegi-universo' / 'archivos.csv', encoding='utf-8')))
+    extra = DIR / 'fuera-descarga-masiva.csv'  # archivos fuera de la descarga masiva (páginas de programas, INSP): cuentan en el universo
+    if extra.exists(): inv += [{'clasificacion': 'microdatos', 'programa': r['programa'], 'titulo': r['titulo'], 'formato': r['formato'], 'id': r['id'], 'extra': '1'} for r in csv.DictReader(open(extra, encoding='utf-8')) if r['es_datos'] == '1']
     NUL = '\\N'
     with open(OUT / 'da_microdatos.csv', 'w', newline='', encoding='utf-8') as f:
         w = csv.writer(f); w.writerow(['id_inegi', 'programa', 'programa_slug', 'edicion', 'titulo', 'archivo', 'tabla', 'origen', 'formato', 'codificacion', 'filas', 'columnas', 'esquema', 'bytes_parquet', 'clave_r2', 'fuente_r2', 'url_inegi', 'sha256_zip', 'maquina', 'ingerido_en'])
@@ -49,7 +51,7 @@ def main():
     univ_m = {}; univ_t = {}
     for x in inv:
         d = univ_m if x['clasificacion'] == 'microdatos' else univ_t
-        if x['clasificacion'] == 'microdatos' and (x['formato'] not in g.PREF or g.NO_DATOS.search(x['titulo'])): continue
+        if x['clasificacion'] == 'microdatos' and not x.get('extra') and (x['formato'] not in g.PREF or g.NO_DATOS.search(x['titulo'])): continue
         d.setdefault(x['programa'], set()).add(x['id'] + (x['formato'] if x['clasificacion'] == 'tabulados' else ''))
     ing_m = {}; ing_t = {}
     for r in micro: ing_m.setdefault(r['programa'], {}).setdefault(r['id'], 0); ing_m[r['programa']][r['id']] += r['filas']

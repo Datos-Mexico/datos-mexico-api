@@ -97,7 +97,8 @@ paridad base por base.
       8 metodologías (ENSANUT 39.11/36.07, ENVIPE prevalencia 330/330, ENVIPE 2020 48.74 %: scripts/metodologias_inegi.py,
       docs/METODOLOGIAS-INEGI.md, cubos ensanut-imc y envipe-prevalencia). 7 SAIC PRIMERA FASE EN PRODUCCIÓN (API interna descubierta, scripts/saic_descarga.py por fases con nohup, el servidor
       cobra por variable y no paraleliza; saic_cargar.py, /api/v1/inegi/saic/*, cubo saic-censos; nacionales = BISE
-      5300000001). EN CURSO: descarga municipal del SAIC; 6 ediciones fuera de la descarga masiva (inventario e ingesta). PENDIENTE: 3 tabulados explorables (los Censos Económicos quedan cubiertos
+      5300000001). 6 ediciones fuera de la descarga masiva HECHA (513 bases: 7 experimentales del INEGI + 18 ENSANUT del INSP; inegi_ingesta.py --extra).
+      EN CURSO: descarga municipal del SAIC. PENDIENTE: 3 tabulados explorables (los Censos Económicos quedan cubiertos
       por el SAIC; faltan censos de población y cuentas por sectores institucionales).
 - F8  Ingesta del Banco de Indicadores del INEGI (BISE): fase 1 = los 31,817
       indicadores del catálogo a nivel nacional y por entidad (D1
