@@ -6,7 +6,7 @@ Reglas vigentes: rigor académico máximo; cero atribución a IA en commits, PRs
 (api.datos-itam.org, Neon) se queda en producción, ya alineado, y sus microdatos no se tocan; NO refresco automático
 hasta nueva orden del CEO; ANUIES nunca en el hero ni cerca; todo queda en `docs/BITACORA.md` y en `docs/PLAN.md`.
 
-## 1. Estado (producción: API versión fdd8cf12, commit `c72f7af`; `scripts/verificar_cubos.py` FALLOS 0 en vista previa (207) y producción)
+## 1. Estado (producción: API versión 2da88977, commit `576f24d`; `scripts/verificar_cubos.py` FALLOS 0 en vista previa y producción, 214 comprobaciones)
 
 | Frente | Qué hay | Verificación |
 |---|---|---|
@@ -19,6 +19,7 @@ hasta nueva orden del CEO; ANUIES nunca en el hero ni cerca; todo queda en `docs
 | Clasificadores | SCIAN 2023/2018/2013 (+ productos), SINCO 2019/2011, CMO histórica, AGEEML (32 / 2,478 / 296,633 localidades con coordenadas) | conteos por nivel = publicados por el INEGI en cada catálogo |
 | Registros vitales, encuestas | defunciones 1990-2024, nacimientos 1985-2024; ENIGH 2024, ENVIPE 2017-2026 **incluida 2020** y **prevalencia delictiva**, ENSU, ENDUTIH, ENADID, ENDIREH, **ENSANUT 2018 (IMC)** | cada cubo exacto contra una cifra publicada (bitácora 21-sep) |
 | Censo 2020 | ITER por localidad, AGEB/manzana en Parquet | 126,014,024 exacto |
+| Censos Económicos (SAIC) | 5 censos × (nacional, entidades, municipios) × 6 niveles de actividad × 6 estratos × 98 variables; **primera fase en producción** (nacional 2013/2018/2023, entidades 2023 por sector y subsector), descarga en curso | UE nacionales = BISE 5300000001 en 2013 y 2018; 2023 5,468,180 = SAIC; entidades y sectores suman el nacional |
 | Sitio | explorador (43 cubos, 12 temas, catálogo dinámico: los cubos nuevos aparecen sin cambios en el sitio) | clics reales |
 | Librería Python | 0.3.0 en PyPI | 27/27 integración |
 
@@ -49,17 +50,19 @@ hasta nueva orden del CEO; ANUIES nunca en el hero ni cerca; todo queda en `docs
    `data/inegi/fuera-descarga-masiva.csv`, scripts `inegi_ediciones_programas.py`, `ensanut_insp_inventario.py`, cambios en
    `inegi_ingesta.py` / `inegi_catalogo_d1.py` sin commit). Al retomar: leer su reporte en la bitácora si lo dejó, verificar
    y commitear.
-7. **SAIC (Censos Económicos 2004-2024 por municipio, actividad y estrato) — EN CURSO.** API interna descubierta
-   (`scripts/saic_descarga.py`: catálogos GET `/app/api/saic/{anios,ageos,acteco,varcen,estrato}/seg/…/6/`; datos POST
-   `consulta/{total,tabla}/6/` con `varcens:[{nom,pos}]`); 5 años × (nacional, 32 entidades, 2,478 municipios) × 6 niveles
-   de actividad (total, 19 sectores, 88 subsectores, 279 ramas, 553 subramas, 905 clases) × 6 estratos × 98 variables.
-   **Cuello de botella medido:** el servidor cobra ~0.65 s por variable por 1,000 filas y no paraleliza (98 variables: 11 s
-   solo, 66 s con 8 hilos); por eso la descarga va por fases (`tareas()`): nacional y entidades con todo → municipios por
-   sector → municipios por subsector/rama/clase con estrato total → resto. Corre con nohup, reanudable
-   (`data/saic/manifiesto.jsonl`, crudo en `data/saic/crudo/`). Siguiente: `scripts/saic_cargar.py --parquet` (ya escrito)
-   → subir Parquet por año a R2 (`saic/<año>.parquet`) → D1 en dos tablas anchas (≤ 100 columnas) para nacional + entidades
-   (+ municipios por sector) → endpoints `/api/v1/inegi/saic/*` y cubo → verificar unidades económicas y personal ocupado
-   nacionales por año contra los 80 indicadores del BISE con fuente Censos Económicos (2023: UE 5,468,180; POT 27,965,433).
+7. **SAIC (Censos Económicos 2004-2024 por municipio, actividad y estrato) — PRIMERA FASE EN PRODUCCIÓN, descarga en curso.**
+   API interna descubierta (`scripts/saic_descarga.py`: catálogos GET `/app/api/saic/{anios,ageos,acteco,varcen,estrato}/seg/…/6/`;
+   datos POST `consulta/{total,tabla}/6/` con `varcens:[{nom,pos}]` hoja); 5 años × (nacional, 32 entidades, 2,478 municipios)
+   × 6 niveles de actividad × 6 estratos × 98 variables = 1,660 tareas por fases (nacional y entidades con todo → municipios
+   por sector → municipios por subsector/rama/clase con estrato total → resto). **Cuello de botella medido:** ~0.65 s por
+   variable y 1,000 filas, sin paralelismo del servidor (98 variables: 11 s solo, 66 s con 8 hilos): la descarga completa
+   tarda decenas de horas; corre con nohup y es reanudable (`data/saic/manifiesto.jsonl`; si el proceso murió:
+   `data/.venv/bin/python scripts/saic_descarga.py --descargar --hilos 6`). Carga: `scripts/saic_cargar.py --parquet --subir
+   --cargar [--anios 2023,2018]` (borrar `data/saic/parquet/saic_<año>.parquet` para regenerar un año); D1 censo2020 tablas
+   `saic_a`/`saic_b` + catálogos; endpoints `/api/v1/inegi/saic/*` y cubo `saic-censos` (`completo` por año en el resumen).
+   Verificación: UE nacionales = BISE 5300000001 (2013: 4,230,745; 2018: 4,800,157); 2023: 5,468,180 y 27,965,433 personas.
+   Al retomar: repetir la carga con lo descargado, y cuando termine la fase municipal, ampliar el verificador (suma de
+   municipios = entidad por sector) y las notas del cubo.
 8. **Metodologías — HECHO** (`scripts/metodologias_inegi.py`, `docs/METODOLOGIAS-INEGI.md`): ENSANUT 2018 39.11/36.07 (sección
    de adultos mayores + depuración del INSP + F_ANTROP_INSP), prevalencia delictiva exacta en 330/330 (víctimas sin el código
    03 «vandalismo»), ENVIPE 2020 48.74 % (solo levantamiento de marzo, TVivienda.PER = 1). Cubos `ensanut-imc` (tema salud) y
@@ -75,7 +78,7 @@ hasta nueva orden del CEO; ANUIES nunca en el hero ni cerca; todo queda en `docs
 - DENUE histórico: `denue_historico.py --inventario --espejar --bajar --resumir --subir --cargar` (ámbito entidad).
 - MG: `mg_2025.py --procesar --subir --cargar` (nueva edición: cambiar upc y clave; verificar contra su contenido.txt).
 - Clasificadores: `catalogos_inegi.py` → `clasificadores_d1.py --cargar`. Metodologías: `metodologias_inegi.py <sub> --cargar`.
-- SAIC: `saic_descarga.py --catalogos --descargar --hilos 6` (reanudable) → `saic_cargar.py --parquet` (resto por escribir).
+- SAIC: `saic_descarga.py --catalogos --descargar --hilos 6` (reanudable, nohup) → `saic_cargar.py --parquet --subir --cargar`.
 - Vitales, seguridad, encuestas: `vitales_d1.py`, `seguridad_d1.py`, `endutih_d1.py`, `enadid_d1.py`, `endireh_d1.py`.
 - Siempre al final: `npx wrangler versions upload` → `python3 scripts/verificar_cubos.py <preview>` → FALLOS 0 →
   `npx wrangler deploy` → verificar producción → commit + push.

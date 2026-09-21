@@ -95,9 +95,9 @@ paridad base por base.
       scripts/catalogos_inegi.py + clasificadores_d1.py, D1 datosmexico-api-clasificadores, /api/v1/clasificadores/*,
       /api/v1/geo/*); 5 microdatos ENOE 2005T1-2025T1 desde los CSV oficiales (enoe/particiones-csv, 80 trimestres);
       8 metodologías (ENSANUT 39.11/36.07, ENVIPE prevalencia 330/330, ENVIPE 2020 48.74 %: scripts/metodologias_inegi.py,
-      docs/METODOLOGIAS-INEGI.md, cubos ensanut-imc y envipe-prevalencia). EN CURSO: 7 SAIC (API interna descubierta,
-      scripts/saic_descarga.py por fases; el servidor cobra por variable y no paraleliza), 6 ediciones fuera de la
-      descarga masiva (inventario y ingesta). PENDIENTE: 3 tabulados explorables (los Censos Económicos quedan cubiertos
+      docs/METODOLOGIAS-INEGI.md, cubos ensanut-imc y envipe-prevalencia). 7 SAIC PRIMERA FASE EN PRODUCCIÓN (API interna descubierta, scripts/saic_descarga.py por fases con nohup, el servidor
+      cobra por variable y no paraleliza; saic_cargar.py, /api/v1/inegi/saic/*, cubo saic-censos; nacionales = BISE
+      5300000001). EN CURSO: descarga municipal del SAIC; 6 ediciones fuera de la descarga masiva (inventario e ingesta). PENDIENTE: 3 tabulados explorables (los Censos Económicos quedan cubiertos
       por el SAIC; faltan censos de población y cuentas por sectores institucionales).
 - F8  Ingesta del Banco de Indicadores del INEGI (BISE): fase 1 = los 31,817
       indicadores del catálogo a nivel nacional y por entidad (D1
