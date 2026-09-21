@@ -1234,3 +1234,31 @@ gobierno (2018-2019): sus resultados por entidad ya están en el Banco de Indica
 Justicia», 4,777 indicadores) y por eso no se duplican en un cubo. Con esta ronda son 10 de los 103 programas con
 microdatos los que tienen cubos (ENOE, ENIGH, Censo 2020, EDR, ENR, ENVIPE, ENSU, ENDUTIH, ENADID, ENDIREH), cada uno
 exacto contra una cifra publicada por el INEGI; los 93 restantes se descargan completos desde /observatorio/datos-abiertos.
+
+## 2026-09-21 — El BIE completo: el otro banco del INEGI, en la API y en el explorador
+
+**Qué faltaba.** El Banco de Información Económica (inflación, PIB trimestral, IGAE, balanza comercial, coyuntura,
+cuentas nacionales, manufacturas, sector externo, finanzas públicas) no estaba: «inflación» daba cero resultados.
+
+**Cómo se obtuvo.** La API de desarrolladores del INEGI responde «No se encontraron resultados» (400, código 100) para
+toda serie del BIE, con el mismo token que sí sirve el Banco de Indicadores (probado con ids del árbol, de la tabla de
+equivalencias BIE_tabla_equivalencias.xlsx y del buscador del sitio; áreas 0700 y 00; fuentes BIE y BISE). El sitio del
+INEGI sirve el BIE con su API interna (interna_v1_3) y dos tokens de cliente públicos que lleva en su JavaScript; se
+identificaron los métodos con las peticiones de red del navegador: `NodosTemas` (subtemas), `IndicadoresPorTemaRecursivo`
+(series bajo un tema), `CatalogoAreaGeograficaV3` (áreas), `ValorIndicador` (serie completa en JSON-stat) y
+`MetadatoIndicador` (unidad, frecuencia, fuentes, estatus de cifras, última actualización).
+
+**Pipeline.** `scripts/bie_arbol.py`: 22,762 temas en 14 raíces; 88,678 series distintas (en el BIE la ruta se toma del
+tema hoja en que el INEGI lista la serie). `scripts/bie_descarga.py`: 88,675 series con datos, 3 sin datos, 0 errores; con
+6 hilos salían 150 series/min, con 24 hilos 650-800/min (2 h 5 min en total) sin ningún rechazo. `scripts/bie_d1.py`:
+8,736,757 observaciones en 154 áreas (00 México, 32 entidades, 38 «otras entidades», 80 municipios, 40 países) y 1,661
+periodos; carga a D1 en 48 archivos de 8 MB (4 min) tras dos ajustes medidos: D1 rechaza sentencias largas
+(SQLITE_TOOBIG con 500 filas de `series`: tope de 90 KB por sentencia) y el INEGI entrega los valores con separadores de
+miles («42,106,336») y códigos «NC» de cifra no disponible (valor nulo, texto conservado).
+
+**Verificación.** Las series de la PEA trimestral del BIE (289244 y 446564) coinciden con el indicador 6200093960 del
+Banco de Indicadores en los 85 trimestres 2005T1-2026T2; el INPC subyacente (334452) de agosto de 2026 es el que publica
+el INEGI; el verificador prueba resumen, cubo, partición de desglose y búsqueda («inflación» → 175 series). En la API:
+`/api/v1/bie/resumen`, `/series` (búsqueda con sinónimos), `/series/{id}`, `/series/{id}/observaciones`, `/arbol`; en
+el explorador, el cubo `bie-series` (39 cubos) con partición por desglose (nacional/estatal/municipal/país: los países se
+etiquetan «Nacional» en el INEGI y aquí quedan aparte para que no se sumen con México).

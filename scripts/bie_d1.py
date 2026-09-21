@@ -8,8 +8,8 @@ Tablas:
   = texto normalizado (sin acentos) para buscar con sinónimos (src/lib/busqueda.ts).
 - areas (clave, nombre, desglose) — «00» nacional, «01»-«32» entidades y las demás áreas que use el BIE (zonas
   metropolitanas, ciudades, países), tal como las nombra el INEGI.
-- observaciones (serie, area, periodo, valor, estatus) — el valor tal como lo entrega el INEGI (texto decimal, se guarda
-  también como número); estatus = letra de cifra (D definitiva, P preliminar, R revisada…) cuando el INEGI la publica.
+- observaciones (serie, area, periodo, valor, estatus) — el valor tal como lo entrega el INEGI (texto decimal sin los
+  separadores de miles con que lo formatea el sitio, y también como número); estatus = letra de cifra (D definitiva, P preliminar, R revisada…) cuando el INEGI la publica.
 - periodos (periodo, n) — catálogo derivado.
 Formato de origen: JSON-stat del sitio (dimension.periods.category.label = [{Key, Value}], value = [texto]).
 Carga: sentencias de hasta 500 filas y archivos de hasta 8 MB con `wrangler d1 execute --file` (límites de D1 medidos en
@@ -21,7 +21,7 @@ Uso: data/.venv/bin/python scripts/bie_d1.py [--preparar] [--cargar] [--cotejar]
 import argparse, csv, gzip, json, pathlib, re, subprocess, sys, tempfile, time, unicodedata, urllib.request
 from collections import Counter, defaultdict
 RAIZ = pathlib.Path(__file__).resolve().parent.parent; DIR = RAIZ / 'data/bie'; CRUDO = DIR / 'crudo'; CARGA = DIR / 'carga'; CARGA.mkdir(exist_ok=True)
-DB = 'datosmexico-api-bie'; MAX_FILAS = 500; MAX_BYTES = 8_000_000
+DB = 'datosmexico-api-bie'; MAX_FILAS = 500; MAX_BYTES = 8_000_000; MAX_SENTENCIA = 90_000
 
 def log(m):
     with open(DIR / 'carga.log', 'a') as f: f.write(f"{time.strftime('%H:%M:%S')} {m}\n")
@@ -64,6 +64,14 @@ def preparar():
         if m['estado'] != 'ok': continue
         carpeta = CRUDO / serie
         meta = gz(carpeta / 'meta.json.gz') if (carpeta / 'meta.json.gz').exists() else {}
+        # nombres de área del catálogo de áreas del INEGI (CatalogoAreaGeograficaV3), no de la etiqueta abreviada del JSON-stat
+        def rec(n):
+            a = n.get('AREA_GEOGRAFICA')
+            if a not in (None, ''): areas.setdefault('00' if a == '0' else a, (n.get('NOMBRE') or '', n.get('NOMBRE_DESGLOSE_GEOGRAFICO') or ''))
+            for h in n.get('AREAS_GEOGRAFICAS_DEPENDIENTES') or []: rec(h)
+        if (carpeta / 'areas.json.gz').exists():
+            ad = gz(carpeta / 'areas.json.gz')
+            for n in ad if isinstance(ad, list) else []: rec(n)
         estatus = {c['periodo_corto']: c['letra'] for c in (meta.get('CIFRAS_ESTATUS') or []) if c.get('periodo_corto')}
         nombre = unidad = frecuencia = None; decimales = None; p0 = p1 = None; total = 0; n_areas = 0
         for archivo in sorted(carpeta.glob('valor_*.json.gz')):
@@ -73,8 +81,6 @@ def preparar():
             nombre = nombre or v.get('label'); freqs = v['dimension'].get('freq', {}).get('category', {}).get('label') or []
             frecuencia = frecuencia or (freqs[0]['Value'] if freqs else None)
             dec = v.get('valueDecimalFormat') or []; decimales = decimales if decimales is not None else (max(dec) if dec else None)
-            for etiqueta in v['dimension']['state']['category']['label'] if 'state' in v['dimension'] else []:
-                if area not in areas: areas[area] = etiqueta['Value'].split('-', 1)[-1] if area != '00' else 'Estados Unidos Mexicanos'
             n_areas += 1
             for p, val in zip(periodos, v['value']):
                 if val is None or val == '': continue
@@ -90,25 +96,42 @@ def preparar():
     fs.close(); fo.close()
     with open(DIR / 'areas.csv', 'w', newline='') as f:
         w = csv.writer(f); w.writerow(['clave', 'nombre', 'desglose'])
-        for a, n in sorted(areas.items()): w.writerow([a, n, 'Nacional' if a == '00' else ('Estatal' if re.fullmatch(r'(0[1-9]|[12][0-9]|3[0-2])', a) else 'Otra área')])
+        # desglose por forma de la clave: 00 nacional; dos dígitos entidad; cuatro dígitos país; cinco dígitos municipio
+        # (el INEGI etiqueta a los países como «Nacional»; aquí quedan aparte para que no se sumen con México)
+        def desglose(a): return 'Nacional' if a == '00' else ('Estatal' if len(a) == 2 else ('País' if len(a) == 4 else ('Municipal' if len(a) == 5 else 'Otra área')))
+        for a, (n, d) in sorted(areas.items()): w.writerow([a, n if a != '00' else 'Estados Unidos Mexicanos', desglose(a)])
     with open(DIR / 'periodos.csv', 'w', newline='') as f:
         w = csv.writer(f); w.writerow(['periodo', 'n']); [w.writerow([p, n]) for p, n in sorted(per.items())]
     log(f'preparado: {n_series:,} series, {n_obs:,} observaciones, {len(areas)} áreas, {len(per)} periodos')
 
 def sentencias(tabla, campos, filas):
-    """Bloques de INSERT de hasta MAX_FILAS filas; agrupados en archivos de hasta MAX_BYTES."""
-    archivos = []; actual = []; tam = 0
-    for i in range(0, len(filas), MAX_FILAS):
-        s = f"INSERT OR REPLACE INTO {tabla} ({', '.join(campos)}) VALUES " + ','.join('(' + ','.join(q(v) for v in f) + ')' for f in filas[i:i + MAX_FILAS]) + ';\n'
+    """Bloques de INSERT de hasta MAX_FILAS filas y ~90 KB (D1 rechaza sentencias más largas: SQLITE_TOOBIG con las filas
+    de `series`, que llevan ruta y texto de búsqueda); agrupados en archivos de hasta MAX_BYTES."""
+    archivos = []; actual = []; tam = 0; cab = f"INSERT OR REPLACE INTO {tabla} ({', '.join(campos)}) VALUES "
+    bloque = []; tam_bloque = len(cab)
+    def cerrar():
+        nonlocal actual, tam, bloque, tam_bloque
+        if not bloque: return
+        s = cab + ','.join(bloque) + ';\n'
         if tam + len(s) > MAX_BYTES and actual: archivos.append(''.join(actual)); actual = []; tam = 0
-        actual.append(s); tam += len(s)
+        actual.append(s); tam += len(s); bloque = []; tam_bloque = len(cab)
+    for f in filas:
+        v = '(' + ','.join(q(x) for x in f) + ')'
+        if bloque and (len(bloque) >= MAX_FILAS or tam_bloque + len(v) > MAX_SENTENCIA): cerrar()
+        bloque.append(v); tam_bloque += len(v) + 1
+    cerrar()
     if actual: archivos.append(''.join(actual))
     return archivos
 
 def cargar():
     estado = json.loads((CARGA / 'estado.json').read_text()) if (CARGA / 'estado.json').exists() else {}
     d1((RAIZ / 'data/bie/schema.sqlite.sql').read_text())
-    def num(v): return None if v in (None, '') else float(v)
+    # el INEGI entrega los valores con separadores de miles («42,106,336»); el texto original se guarda sin ellos
+    def limpio(v): return v.replace(',', '') if v and re.fullmatch(r'-?\d{1,3}(,\d{3})+(\.\d+)?', v) else v
+    def num(v):
+        # «NC», «ND» y similares son cifras no disponibles del INEGI: valor NULL y el texto se conserva
+        try: return None if v in (None, '') else float(limpio(v))
+        except ValueError: return None
     def ent(v): return None if v in (None, '') else int(float(v))
     lotes = {
         'temas': (['tema', 'nombre', 'tema_superior', 'orden', 'nivel'], [[r['tema'], r['nombre'], r['tema_superior'] or None, ent(r['orden']), int(r['nivel'])] for r in csv.DictReader(open(DIR / 'arbol/temas.csv'))]),
@@ -123,7 +146,7 @@ def cargar():
         if tabla == 'observaciones':
             filas = []
             with open(DIR / 'observaciones.csv') as f:
-                for r in csv.DictReader(f): filas.append([r['serie'], r['area'], r['periodo'], num(r['valor']), r['valor'], r['estatus'] or None])
+                for r in csv.DictReader(f): filas.append([r['serie'], r['area'], r['periodo'], num(r['valor']), limpio(r['valor']), r['estatus'] or None])
         esperado = len(filas); hecho = estado.get(tabla, 0)
         remoto = d1(f'SELECT COUNT(*) n FROM {tabla}', archivo=False)[0]['n']
         if remoto == esperado: log(f'{tabla}: ya cargada ({esperado:,})'); continue
