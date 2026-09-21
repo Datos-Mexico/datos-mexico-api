@@ -1,4 +1,4 @@
-# Traspaso — «Tenemos todos los datos del INEGI» (estado al 2026-09-21)
+# Traspaso — «Tenemos todos los datos del INEGI» (estado al 2026-09-21, fin de la primera sesión de F16)
 
 Punto de entrada para la siguiente sesión. Lo que está, cómo se verificó, cómo se repite, qué falta y cómo atacarlo.
 Reglas vigentes: rigor académico máximo; cero atribución a IA en commits, PRs, código y docs; nunca imprimir secretos
@@ -6,84 +6,102 @@ Reglas vigentes: rigor académico máximo; cero atribución a IA en commits, PRs
 (api.datos-itam.org, Neon) se queda en producción, ya alineado, y sus microdatos no se tocan; NO refresco automático
 hasta nueva orden del CEO; ANUIES nunca en el hero ni cerca; todo queda en `docs/BITACORA.md` y en `docs/PLAN.md`.
 
-## 1. Estado (producción: API versión 9cf4be1a + Neon alineado; verificador `scripts/verificar_cubos.py` FALLOS 0)
+## 1. Estado (producción: API versión fdd8cf12, commit `c72f7af`; `scripts/verificar_cubos.py` FALLOS 0 en vista previa (207) y producción)
 
 | Frente | Qué hay | Verificación |
 |---|---|---|
-| Banco de Indicadores (BISE) | 31,817 indicadores = catálogo del INEGI (recomprobado 21-sep), 7,456,265 observaciones (nacional, 32 entidades, 2,478 municipios), árbol de 182 temas con ruta por indicador, búsqueda sin acentos con sinónimos | conteos = manifiestos; sumas exactas (población 2020 126,014,024) |
-| BIE | 88,678 series = `TotalIndicadores` raíz del INEGI (88,675 con datos, 3 vacías del INEGI); 126,016 serie-área listadas, 126,013 con valores; 154 áreas; 22,762 temas | PEA trimestral del BIE = BISE 85/85; INPC 334452 ago-2026 = INEGI |
-| Descarga masiva | 202 programas; 103 con microdatos: 4,259/4,259 archivos (Parquet + original con SHA-256, 767 M filas); 183 con tabulados: 18,150/18,150 archivados | inventario del INEGI reproducido (`scripts/inegi_inventario_masivo.py`), sin novedades el 21-sep |
-| ENOE | indicadores 2005T1-2026T2 recalculados desde los CSV oficiales (exactos vs BISE, Δ = 0 en 2,805 × 5); microdatos 2025T2-2026T2 completos con llave + `tipo`; 2005T1-2025T1 heredados (les falta ~3 % de filas) | `scripts/enoe_indicadores_inegi.py`, `enoe_particiones_csv.py --comparar 2025T1` |
-| Registros vitales | defunciones 1990-2024, nacimientos 1985-2024, por residencia | exactos vs BISE nacional/entidad/municipio |
-| Encuestas con cubo | ENIGH 2024 (5 cubos), ENVIPE 2017-2026 sin 2020, ENSU 2016-2026, ENDUTIH 2015-2025, ENADID 2023, ENDIREH 2021 | cada uno exacto contra una cifra publicada (ver bitácora 21-sep) |
-| Censo 2020 | ITER por localidad (3 cubos), AGEB/manzana en Parquet | 126,014,024 exacto |
-| DENUE | edición mayo 2026 completa (6,138,075), cubo sobre `denue_resumen` | SUM = COUNT |
-| Sitio | explorador con 39 cubos, mapa municipal, `/observatorio/datos-abiertos`, errores 422 legibles | clics reales en producción |
-| Librería Python | 0.3.0 en PyPI apuntando a la API nueva | 27/27 integración, 234 unitarias |
+| Banco de Indicadores (BISE) | 31,817 indicadores, 7,456,265 observaciones (nacional, 32 entidades, 2,478 municipios), árbol de 182 temas, búsqueda con sinónimos | conteos = manifiestos; población 2020 126,014,024 |
+| BIE | 88,678 series, 8,736,757 observaciones, 154 áreas, 22,762 temas | PEA trimestral = BISE 85/85; INPC ago-2026 |
+| Descarga masiva | 202 programas; microdatos 4,259/4,259 (Parquet + original SHA-256); tabulados 18,150/18,150 | inventario del INEGI reproducido |
+| ENOE | indicadores 2005T1-2026T2 exactos vs BISE; **microdatos 2005T1-2026T2 completos desde los CSV oficiales** (85 trimestres; el legado descartaba 2.1 % de filas) | Δ = 0 en 2,805 × 5; 0 diferencias vs legado en 5 trimestres × 5 tablas; conteos = CSV |
+| DENUE | edición 05/2026 completa (6,138,075) + **histórico de 25 ediciones 2010-2026 por entidad** (13.4 M filas municipio × clase × estrato; Parquet completo por edición en R2) y 20 por sector archivadas | 6 ediciones exactas contra el comunicado, 4 sin cifra, 15 con diferencias de −33 a +852 (2 con archivos defectuosos del INEGI); tabla en `/api/v1/denue/ediciones` |
+| Marco Geoestadístico 2025 | íntegro: 16 capas × 32 estados como Parquet nacional por capa (WKB, EPSG:6372), zips originales, catálogos CSV | los 8 totales que declara el INEGI en el producto, exactos (2,478 mun; 64,808 AGEB urbanas; 2,634,771 manzanas…) |
+| Clasificadores | SCIAN 2023/2018/2013 (+ productos), SINCO 2019/2011, CMO histórica, AGEEML (32 / 2,478 / 296,633 localidades con coordenadas) | conteos por nivel = publicados por el INEGI en cada catálogo |
+| Registros vitales, encuestas | defunciones 1990-2024, nacimientos 1985-2024; ENIGH 2024, ENVIPE 2017-2026 **incluida 2020** y **prevalencia delictiva**, ENSU, ENDUTIH, ENADID, ENDIREH, **ENSANUT 2018 (IMC)** | cada cubo exacto contra una cifra publicada (bitácora 21-sep) |
+| Censo 2020 | ITER por localidad, AGEB/manzana en Parquet | 126,014,024 exacto |
+| Sitio | explorador (43 cubos, 12 temas, catálogo dinámico: los cubos nuevos aparecen sin cambios en el sitio) | clics reales |
+| Librería Python | 0.3.0 en PyPI | 27/27 integración |
 
-## 2. Exclusiones declaradas (lo que NO tenemos) y cómo atacarlas
+## 2. Exclusiones declaradas: estado y plan
 
-1. **DENUE histórico (ediciones 2015-2025).** El INEGI las publica en www.inegi.org.mx/app/descarga/?ti=6 (descarga por
-   entidad y edición). Plan: inventariar con Chrome las ediciones disponibles, descargar por edición a R2
-   (`denue/<edicion>/...`), cargar `denue_resumen_<edicion>` y darle al cubo la dimensión edición. Verificar: totales por
-   entidad contra el comunicado de cada edición.
-2. **Marco Geoestadístico completo.** Hoy solo geometría de estados y municipios en el sitio (MG 2025). Plan: descargar el
-   MG 2025 íntegro (32 paquetes estatales: entidades, municipios, localidades, AGEB, manzanas, servicios) a R2 como
-   datos abiertos con manifiesto y catálogo en D1; exponer descarga y conteos en la API. Verificar: 2,478 municipios,
-   número de localidades y AGEB contra el propio catálogo del MG.
-3. **Tabulados como tablas explorables** (4,647 archivos de censos de población, Censos Económicos y cuentas por sectores
-   institucionales; 18,150 en total). Plan: empezar por los Censos Económicos 2024 (cuadros por entidad y sector) y el
-   Censo 2020 (tabulados básicos): leer Excel con openpyxl, un cubo por familia de cuadros, verificación cuadro por cuadro.
-4. **Catálogos y clasificadores autónomos** (SCIAN 2023/2018 completo, SINCO, CMO, catálogo único de localidades).
-   Plan: descargar de sus páginas del INEGI (Chrome para localizar los archivos), cargar como catálogos en D1 y exponerlos en
-   `/api/v1/inegi/catalogos/*`.
-5. **Microdatos ENOE 2005T1-2025T1 completos.** Rehacer las particiones desde los CSV oficiales con
-   `scripts/enoe_particiones_csv.py` (la llave necesita `tipo`; en 2005-2020T1 el factor es `fac` y hay que confirmar que
-   `tipo` exista; si no, buscar la variable que hace única la llave). Reemplaza `enoe/particiones/*/<periodo>/*.parquet`
-   y el índice; el worker ya lee `llave_extra` por partición.
-6. **Ediciones fuera de la descarga masiva** (ENDIREH 2016; ENSANUT Continua 2020-2023 del INSP; otras). Plan: buscar
-   con Chrome en la página de cada programa (sección «Microdatos») y en ensanut.insp.mx; si existen, ingerirlas con
-   `scripts/inegi_ingesta.py` (mismo manifiesto y verificación).
-7. **Censos Económicos por municipio y rama (SAIC).** Microdatos no públicos; el SAIC (www.inegi.org.mx/app/saic/) sirve
-   cuadros. Plan: con Chrome, identificar la API interna del SAIC (como se hizo con el BIE: pestaña Red del navegador),
-   descargar los cuadros por entidad, municipio y rama, y verificar contra los tabulados de los Censos Económicos.
-8. **Resuelta (2026-09-21):** las tres cifras se reproducen exactas con `scripts/metodologias_inegi.py` (ENSANUT 2018:
-   sección de adultos mayores + depuración del INSP + F_ANTROP_INSP → 39.1/36.1, n = 16,579; prevalencia delictiva: víctimas
-   de TMod_Vic sin el código 03 «vandalismo» → 6200002197 exacto en 330 comparaciones; ENVIPE 2020: solo el levantamiento de
-   marzo, TVivienda.PER = 1 → 48.74 %). Fuentes, fórmulas y diferencias en `docs/METODOLOGIAS-INEGI.md`. Pendiente: cargar
-   con `--cargar` (ensanut → datosmexico-api-encuestas; envipe-prevalencia y envipe-2020 → datosmexico-api-seguridad) y
-   desplegar los cubos `envipe-prevalencia` y `ensanut-imc`. Regla vigente: no se publica lo que no cuadra.
+1. **DENUE histórico — HECHO.** `scripts/denue_historico.py` (ámbito `entidad` = 25 ediciones 2010-2026, 815 CSV;
+   `DENUE_AMBITO=sector` = 20 ediciones 2015-2026, 484 CSV); inventario por la API interna de la descarga masiva; espejo por
+   el worker; Parquet completo por edición (`denue/historico/<ed>/`), resumen a D1 (`denue_ediciones`, `denue_historico`,
+   `denue_hist_entidad`, catálogos por edición y nombres estables `denue_hist_act_nombre` / `denue_hist_ent_nombre`).
+   Cubos `denue-historico` y `denue-historico-municipal` (solo ediciones exactas o sin cifra: `verificado IS NOT 0`);
+   endpoints `/api/v1/denue/ediciones`, `/denue/historico`, `/denue/historico/descarga/{edición}`.
+   **Decisión pendiente del CEO:** incluir en los cubos las 15 ediciones que difieren de una a 852 unidades del comunicado
+   (basta quitar `donde` en `src/cubos/definiciones/denue_historico.ts`); 07/2013 (archivo de CDMX truncado, −214,602) y
+   05/2024 (+21,661) deben seguir fuera.
+2. **Marco Geoestadístico — HECHO.** `scripts/mg_2025.py --procesar --subir --cargar`; `/api/v1/inegi/mg/*`.
+   Pendiente menor: `mg_2025_integrado.zip` (257 MB, capas nacionales) está dentro del zip nacional archivado, no aparte.
+3. **Tabulados como tablas explorables — PENDIENTE.** Los Censos Económicos quedan cubiertos por el SAIC (punto 7). Faltan
+   los tabulados de censos de población (Censo 2020 básicos, Intercensal 2015, censos 1990-2010) y las cuentas por sectores
+   institucionales. Plan: leer los xlsx archivados en R2 (`inegi/tabulados/<programa>/`) con openpyxl, un cubo por familia
+   de cuadros, verificación cuadro por cuadro.
+4. **Catálogos y clasificadores — HECHO.** `scripts/catalogos_inegi.py` (descarga y normaliza; `data/catalogos/README.md`)
+   → `scripts/clasificadores_d1.py --cargar` (D1 `datosmexico-api-clasificadores`); `/api/v1/clasificadores/*`, `/api/v1/geo/*`.
+5. **Microdatos ENOE 2005T1-2025T1 — HECHO.** `scripts/enoe_particiones_csv.py` (llave por conteo: sin `tipo` hasta 2020T1,
+   `tipo` desde 2021T3, `tipo,d_sem` en la ENOE-N 2020T3-2021T2; anchos del legado por trimestre); particiones en
+   `enoe/particiones-csv/`; índice D1 apuntado en los 80 trimestres. Las particiones viejas (`enoe/particiones/`) siguen en
+   R2: borrarlas es decisión del CEO.
+6. **Ediciones fuera de la descarga masiva — EN CURSO** (agente en esta sesión: inventario en
+   `data/inegi/fuera-descarga-masiva.csv`, scripts `inegi_ediciones_programas.py`, `ensanut_insp_inventario.py`, cambios en
+   `inegi_ingesta.py` / `inegi_catalogo_d1.py` sin commit). Al retomar: leer su reporte en la bitácora si lo dejó, verificar
+   y commitear.
+7. **SAIC (Censos Económicos 2004-2024 por municipio, actividad y estrato) — EN CURSO.** API interna descubierta
+   (`scripts/saic_descarga.py`: catálogos GET `/app/api/saic/{anios,ageos,acteco,varcen,estrato}/seg/…/6/`; datos POST
+   `consulta/{total,tabla}/6/` con `varcens:[{nom,pos}]`); 5 años × (nacional, 32 entidades, 2,478 municipios) × 6 niveles
+   de actividad (total, 19 sectores, 88 subsectores, 279 ramas, 553 subramas, 905 clases) × 6 estratos × 98 variables.
+   **Cuello de botella medido:** el servidor cobra ~0.65 s por variable por 1,000 filas y no paraleliza (98 variables: 11 s
+   solo, 66 s con 8 hilos); por eso la descarga va por fases (`tareas()`): nacional y entidades con todo → municipios por
+   sector → municipios por subsector/rama/clase con estrato total → resto. Corre con nohup, reanudable
+   (`data/saic/manifiesto.jsonl`, crudo en `data/saic/crudo/`). Siguiente: `scripts/saic_cargar.py --parquet` (ya escrito)
+   → subir Parquet por año a R2 (`saic/<año>.parquet`) → D1 en dos tablas anchas (≤ 100 columnas) para nacional + entidades
+   (+ municipios por sector) → endpoints `/api/v1/inegi/saic/*` y cubo → verificar unidades económicas y personal ocupado
+   nacionales por año contra los 80 indicadores del BISE con fuente Censos Económicos (2023: UE 5,468,180; POT 27,965,433).
+8. **Metodologías — HECHO** (`scripts/metodologias_inegi.py`, `docs/METODOLOGIAS-INEGI.md`): ENSANUT 2018 39.11/36.07 (sección
+   de adultos mayores + depuración del INSP + F_ANTROP_INSP), prevalencia delictiva exacta en 330/330 (víctimas sin el código
+   03 «vandalismo»), ENVIPE 2020 48.74 % (solo levantamiento de marzo, TVivienda.PER = 1). Cubos `ensanut-imc` (tema salud) y
+   `envipe-prevalencia` en producción.
 9. **Fuera de alcance por decisión:** cartografía e imágenes del geoportal, PDF y boletines, catálogos del SNIEG/RNM.
 
 ## 3. Cómo se repite cada cosa (manual, por decisión del CEO)
 
-- BISE: `bise_descarga.py` + `bise_descarga_municipal.py` → `bise_a_csv.py` → carga (bitácora 19-sep); árbol
-  `bise_arbol.py` + `bise_arbol_d1.py`; búsqueda `bise_busqueda_d1.py`.
-- BIE: `bie_arbol.py` → `bie_descarga.py` (borrar `data/bie/manifiesto.jsonl` para rebajar valores; 24 hilos, ~2 h) →
-  `bie_d1.py --preparar --cargar` (4 min). Tokens públicos del sitio del INEGI en `.secretos.env` (INEGI_TOKEN_WEB, _WEB2).
-- Descarga masiva: `inegi_inventario_masivo.py` (universo) → `inegi_ingesta.py` (por shard) → `inegi_catalogo_d1.py`.
-- ENOE: `enoe_indicadores_inegi.py --cargar` (indicadores) → `enoe_legado_alinear.py --aplicar` (Neon) →
-  `enoe_particiones_csv.py --desde <trim> --cargar` (microdatos).
-- Vitales, seguridad, encuestas: `vitales_d1.py`, `seguridad_d1.py`, `endutih_d1.py`, `enadid_d1.py`, `endireh_d1.py`
-  (todos con `--cargar`; verifican antes y no cargan si algo difiere).
+- BISE: `bise_descarga.py` + `bise_descarga_municipal.py` → `bise_a_csv.py` → carga; árbol `bise_arbol.py` + `bise_arbol_d1.py`.
+- BIE: `bie_arbol.py` → `bie_descarga.py` (borrar manifiesto para rebajar) → `bie_d1.py --preparar --cargar`.
+- Descarga masiva: `inegi_inventario_masivo.py` → `inegi_ingesta.py` → `inegi_catalogo_d1.py`.
+- ENOE: `enoe_indicadores_inegi.py --cargar` → `enoe_legado_alinear.py --aplicar` → `enoe_particiones_csv.py --desde <trim> --cargar --prefijo enoe/particiones-csv`.
+- DENUE histórico: `denue_historico.py --inventario --espejar --bajar --resumir --subir --cargar` (ámbito entidad).
+- MG: `mg_2025.py --procesar --subir --cargar` (nueva edición: cambiar upc y clave; verificar contra su contenido.txt).
+- Clasificadores: `catalogos_inegi.py` → `clasificadores_d1.py --cargar`. Metodologías: `metodologias_inegi.py <sub> --cargar`.
+- SAIC: `saic_descarga.py --catalogos --descargar --hilos 6` (reanudable) → `saic_cargar.py --parquet` (resto por escribir).
+- Vitales, seguridad, encuestas: `vitales_d1.py`, `seguridad_d1.py`, `endutih_d1.py`, `enadid_d1.py`, `endireh_d1.py`.
 - Siempre al final: `npx wrangler versions upload` → `python3 scripts/verificar_cubos.py <preview>` → FALLOS 0 →
   `npx wrangler deploy` → verificar producción → commit + push.
 
 ## 4. Quirks medidos (no volver a tropezar)
 
-- La API de desarrolladores del INEGI no sirve el BIE (400 «No se encontraron resultados» con cualquier id); el sitio del
-  INEGI sí, por `interna_v1_3` (métodos en `bie_arbol.py`/`bie_descarga.py`). Para descubrir APIs internas: Chrome, pestaña
-  Red (read_network_requests) mientras se usa la interfaz del INEGI.
-- D1: sentencias ≤ 90 KB (SQLITE_TOOBIG), archivos ≤ 8 MB, 400-500 filas por INSERT; la API de Cloudflare da
-  «Authentication error [code: 10000]» transitorio en cargas largas → reintentar y reanudar por tabla (ya en los scripts).
-- Valores del BIE con separadores de miles («42,106,336») y códigos «NC»; 2025T3+ de la ENOE renombra `ent`→`cve_ent`,
-  `mun`→`cve_mun`; la llave de la ENOE no es única sin `tipo` desde 2020T3.
-- Ninguna tabla de hechos > ~1 M filas se agrupa entera en una consulta del explorador: preagregar dentro de D1
-  (`denue_resumen`, `gastos_resumen`) o exigir filtro (`filtro_obligatorio`) y partición (`particion`).
-- Catálogos del INEGI en CP437 mal decodificado («C¢lera»); tabulados Excel apilan bloques (estimaciones, CV, errores):
-  vale el primero.
+- Descarga directa del INEGI: 0.7 MB/s por IP. Espejo por el worker (`POST /api/v1/admin/espejo`, claves solo bajo
+  `inegi/fuentes/` o `inegi/tabulados/`): 968 archivos del DENUE en 15 min, el MG de 2.9 GB en 12 min.
+- API interna de la descarga masiva: `clasificaciones?tinfo=6` → `obtenerarchivos` con tipoInfo OTROS; el DENUE por entidad
+  se lista con `ag` = clave de la entidad (25 ediciones), el sectorial en «Otros|DENUE|Actividad económica|».
+- DENUE 2010-2013: encabezados en español con variantes por entidad, sin clave de municipio en 2010 y 07/2013 (se asigna
+  por nombre), ids repetidos entre archivos, encabezado pegado a la primera fila en 01/2016; los archivos de 05/2024 no
+  cuadran con su comunicado (+21,661) y el de CDMX de 07/2013 está truncado.
+- D1: sentencias ≤ 80-90 KB (las descripciones largas del SCIAN rompen lotes de 300 filas), archivos ≤ 8 MB; un
+  `CREATE INDEX` sobre 13.5 M filas da SQLITE_NOMEM (la llave primaria debe empezar por el filtro obligatorio); máx 100
+  columnas por tabla; `auth error 10000` transitorio → reintentar.
+- Motor de cubos: `nombre` y `orden` de una dimensión van al GROUP BY: no admiten agregados (MAX/MIN) y un nombre que cambia
+  entre ediciones parte las filas → tablas de nombres estables.
+- `unzip` de macOS falla con nombres acentuados del INEGI: extraer con zipfile.
+- SAIC: costo proporcional a variables × filas; sin paralelismo del lado del servidor; `varcens` deben ser hojas
+  (los grupos AA…AI responden «No existe información»).
+- La ENOE-N 2020T3-2021T2 repite la vivienda hasta tres veces (una por mes): llave + tipo + d_sem.
 
 ## 5. Decisiones del CEO que gobiernan
 
 Sin refresco automático (por ahora). Sistema anterior alineado, no apagado. ANUIES: mención mínima, jamás en el hero.
 Producción del sitio solo con go explícito por PR. Publicación en PyPI solo con go explícito (v0.3.0 ya publicada).
+Costo: D1 creció ~1.2 GB en esta sesión (DENUE histórico ~1 GB, clasificadores ~0.1 GB, MG ~0.01 GB) y R2 ~20 GB
+(DENUE 18 GB de fuentes + 6.3 GB Parquet, MG 5 GB): ~1 USD/mes adicional, dentro de lo que el CEO aceptó como centavos con aviso.

@@ -1302,10 +1302,10 @@ trimestres (12,160 particiones); en producción sdem 2015T1 pasa de 396,851 a 40
 la paginación por cursor de sdem 2015T1 ent 01 devuelve 13,011 llaves distintas en 14 páginas (= total). Tres procesos en
 paralelo, ~50 min; el cuello es el CPU de la proyección (extras_jsonb fila por fila), no la subida.
 
-**Pendiente.** 2020T3-2021T2 exigen `llave_extra` compuesta ('tipo,d_sem'): el worker ya la admite (`orden()` separa por
-comas) y al desplegar se cargan con `--cargar --desde 2020T3 --hasta 2021T2 --prefijo enoe/particiones-csv
---incluir-compuestas`. Las particiones viejas del legado siguen en R2 (borrarlas es decisión del CEO). 2020T2 no tiene
-microdatos (ETOE telefónica).
+**Cierre (misma sesión, tras el deploy fdd8cf12).** 2020T3-2021T2 con `llave_extra` compuesta ('tipo,d_sem') cargados al
+índice (640 particiones): 80/80 trimestres rehechos en producción; sdem 2020T3 = 296,874 (= CSV) y la paginación por cursor
+en ent 01 no repite llaves entre páginas. Las particiones viejas del legado siguen en R2 (borrarlas es decisión del CEO).
+2020T2 no tiene microdatos (ETOE telefónica).
 
 ## 2026-09-21 — F16: Marco Geoestadístico 2025 íntegro (exclusión 2)
 
