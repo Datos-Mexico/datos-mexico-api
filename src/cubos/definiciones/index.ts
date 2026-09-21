@@ -18,13 +18,15 @@ import { ENIGH_GASTOS, ENIGH_INGRESOS, ENIGH_PERSONAS, ENIGH_VIVIENDAS } from ".
 import { ENDIREH_VIOLENCIA, ENSU_PERCEPCION, ENVIPE_PERCEPCION, ENVIPE_PREVALENCIA } from "./seguridad";
 import { ENSANUT_IMC } from "./ensanut";
 import { ENADID_MUJERES, ENDUTIH_USUARIOS } from "./endutih";
+import { TABULADOS } from "./tabulados";
 
 export const TEMAS: Tema[] = [
   { clave: "educacion-superior", nombre: "Educación superior", descripcion: "Anuario Estadístico de Educación Superior (ANUIES): todas las instituciones, 2000-2001 a 2025-2026." },
   { clave: "trabajo", nombre: "Trabajo", descripcion: "Encuesta Nacional de Ocupación y Empleo (INEGI): indicadores trimestrales por entidad." },
   { clave: "retiro", nombre: "Ahorro para el retiro", descripcion: "Sistema de Ahorro para el Retiro (CONSAR): recursos, comisiones, cuentas, rendimientos, traspasos y flujos por AFORE." },
-  { clave: "poblacion", nombre: "Población", descripcion: "Censo de Población y Vivienda 2020 (INEGI) por localidad, municipio y entidad; nacimientos registrados 1985-2024 y defunciones registradas 1990-2024 por municipio, causa y edad." },
-  { clave: "economia", nombre: "Economía", descripcion: "Unidades económicas del DENUE (INEGI) por lugar, actividad y tamaño." },
+  { clave: "poblacion", nombre: "Población", descripcion: "Censo de Población y Vivienda 2020 (INEGI) por localidad, municipio y entidad; tabulados de los censos 2010 y 2020, el Conteo 2005 y la Encuesta Intercensal 2015; nacimientos registrados 1985-2024 y defunciones registradas 1990-2024 por municipio, causa y edad." },
+  { clave: "economia", nombre: "Economía", descripcion: "Unidades económicas del DENUE (INEGI) por lugar, actividad y tamaño; Censos Económicos 2004-2024 por municipio, actividad y estrato." },
+  { clave: "cuentas-nacionales", nombre: "Cuentas nacionales", descripcion: "Sistema de Cuentas Nacionales de México (INEGI): cuentas por sectores institucionales anuales 2003-2024 y trimestrales 2008-2026, celda por celda de los cuadros publicados." },
   { clave: "ingreso-gasto", nombre: "Ingreso y gasto de los hogares", descripcion: "ENIGH 2024 (INEGI): hogares, personas, viviendas, ingresos por fuente y gastos por rubro, por entidad, decil y tipo de hogar." },
   { clave: "tecnologia", nombre: "Tecnologías de la información", descripcion: "ENDUTIH (INEGI): usuarios de internet y computadora por entidad, sexo y edad, 2015-2025." },
   { clave: "seguridad", nombre: "Seguridad pública", descripcion: "Prevalencia delictiva y percepción de inseguridad (ENVIPE anual por entidad 2017-2026; ENSU trimestral por ciudad 2016-2026) y violencia contra las mujeres (ENDIREH 2021), del INEGI." },
@@ -38,7 +40,7 @@ export const CUBOS: Cubo[] = [
   ANUIES_MATRICULA, ANUIES_TRAYECTORIA, ANUIES_EDADES, ANUIES_PROCEDENCIA,
   ENOE_ENTIDAD, ENOE_NACIONAL, ENOE_SECTOR, ENOE_POSICION,
   CONSAR_RECURSOS, CONSAR_COMISIONES, CONSAR_CUENTAS, CONSAR_ACTIVO, CONSAR_RENDIMIENTOS, CONSAR_TRASPASOS, CONSAR_FLUJOS, CONSAR_PRECIOS,
-  CENSO_ITER, CENSO_CARACTERISTICAS, CENSO_HOGARES, NAC_MUNICIPIO, NAC_MADRE, DEF_MUNICIPIO, DEF_CAUSA, DEF_LISTA, ENADID_MUJERES, DENUE_UNIDADES, DENUE_HISTORICO, DENUE_HISTORICO_MUNICIPAL, SAIC_CENSOS, ENIGH_HOGARES, ENIGH_PERSONAS, ENIGH_VIVIENDAS, ENIGH_GASTOS, ENIGH_INGRESOS, ENVIPE_PREVALENCIA, ENVIPE_PERCEPCION, ENSU_PERCEPCION, ENDIREH_VIOLENCIA, ENSANUT_IMC, ENDUTIH_USUARIOS, CDMX_NOMBRAMIENTOS, UNAM_CONCURSO, BISE_INDICADORES, BIE_SERIES,
+  CENSO_ITER, CENSO_CARACTERISTICAS, CENSO_HOGARES, TABULADOS[0], TABULADOS[1], TABULADOS[2], TABULADOS[3], NAC_MUNICIPIO, NAC_MADRE, DEF_MUNICIPIO, DEF_CAUSA, DEF_LISTA, ENADID_MUJERES, DENUE_UNIDADES, DENUE_HISTORICO, DENUE_HISTORICO_MUNICIPAL, SAIC_CENSOS, ENIGH_HOGARES, ENIGH_PERSONAS, ENIGH_VIVIENDAS, ENIGH_GASTOS, ENIGH_INGRESOS, ENVIPE_PREVALENCIA, ENVIPE_PERCEPCION, ENSU_PERCEPCION, ENDIREH_VIOLENCIA, ENSANUT_IMC, ENDUTIH_USUARIOS, TABULADOS[4], TABULADOS[5], CDMX_NOMBRAMIENTOS, UNAM_CONCURSO, BISE_INDICADORES, BIE_SERIES,
 ];
 
 // Invariantes de las definiciones (fallan al arrancar el worker, no en producción a media consulta).

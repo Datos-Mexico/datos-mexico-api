@@ -1449,3 +1449,80 @@ Catálogo D1 recargado: 207 programas, 44,731 tablas de microdatos (4,772 archiv
 Quirks: el campo POST del INSP va vacío (con sufijo `.x` PHP devuelve HTML con 200); `pyreadstat.read_file_in_chunks`
 ignora `encoding`; la API de Cloudflare falló una vez al importar (transitorio). **Pendiente del CEO:** el INSP no publica
 licencia explícita (sus preguntas frecuentes dicen que el acceso es libre): confirmar la redistribución de sus bases.
+
+## 2026-09-21 — F16: Censos Económicos completos por los datos abiertos (exclusión 7 cerrada) y el cuello de botella del SAIC
+
+**El cuello de botella, medido.** La descarga por la API del SAIC estaba viva pero bloqueada desde las 04:42 (3.5 h con los seis
+hilos ociosos en `queue.get`, el principal esperando un futuro que nunca llegó y ninguna conexión abierta: un bloqueo del
+`ThreadPoolExecutor`, no de la red). Aun sana, el costo es del servidor: ~0.65 s por variable y 1,000 filas y sin paralelismo
+(6 hilos = 1.3× de uno). Medido con `consulta/total`, cada censo tiene ~1.8 M de filas municipales (Oaxaca × clase × estrato:
+65,918; Estado de México: 59,126): 12-14 M de filas en total, unas 12,000-14,000 páginas de 66 s = 50-60 horas por el SAIC.
+`scripts/saic_vigilar.sh` (reinicia la descarga si no escribe páginas en 40 min) queda para lo que sí conviene bajar por ahí.
+
+**La vía rápida: los mismos datos, en minutos.** La página de los Censos Económicos 2024 publica como «datos abiertos» un zip
+por ámbito (nacional + 32 entidades, abreviaturas ags…zac) para las cinco ediciones (2004, 2009, 2014, 2019, 2024), todos en
+`/contenidos/programas/ce/2024/datosabiertos/conjunto_de_datos_ce_<ent>_<edición>_csv.zip`: el cuadro completo entidad ×
+municipio × actividad (sector…clase) × estrato con las mismas 98 variables del SAIC (claves idénticas: UE, H001A, A131A…) y
+más decimales. No están en la descarga masiva (su inventario solo trae los «ejemplos de la base de datos con valores
+alterados» de los microdatos) ni en la página de 2019 y anteriores. `scripts/ce_datos_abiertos.py --bajar --parquet
+--verificar`: 165 zips (330 MB) en 4 minutos, archivados en R2 (`inegi/fuentes/censos-economicos/<edición>/`, SHA-256 en
+`data/saic/abiertos.jsonl`), Parquet por año censal con el esquema del SAIC: 2023 1,923,971 filas (7,370 nacionales, 120,055 de
+entidades, 1,796,546 municipales; 79.0 M de valores no nulos), 2018 1,440,375, 2013 1,328,999, 2008 1,252,382, 2003 1,101,202.
+Quirks: en 2004 y 2009 la rama 7225 aparece repetida como subrama y clase (se descartan esas filas; la rama queda en su nivel);
+los códigos de sector traen espacio final ('11 '); estrato 99 = «agrupados por confidencialidad».
+
+**Verificación celda por celda.** Todo lo que el SAIC entregó por su API (data/saic/crudo: nacional y entidades de los cinco
+censos en los seis niveles y seis estratos, más los municipios de Aguascalientes, Baja California y BCS de 2023; 342,587 filas)
+se cotejó contra el Parquet: 33,571,526 celdas, 0 filas ausentes, diferencia máxima 0.00055 (el SAIC redondea a 3 decimales y
+Q000B, acervo de activos, con doble redondeo: 5253.72949 → 5253.73). Tolerancia fijada en 0.0006; FALLOS 0 en los cinco años.
+Además las unidades económicas nacionales siguen siendo las del indicador 5300000001 (2013: 4,230,745; 2018: 4,800,157) y
+2003 = 3,005,157 (Censos Económicos 2004).
+
+**Carga (`saic_cargar.py --subir --cargar`).** D1 censo2020: `saic_a`/`saic_b` (98 variables) para nacional y entidades
+(2023: 127,425 filas), y `saic_mun` nueva con las nueve variables del cubo (UE, H001A, J000A, A111A, A131A, A221A, Q000A, M000A,
+K000A) para los municipios (2023: 1,796,546 filas); las 98 municipales viven en el Parquet de `/api/v1/inegi/saic/descarga/{año}`.
+`saic_anios` gana `fuente`, `filas_mun`, `archivos`; `completo` = 1 cuando la fuente son los datos abiertos. El cubo `saic-censos`
+une `saic_a` y `saic_mun` (UNION ALL en el FROM); `/api/v1/inegi/saic/datos` sirve las nueve variables para filas municipales
+(422 con explicación si se piden otras). Verificador: 5 censos completos con 33 archivos, municipios suman la entidad por sector
+(2023 CDMX comercio al por menor, 2003 Oaxaca manufacturas, 2013 Aguascalientes alojamiento), filas municipales por clase y estrato.
+
+## 2026-09-21 — F16: tabulados explorables (exclusión 3): censos de población 2005-2020 y cuentas por sectores institucionales
+
+**Qué se hizo.** `scripts/tabulados_explorables.py --bajar --leer --cargar --verificar URL`: los cuadros publicados en Excel se
+leen tal cual y quedan en formato largo (una fila por celda numérica: las categorías de la fila en d1…d5, el encabezado de la
+columna con su grupo, el valor y su posición en el cuadro) en la D1 nueva `datosmexico-api-tabulados` (`tab_familias`,
+`tab_cuadros` con título, dimensiones, columnas y SHA-256 del archivo, `tab_datos`). Un cubo por familia y endpoints
+`/api/v1/inegi/tabulados[/{familia}[/{cuadro}[/archivo]]]`. Familias: **censo2020** (13 libros `cpv2020_b_eum_*.xlsx`, 107 cuadros,
+989,963 celdas), **intercensal2015** (15 libros .xls, 108 cuadros, 1,921,002 celdas, con valor, error estándar, límites,
+coeficiente de variación y DEFF en la dimensión «Estimador»), **censo2010** (81 cuadros básicos estatales, 733,802 celdas; la
+descarga masiva solo archiva el PDF, el .xls se bajó de la misma ruta del sitio del INEGI y se archivó junto al PDF,
+`data/tabulados/archivados.jsonl`), **conteo2005** (8 libros .xls, 37 cuadros, 440,893 celdas), **csi-anual** (10 libros
+CSI_*.xlsx de la serie 2003-2024 base 2018, 78,269 celdas) y **csi-trimestral** (66 libros CSIT_*.xlsx 2008T1-2026T1, 1,524,839
+celdas). Total 5,688,668 celdas de 407 cuadros.
+
+**Cómo se lee sin transformar.** Cuadros de censos: título, bloque de encabezados (la fila que nombra las dimensiones es la
+primera con texto en ≥ 2 columnas de dimensión; lo anterior es título: 2005 no deja fila en blanco), subencabezados que pueden ser
+números (0, 1, 2 hijos nacidos vivos), fila en blanco, datos; las columnas de dimensión son las de la izquierda cuyos valores son
+texto; un encabezado de grupo abarca a la derecha hasta el siguiente y solo se hereda si la columna tiene subencabezado propio
+(«Tamaño de localidad › 1-249 habitantes»); las llamadas a nota pegadas («Población total1», «/1») se quitan. Cuentas: fila
+«Concepto» con el año abarcando columnas, debajo subperiodo (T1…T4, 6 Meses, 9 Meses, Anual: solo trimestrales), sector (S.xx,
+C.0) y lado (Recursos/Pasivos, Usos/Activos); conceptos con sangría de 5 espacios por nivel y código «P.1 - Producción»; el
+prefijo basura «__a» de algunos libros trimestrales se quita. Control de no pérdida en cada hoja: celdas numéricas leídas =
+celdas numéricas de la hoja (falla si no). Fuera de alcance por formato: Censo 2000 (xls de diseño libre, porcentajes con
+etiquetas partidas en dos filas) y 1990/1995 (no están en la descarga masiva); 2010 «ampliado» (estimaciones muestrales) queda
+para una segunda pasada con el mismo lector.
+
+**Verificación.** Celdas conocidas contra lo publicado: población total 2020 126,014,024 (= 1002000001), Aguascalientes
+1,425,607; Intercensal 2015 = Banco de Indicadores 2015; 2010 112,336,538; 2005 103,263,388; producción P.1 de C.0 en 2003
+13,989,250.87 millones (CSI_100); cubo censo2020 con 32 entidades que suman el total; `--verificar URL` coteja 40 celdas al azar
+por familia leídas del Excel contra la API. Quirks: D1 rechaza sentencias largas (SQLITE_TOOBIG) con encabezados de 200
+caracteres: sentencias de ≤ 60 KB por tamaño, no por filas; «Firewall or VPN blocking the request» transitorio de wrangler.
+
+**Cierre de la sesión (2026-09-21).** Producción: worker c131d59d; `verificar_cubos.py` FALLOS 0 en vista previa y producción
+(248 comprobaciones, 50 cubos en 13 temas); `tabulados_explorables.py --verificar` 240/240 celdas al azar iguales al Excel.
+D1: censo2020 191 MB → 713 MB, tabulados 1.1 GB (~1.3 USD/mes más). Auditoría de lo publicado en F16 contra el Banco de
+Indicadores: defunciones 1990-2024 en las 32 entidades y el país (1,023 cifras) iguales; ENOE ocupados 85/85 trimestres
+iguales; Censo 2020 por entidad igual; sin errores de cifra encontrados. Hallazgo de la sesión: las variables municipales
+distintas de las unidades económicas están vacías por confidencialidad en unos dos tercios de las filas de cada censo (nota en
+el cubo), y el cuadro de población de la Intercensal es «en viviendas particulares habitadas» (119,530,753 ≠ 119,938,473 del
+Banco de Indicadores, que incluye viviendas colectivas): ambas cosas son del INEGI, no nuestras, y quedan documentadas.

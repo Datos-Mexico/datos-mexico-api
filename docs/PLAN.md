@@ -98,8 +98,12 @@ paridad base por base.
       docs/METODOLOGIAS-INEGI.md, cubos ensanut-imc y envipe-prevalencia). 7 SAIC PRIMERA FASE EN PRODUCCIÓN (API interna descubierta, scripts/saic_descarga.py por fases con nohup, el servidor
       cobra por variable y no paraleliza; saic_cargar.py, /api/v1/inegi/saic/*, cubo saic-censos; nacionales = BISE
       5300000001). 6 ediciones fuera de la descarga masiva HECHA (513 bases: 7 experimentales del INEGI + 18 ENSANUT del INSP; inegi_ingesta.py --extra).
-      EN CURSO: descarga municipal del SAIC. PENDIENTE: 3 tabulados explorables (los Censos Económicos quedan cubiertos
-      por el SAIC; faltan censos de población y cuentas por sectores institucionales).
+      7 CERRADA (segunda sesión): los cinco Censos Económicos completos desde los datos abiertos del INEGI (33 CSV por
+      edición, scripts/ce_datos_abiertos.py, 33.6 M celdas cotejadas contra el SAIC), D1 con saic_mun para 1.0-1.8 M filas
+      municipales por censo. 3 HECHA: tabulados explorables (scripts/tabulados_explorables.py, D1 datosmexico-api-tabulados,
+      6 cubos tabulados-*: Censo 2020 básicos, Intercensal 2015, Censo 2010 básicos, Conteo 2005, cuentas por sectores
+      institucionales anuales y trimestrales; 407 cuadros, 5.69 M celdas). PENDIENTES MENORES: Censo 2010 ampliado y
+      complementarios 2020 con el mismo lector; decisiones del CEO (15 ediciones DENUE, licencia INSP).
 - F8  Ingesta del Banco de Indicadores del INEGI (BISE): fase 1 = los 31,817
       indicadores del catálogo a nivel nacional y por entidad (D1
       `datosmexico-api-bise`, endpoints /api/v1/inegi/*); fase 2 = municipios

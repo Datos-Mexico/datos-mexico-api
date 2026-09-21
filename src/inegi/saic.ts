@@ -1,8 +1,9 @@
-// SAIC — Sistema Automatizado de Información Censal de los Censos Económicos 2004-2024 (scripts/saic_descarga.py y
-// saic_cargar.py): resultados por año censal, área geográfica (nacional, entidad, municipio), actividad económica (total,
-// sector, subsector, rama, subrama, clase del SCIAN) y estrato de personal ocupado, para 98 variables censales, obtenidos
-// de la API interna del SAIC del INEGI. D1 datosmexico-api-censo2020, tablas saic_a / saic_b (dos anchas por el tope de
-// 100 columnas de D1) y catálogos.
+// Censos Económicos 2004-2024 por municipio, actividad y estrato (scripts/ce_datos_abiertos.py, saic_cargar.py): resultados por
+// año censal, área geográfica (nacional, entidad, municipio), actividad económica (total, sector, subsector, rama, subrama,
+// clase del SCIAN) y estrato de personal ocupado, para 98 variables censales. Fuente: los «datos abiertos» de los Censos
+// Económicos, el mismo cuadro que sirve el SAIC del INEGI (verificado celda por celda contra su API). D1 datosmexico-api-censo2020:
+// saic_a / saic_b (nacional y entidades, 49 + 49 variables por el tope de 100 columnas de D1), saic_mun (municipios, las nueve
+// variables principales; las 98 municipales están en el Parquet por año) y catálogos.
 import { OpenAPIRoute, contentJson } from "chanfana";
 import { z } from "zod";
 import type { AppContext } from "../index";
@@ -18,19 +19,20 @@ const ok = (d: string, e: z.ZodTypeAny) => ({ "200": { description: d, ...conten
 const RESP_404 = { "404": { description: "No existe.", ...contentJson(z.object({ detail: z.string() })) } };
 const RESP_422 = { "422": { description: "Parámetro inválido.", ...contentJson(z.object({ detail: z.array(z.object({ type: z.string(), loc: z.array(z.union([z.string(), z.number()])), msg: z.string(), input: z.unknown() })) })) } };
 type Variable = { clave: string; nombre: string; grupo: string; grupo_nombre: string; definicion: string | null; tabla: string; orden: number };
+const VM = ["UE", "H001A", "J000A", "A111A", "A131A", "A221A", "Q000A", "M000A", "K000A"];
 const variables = (c: AppContext) => memo("saic:variables", 60, () => filas<Variable>(c.env.DB_CENSO2020, "SELECT * FROM saic_variables ORDER BY orden"));
 
 export class SaicResumen extends OpenAPIRoute {
   schema = {
-    tags: TAG, operationId: "inegi_saic_resumen", summary: "SAIC: Censos Económicos 2004-2024 por municipio, actividad y estrato — qué hay y cómo se verificó",
-    description: "Años censales cargados (2003 = Censos Económicos 2004 … 2023 = Censos Económicos 2024) con filas y valores, si la descarga de ese año está completa, la descarga en Parquet, y los totales nacionales de unidades económicas y personal ocupado por año, que se cotejan contra el Banco de Indicadores del INEGI (fuente Censos Económicos). Las 98 variables están en /api/v1/inegi/saic/variables y el árbol de actividad en /api/v1/inegi/saic/actividades.",
-    responses: { ...ok("Resumen.", z.object({ fuente: z.string(), fuente_url: z.string(), anios: z.array(z.object({ anio: z.string(), censo: z.string(), filas: z.number().int(), valores: z.number().int(), completo: z.boolean(), tareas: z.number().int(), parquet_url: z.string().nullable(), unidades_economicas: z.number().nullable(), personal_ocupado: z.number().nullable() })), variables: z.number().int(), actividades: z.number().int(), estratos: z.array(z.object({ cod: z.number().int(), nombre: z.string() })) })), ...RESP_429 },
+    tags: TAG, operationId: "inegi_saic_resumen", summary: "Censos Económicos 2004-2024 por municipio, actividad y estrato — qué hay y cómo se verificó",
+    description: "Años censales cargados (2003 = Censos Económicos 2004 … 2023 = Censos Económicos 2024) con filas (nacional + entidades, y municipales), valores, fuente (datos abiertos del INEGI: 33 archivos por censo, el mismo cuadro que sirve el SAIC), si el año está completo, la descarga en Parquet (todas las filas y las 98 variables), y los totales nacionales de unidades económicas y personal ocupado por año, que se cotejan contra el Banco de Indicadores del INEGI (indicador 5300000001). Las 98 variables están en /api/v1/inegi/saic/variables y el árbol de actividad en /api/v1/inegi/saic/actividades.",
+    responses: { ...ok("Resumen.", z.object({ fuente: z.string(), fuente_url: z.string(), anios: z.array(z.object({ anio: z.string(), censo: z.string(), filas: z.number().int(), filas_municipales: z.number().int().nullable(), valores: z.number().int(), fuente: z.string(), archivos: z.number().int().nullable(), completo: z.boolean(), parquet_url: z.string().nullable(), unidades_economicas: z.number().nullable(), personal_ocupado: z.number().nullable() })), variables: z.number().int(), variables_municipales: z.array(z.string()), actividades: z.number().int(), estratos: z.array(z.object({ cod: z.number().int(), nombre: z.string() })) })), ...RESP_429 },
   };
   async handle(c: AppContext) {
     const db = c.env.DB_CENSO2020; const base = new URL(c.req.url).origin;
     const anios = await filas<Record<string, unknown>>(db, "SELECT a.*, (SELECT UE FROM saic_a x WHERE x.anio = a.anio AND x.cve_ent = '00' AND x.nivel_act = 0 AND x.estrato = 0) AS ue, (SELECT H001A FROM saic_a x WHERE x.anio = a.anio AND x.cve_ent = '00' AND x.nivel_act = 0 AND x.estrato = 0) AS pot FROM saic_anios a ORDER BY anio");
     const nv = (await variables(c)).length; const na = (await fila<{ n: number }>(db, "SELECT COUNT(*) AS n FROM saic_actividades"))!.n;
-    return { fuente: "INEGI — Censos Económicos, Sistema Automatizado de Información Censal (SAIC)", fuente_url: "https://www.inegi.org.mx/app/saic/", anios: anios.map((a) => ({ anio: a.anio, censo: a.censo, filas: a.filas, valores: a.valores, completo: a.completo === 1, tareas: a.tareas, parquet_url: a.clave_parquet ? `${base}/api/v1/inegi/saic/descarga/${a.anio}` : null, unidades_economicas: a.ue, personal_ocupado: a.pot })), variables: nv, actividades: na, estratos: await filas(db, "SELECT cod, nombre FROM saic_estratos ORDER BY cod") };
+    return { fuente: "INEGI — Censos Económicos 2004-2024, datos abiertos (el mismo cuadro que sirve el SAIC, verificado celda por celda contra su API)", fuente_url: "https://www.inegi.org.mx/programas/ce/2024/#datos_abiertos", anios: anios.map((a) => ({ anio: a.anio, censo: a.censo, filas: a.filas, filas_municipales: (a.filas_mun as number | null) ?? null, valores: a.valores, fuente: (a.fuente as string | null) ?? "SAIC", archivos: (a.archivos as number | null) ?? null, completo: a.completo === 1, parquet_url: a.clave_parquet ? `${base}/api/v1/inegi/saic/descarga/${a.anio}` : null, unidades_economicas: a.ue, personal_ocupado: a.pot })), variables: nv, variables_municipales: VM, actividades: na, estratos: await filas(db, "SELECT cod, nombre FROM saic_estratos ORDER BY cod") };
   }
 }
 export class SaicVariables extends OpenAPIRoute {
@@ -49,7 +51,7 @@ export class SaicActividades extends OpenAPIRoute {
 export class SaicDatos extends OpenAPIRoute {
   schema = {
     tags: TAG, operationId: "inegi_saic_datos", summary: "Datos del SAIC: filas por año, geografía, actividad y estrato con las variables pedidas",
-    description: "Filtros: `anio` (año censal: 2003, 2008, 2013, 2018, 2023; obligatorio), `nivel_act` (0 total, 1 sector … 5 clase; obligatorio), `cve_ent` (2 dígitos; '00' nacional; sin él, las 32 entidades), `cve_mun` (3 dígitos, requiere cve_ent; sin él, la fila de la entidad; 'todos' = todos los municipios de la entidad), `clave_act` (clave del nivel pedido o prefijo), `estrato` (0 suma de estratos, 1 = 0 a 10, 2 = 11 a 50, 3 = 51 a 250, 4 = 251 y más, 99 agrupados por confidencialidad; por omisión 0), `variables` (claves separadas por coma; por omisión UE, H001A, J000A, A111A, A131A, Q000A). Valores nulos = el INEGI no publica el dato (confidencialidad o no aplica). Paginado con `limit` (1-2000) y `offset`.",
+    description: "Filtros: `anio` (año censal: 2003, 2008, 2013, 2018, 2023; obligatorio), `nivel_act` (0 total, 1 sector … 5 clase; obligatorio), `cve_ent` (2 dígitos; '00' nacional; sin él, las 32 entidades), `cve_mun` (3 dígitos, requiere cve_ent; sin él, la fila de la entidad; 'todos' = todos los municipios de la entidad), `clave_act` (clave del nivel pedido o prefijo), `estrato` (0 suma de estratos, 1 = 0 a 10, 2 = 11 a 50, 3 = 51 a 250, 4 = 251 y más, 99 agrupados por confidencialidad; por omisión 0), `variables` (claves separadas por coma; por omisión UE, H001A, J000A, A111A, A131A, Q000A; para filas municipales solo las nueve principales UE, H001A, J000A, A111A, A131A, A221A, Q000A, M000A, K000A: las 98 municipales están en el Parquet de /descarga/{año}), `limit` (≤ 2000), `offset`.",
     request: { query: z.object({ anio: z.string().regex(/^\d{4}$/), nivel_act: z.number().int().min(0).max(5), cve_ent: z.string().regex(/^\d{2}$/).optional(), cve_mun: z.string().optional(), clave_act: z.string().optional(), estrato: z.number().int().optional(), variables: z.string().optional(), limit: z.number().int().min(1).max(2000).default(500).optional(), offset: z.number().int().min(0).default(0).optional() }) },
     responses: { ...ok("Filas.", z.object({ anio: z.string(), variables: z.array(z.string()), total: z.number().int(), limit: z.number().int(), offset: z.number().int(), items: z.array(z.record(z.string(), z.unknown())) })), ...RESP_422, ...RESP_429 },
   };
@@ -69,11 +71,13 @@ export class SaicDatos extends OpenAPIRoute {
     if (ent) { cond.push("a.cve_ent = ?"); params.push(ent); } else { cond.push("a.cve_mun = ''"); }
     if (munQ === "todos") cond.push("a.cve_mun <> ''"); else if (munQ) { cond.push("a.cve_mun = ?"); params.push(munQ); } else if (ent) cond.push("a.cve_mun = ''");
     if (act) { if (nivel > 0 && act.length < nivel + 1) { cond.push("a.clave_act LIKE ?"); params.push(`${act}%`); } else { cond.push("a.clave_act = ?"); params.push(act); } }
-    const usaB = pedidas.some((v) => porClave.get(v)!.tabla === "b"); const where = " WHERE " + cond.join(" AND ");
-    const from = usaB ? "saic_a a JOIN saic_b b ON b.anio = a.anio AND b.nivel_act = a.nivel_act AND b.cve_ent = a.cve_ent AND b.cve_mun = a.cve_mun AND b.clave_act = a.clave_act AND b.estrato = a.estrato" : "saic_a a";
+    const municipal = Boolean(munQ); const where = " WHERE " + cond.join(" AND ");
+    if (municipal) { const fuera = pedidas.filter((v) => !VM.includes(v)); if (fuera.length) throw new ErrorHttp(422, [{ type: "enum", loc: ["query", "variables"], msg: `para filas municipales solo ${VM.join(", ")}; las 98 variables municipales están en el Parquet de /api/v1/inegi/saic/descarga/${anio}`, input: fuera } satisfies Detalle]); }
+    const usaB = !municipal && pedidas.some((v) => porClave.get(v)!.tabla === "b");
+    const from = municipal ? "saic_mun a" : usaB ? "saic_a a JOIN saic_b b ON b.anio = a.anio AND b.nivel_act = a.nivel_act AND b.cve_ent = a.cve_ent AND b.cve_mun = a.cve_mun AND b.clave_act = a.clave_act AND b.estrato = a.estrato" : "saic_a a";
     const db = c.env.DB_CENSO2020;
-    const total = (await fila<{ n: number }>(db, `SELECT COUNT(*) AS n FROM saic_a a${where}`, params))!.n;
-    const sel = ["a.anio", "a.cve_ent", "a.cve_mun", "a.nivel_act", "a.clave_act", "x.nombre AS actividad", "a.estrato", ...pedidas.map((v) => `${porClave.get(v)!.tabla}.${v}`)].join(", ");
+    const total = (await fila<{ n: number }>(db, `SELECT COUNT(*) AS n FROM ${municipal ? "saic_mun" : "saic_a"} a${where}`, params))!.n;
+    const sel = ["a.anio", "a.cve_ent", "a.cve_mun", "a.nivel_act", "a.clave_act", "x.nombre AS actividad", "a.estrato", ...pedidas.map((v) => municipal ? `a.${v}` : `${porClave.get(v)!.tabla}.${v}`)].join(", ");
     const items = await filas(db, `SELECT ${sel} FROM ${from} LEFT JOIN saic_actividades x ON x.clave = a.clave_act${where} ORDER BY a.cve_ent, a.cve_mun, a.clave_act LIMIT ? OFFSET ?`, [...params, limit, offset]);
     return { anio, variables: pedidas, total, limit, offset, items };
   }

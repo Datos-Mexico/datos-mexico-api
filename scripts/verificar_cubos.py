@@ -27,7 +27,7 @@ def check(cond, msg):
     else: print("ok", msg)
 
 cat, ms, _ = get("/api/v1/cubos")
-check(cat and cat["n_cubos"] >= 39, f"catálogo con {cat and cat['n_cubos']} cubos ({ms} ms)")
+check(cat and cat["n_cubos"] >= 49, f"catálogo con {cat and cat['n_cubos']} cubos ({ms} ms)")
 cubos = [c for t in cat["temas"] for c in t["cubos"]]
 for c in cubos:
     f, ms, _ = get(c["ficha_url"])
@@ -261,6 +261,41 @@ check(anios_saic["2023"]["unidades_economicas"] == 5468180 and anios_saic["2023"
 d, _, _ = get("/api/v1/cubos/saic-censos/datos?medidas=ue&columnas=entidad&f.anio=2023&f.nivel=0&f.estrato=0&f.ambito=entidad")
 check(d["n"] == 32 and sum(f["ue"] for f in d["filas"]) == 5468180, f"SAIC cubo 2023: 32 entidades suman {sum(f['ue'] for f in d['filas']):,} = nacional")
 get("/api/v1/cubos/saic-censos/datos?medidas=ue&columnas=actividad&f.anio=2023", 422); get("/api/v1/inegi/saic/datos?anio=2023", 422)
+# Censos Económicos completos desde los datos abiertos (scripts/ce_datos_abiertos.py): 5 años, 33 archivos cada uno, municipios suman la entidad por sector
+check(len(anios_saic) == 5 and all(a["completo"] and a["fuente"] == "datos abiertos" and a["archivos"] == 33 and a["filas_municipales"] > 1000000 for a in anios_saic.values()), f"SAIC: 5 censos completos desde los datos abiertos ({ {a: (v['fuente'], v['archivos'], v['filas_municipales']) for a, v in anios_saic.items()} })")
+for anio, ent, sector in (("2023", "09", "46"), ("2003", "20", "31-33"), ("2013", "01", "72"), ("2008", "15", "46")):
+    m, _, _ = get(f"/api/v1/cubos/saic-censos/datos?medidas=ue,h001a&columnas=municipio&f.anio={anio}&f.entidad={ent}&f.nivel=1&f.actividad={urllib.parse.quote(sector)}&f.estrato=0&f.ambito=municipio")
+    e, _, _ = get(f"/api/v1/cubos/saic-censos/datos?medidas=ue,h001a&columnas=entidad&f.anio={anio}&f.entidad={ent}&f.nivel=1&f.actividad={urllib.parse.quote(sector)}&f.estrato=0&f.ambito=entidad")
+    su = m and sum(f["ue"] or 0 for f in m["filas"]); sh = m and sum(f["h001a"] or 0 for f in m["filas"]); nulos = m and sum(1 for f in m["filas"] if f["h001a"] is None)
+    # las unidades económicas municipales suman la entidad; el personal ocupado también, salvo donde el INEGI lo suprime por confidencialidad (celda vacía en 2004 y 2009): entonces queda por debajo
+    check(m and e and m["n"] > 5 and su == e["filas"][0]["ue"] and (sh == e["filas"][0]["h001a"] if not nulos else sh < e["filas"][0]["h001a"]), f"SAIC {anio} sector {sector} entidad {ent}: {m and m['n']} municipios suman {su and su:,} UE = entidad {e and e['filas'][0]['ue']:,}; personal ocupado {sh and sh:,} vs {e and e['filas'][0]['h001a']:,} ({nulos} municipios suprimidos)")
+d, _, _ = get("/api/v1/inegi/saic/datos?anio=2023&nivel_act=5&cve_ent=09&cve_mun=015&estrato=99&variables=UE,H001A&limit=2000")
+check(d and d["total"] > 100 and all(x["cve_mun"] == "015" and x["UE"] is not None for x in d["items"]), f"SAIC datos municipales 2023 Cuauhtémoc por clase, estrato agrupado: {d and d['total']} filas")
+get("/api/v1/inegi/saic/datos?anio=2023&nivel_act=1&cve_ent=09&cve_mun=todos&variables=H010A", 422)
+d, _, _ = get("/api/v1/inegi/saic/datos?anio=2003&nivel_act=0&cve_ent=00&variables=UE,H001A,H010A")
+check(d and d["total"] == 1 and d["items"][0]["UE"] == 3005157 and d["items"][0]["H010A"] is not None, f"SAIC 2003 nacional: {d and d['items'][0]['UE']:,} unidades económicas = Censos Económicos 2004 (3,005,157); variable de saic_b presente")
+# Tabulados explorables (scripts/tabulados_explorables.py): familias, cuadros, celdas exactas contra los cuadros publicados
+tf, _, _ = get("/api/v1/inegi/tabulados"); fams = {x["familia"]: x for x in tf["items"]}
+check(tf["n"] == 6 and all(fams[f]["cuadros"] > 0 and fams[f]["celdas"] > 0 for f in ("censo2020", "intercensal2015", "censo2010", "conteo2005", "csi-anual", "csi-trimestral")), f"tabulados: 6 familias ({ {f: (v['cuadros'], v['celdas']) for f, v in fams.items()} })")
+def celda(fam, cuadro, cols, **dims):
+    qs = "&".join(f"{k}={urllib.parse.quote(v)}" for k, v in dims.items())
+    r, _, _ = get(f"/api/v1/inegi/tabulados/{fam}/{urllib.parse.quote(cuadro, safe='')}?columna={urllib.parse.quote(cols)}&{qs}")
+    return r and r["total"] == 1 and r["items"][0]["valor"]
+v = celda("censo2020", "cpv2020_b_eum_01_poblacion:02", "Población total", d1="Estados Unidos Mexicanos", d2="Total", d3="Total"); v1 = celda("censo2020", "cpv2020_b_eum_01_poblacion:02", "Población total", d1="01 Aguascalientes", d2="Total", d3="Total")
+check(v == 126014024 and v1 == 1425607, f"tabulados censo2020 cuadro 02: población total {v:,} = 126,014,024; Aguascalientes {v1:,}")
+v = celda("intercensal2015", "01_poblacion:02", "Población total", d1="Estados Unidos Mexicanos", d2="Total", d3="Valor")
+# el cuadro es «población total en viviendas particulares habitadas» (119,530,753); el Banco de Indicadores (119,938,473) incluye viviendas colectivas
+check(v == 119530753, f"tabulados intercensal 2015 cuadro 02: población en viviendas particulares habitadas {v and v:,} = 119,530,753 publicado (el total con viviendas colectivas es 119,938,473)")
+v = celda("censo2010", "01_02B_ESTATAL", "Población total", d1="Estados Unidos Mexicanos", d2="Total", d3="Total"); check(v == 112336538, f"tabulados censo2010 01_02B: {v and v:,} = 112,336,538")
+v = celda("conteo2005", "Cont2005_NAL_Poblacion:Cont2005_Nal_POB2", "Población total", d1="Estados Unidos Mexicanos", d2="Total Nacional", d3="Total", d4="Total"); check(v == 103263388, f"tabulados conteo2005 POB2: {v and v:,} = 103,263,388")
+v = celda("csi-anual", "CSI_100", "2003", d1="I - Cuenta de producción", d2="P.1 - Producción", d3="R/P - Recursos/Pasivos"); check(v and abs(v - 13989250.87) < 0.001, f"tabulados CSI_100 producción 2003: {v} = 13,989,250.87 millones")
+d, _, _ = get("/api/v1/cubos/tabulados-censo2020/datos?medidas=valor&columnas=d1&f.cuadro=cpv2020_b_eum_01_poblacion%3A02&f.d2=Total&f.d3=Total&f.columna=Poblaci%C3%B3n%20total")
+check(d and d["n"] == 33 and {f["d1"]: f["valor"] for f in d["filas"]}.get("Estados Unidos Mexicanos") == 126014024 and sum(f["valor"] for f in d["filas"] if f["d1"] != "Estados Unidos Mexicanos") == 126014024, "cubo tabulados-censo2020: 32 entidades + total; las entidades suman 126,014,024")
+get("/api/v1/cubos/tabulados-censo2020/datos?medidas=valor&columnas=d1", 422)
+d, _, _ = get("/api/v1/cubos/tabulados-csi-anual/datos?medidas=valor&columnas=periodo&f.cuadro=CSI_103&f.cuenta=I%20-%20Cuenta%20de%20producci%C3%B3n&f.concepto=" + urllib.parse.quote("B.1b - Valor agregado bruto / Producto interno bruto") + "&f.lado=U%2FA%20-%20Usos%2FActivos&orden=periodo&sentido=desc&limite=1")
+check(d and d["n"] == 1 and d["filas"][0]["periodo"] == "2024" and abs(d["filas"][0]["valor"] - 33582899.277) < 0.001, f"cubo tabulados-csi-anual: PIB (B.1b, S.1) 2024 = {d and d['n'] and d['filas'][0]['valor']:,} millones = cuadro CSI_103 (33,582,899.277)")
+c2, _, _ = get("/api/v1/inegi/tabulados/csi-trimestral"); check(c2["n"] == 66 and all(x["archivo_url"] for x in c2["items"]), f"tabulados csi-trimestral: {c2['n']} cuadros con archivo")
+get("/api/v1/inegi/tabulados/zzz", 404); get("/api/v1/inegi/tabulados/censo2020/zzz", 404)
 d, _, _ = get("/api/v1/inegi/saic/datos?anio=2023&nivel_act=1&cve_ent=00&variables=UE,H001A,A131A")
 check(d["total"] == 19 and sum(x["UE"] for x in d["items"]) == 5468180 and all(x["A131A"] is not None for x in d["items"]), "SAIC datos 2023 por sector: 19 sectores suman el total nacional; valor agregado presente")
 # CONSAR precios

@@ -33,6 +33,7 @@
     { "binding": "DB_PLATAFORMA", "database_name": "datosmexico-api-plataforma", "database_id": "b9b10f07-a333-4c96-9986-95115452e7dc" },
     { "binding": "DB_ANUIES", "database_name": "datosmexico-api-anuies", "database_id": "7a70874c-750d-4cb4-b067-391bd6905d37" },
     { "binding": "DB_UNAM", "database_name": "datosmexico-api-unam", "database_id": "5d10dfb0-c07d-43be-b27d-972311f68630" },
-    { "binding": "DB_CLASIFICADORES", "database_name": "datosmexico-api-clasificadores", "database_id": "5932e7b7-98a2-4bbc-9ad1-2324d350a098" }
+    { "binding": "DB_CLASIFICADORES", "database_name": "datosmexico-api-clasificadores", "database_id": "5932e7b7-98a2-4bbc-9ad1-2324d350a098" },
+    { "binding": "DB_TABULADOS", "database_name": "datosmexico-api-tabulados", "database_id": "ea072a87-096d-4ceb-8dde-a8dfdfd7e2e4" }
   ]
 }

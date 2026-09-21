@@ -11,7 +11,9 @@ Etapas:
   --catalogos  guarda años, entidades y municipios, árbol de actividad (todos los niveles), variables y estratos en data/saic/catalogos.json
   --descargar  una tarea por (año, ámbito geográfico, nivel de actividad): páginas de 1,000 filas en data/saic/crudo/<año>/<ambito>/<nivel>-<pág>.json.gz,
                manifiesto reanudable (data/saic/manifiesto.jsonl) con el total anunciado por consulta/total y las filas recibidas (deben coincidir).
-Uso: data/.venv/bin/python scripts/saic_descarga.py --catalogos --descargar --hilos 8
+Uso: data/.venv/bin/python scripts/saic_descarga.py --catalogos --descargar --hilos 8 [--anios 2008,2003] [--ambitos 00,ent]
+Desde el 2026-09-21 la fuente de los cubos son los «datos abiertos» de los Censos Económicos (scripts/ce_datos_abiertos.py: el mismo
+cuadro, en minutos); esta descarga queda como muestra de verificación (nacional y entidades de los cinco censos, municipios de 2023).
 """
 import argparse, gzip, json, os, pathlib, sys, threading, time, urllib.request, collections as C
 import concurrent.futures as cf
@@ -98,9 +100,9 @@ def descargar_tarea(t):
         if not info: raise RuntimeError(f'{clave}: página vacía con {filas}/{total}')
     return clave, total, filas, pagina
 
-def descargar(hilos):
+def descargar(hilos, anios=None, ambitos=None):
     c = json.loads(CAT.read_text()); hechas = {json.loads(l)['clave'] for l in open(MANIF) if l.strip()} if MANIF.exists() else set()
-    pend = [t for t in tareas(c) if f"{t['anio']}/{t['ambito']}/{t['nivel']}{t['sufijo']}" not in hechas]
+    pend = [t for t in tareas(c) if f"{t['anio']}/{t['ambito']}/{t['nivel']}{t['sufijo']}" not in hechas and (not anios or t['anio'] in anios) and (not ambitos or t['ambito'] in ambitos)]
     log(f'descarga: {len(pend)} tareas pendientes de {len(list(tareas(c)))}, {hilos} hilos'); t0 = time.time(); n = [0, 0, 0]
     def uno(t):
         try:
@@ -116,6 +118,6 @@ def descargar(hilos):
     log(f'descarga terminada: {n[0]} tareas, {n[1]:,} filas, {n[2]} errores, {(time.time() - t0) / 60:.1f} min')
 
 if __name__ == '__main__':
-    ap = argparse.ArgumentParser(); ap.add_argument('--catalogos', action='store_true'); ap.add_argument('--descargar', action='store_true'); ap.add_argument('--hilos', type=int, default=8); a = ap.parse_args()
+    ap = argparse.ArgumentParser(); ap.add_argument('--catalogos', action='store_true'); ap.add_argument('--descargar', action='store_true'); ap.add_argument('--hilos', type=int, default=8); ap.add_argument('--anios', help='solo estos años censales, p. ej. 2008,2003'); ap.add_argument('--ambitos', help='solo estos ámbitos, p. ej. 00,ent'); a = ap.parse_args()
     if a.catalogos: catalogos()
-    if a.descargar: descargar(a.hilos)
+    if a.descargar: descargar(a.hilos, a.anios.split(',') if a.anios else None, a.ambitos.split(',') if a.ambitos else None)
