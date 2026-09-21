@@ -47,3 +47,29 @@ export const ENSU_PERCEPCION: Cubo = {
   notas: ["Verificado contra el cuadro 1.7 de los tabulados básicos de junio 2026 del INEGI: población, «seguro» e «inseguro» exactos en todas las ciudades.", "Los porcentajes no se suman entre ciudades ni trimestres.", "Las ciudades de interés cambian con los años; una ciudad sin dato en un trimestre no se levantó ese trimestre."],
   api_dominio: "/api/v1/inegi/datos-abiertos/programas/ensu",
 };
+
+// ENDIREH 2021: prevalencia de violencia contra las mujeres de 15 años y más, con las banderas construidas por el INEGI
+// (tabla TB_VD) por entidad y grupo de edad (scripts/endireh_d1.py). Exacta contra los cuadros 21.1 y 21.2 del INEGI.
+const PCT = (col: string, titulo: string, base = "d.mujeres"): Medida => ({ clave: `pct_${col}`, titulo, sql: `100.0 * SUM(d.${col}) / SUM(${base})`, unidad: "%", sumable: false, decimales: 2 });
+const N = (col: string, titulo: string): Medida => ({ clave: col, titulo, sql: `SUM(d.${col})`, unidad: "mujeres", sumable: true });
+export const ENDIREH_VIOLENCIA: Cubo = {
+  clave: "endireh-violencia", nombre: "Violencia contra las mujeres (ENDIREH 2021)", tema: "seguridad",
+  fuente: "INEGI — Encuesta Nacional sobre la Dinámica de las Relaciones en los Hogares (ENDIREH) 2021, microdatos (tabla de violencia por ámbito)", fuente_url: "https://www.inegi.org.mx/programas/endireh/2021/", licencia: "Términos de libre uso INEGI",
+  descripcion: "Mujeres de 15 años y más que han vivido violencia a lo largo de la vida y en los últimos 12 meses (total, psicológica, física, sexual, económica; escolar, laboral, comunitaria, familiar y de pareja), por entidad y grupo de edad, con las banderas que construye el propio INEGI y su factor. Reproduce los cuadros 21.1 y 21.2 de los tabulados del INEGI en el país y las 32 entidades.",
+  binding: "DB_ENCUESTAS", desde: "endireh_violencia d JOIN cat_entidad e ON e.clave = d.ent",
+  medidas: [
+    N("mujeres", "Mujeres de 15 años y más"), N("con_pareja", "Con pareja alguna vez"),
+    N("vtot_a", "Con violencia a lo largo de la vida"), PCT("vtot_a", "% violencia total a lo largo de la vida"), N("vtot_12m", "Con violencia en los últimos 12 meses"), PCT("vtot_12m", "% violencia total últimos 12 meses"),
+    PCT("vpsi_a", "% psicológica (vida)"), PCT("vpsi_12m", "% psicológica (12 meses)"), PCT("vfis_a", "% física (vida)"), PCT("vfis_12m", "% física (12 meses)"), PCT("vsex_a", "% sexual (vida)"), PCT("vsex_12m", "% sexual (12 meses)"), PCT("veco_a", "% económica o patrimonial (vida)"), PCT("veco_12m", "% económica o patrimonial (12 meses)"),
+    PCT("vesc_a", "% ámbito escolar (vida)"), PCT("vlab_a", "% ámbito laboral (vida)"), PCT("vcom_a", "% ámbito comunitario (vida)"), PCT("vfam", "% ámbito familiar (12 meses)"), PCT("vpar_a", "% de pareja (vida, entre mujeres con pareja alguna vez)", "d.con_pareja"), PCT("vpar_12m", "% de pareja (12 meses, entre mujeres con pareja alguna vez)", "d.con_pareja"),
+  ],
+  dimensiones: [
+    { clave: "edicion", titulo: "Edición", id: "d.edicion", tipo: "temporal" },
+    { clave: "entidad", titulo: "Entidad", id: "substr('0' || d.ent, -2)", nombre: "e.nombre", tipo: "geografica", geo: "entidad", orden: "1" },
+    { clave: "edad", titulo: "Grupo de edad", id: "d.edad_grupo", tipo: "categorica", orden: "CASE d.edad_grupo WHEN '15-24' THEN 1 WHEN '25-34' THEN 2 WHEN '35-44' THEN 3 WHEN '45-54' THEN 4 WHEN '55-64' THEN 5 WHEN '65+' THEN 6 ELSE 7 END" },
+  ],
+  predeterminado: { medidas: ["pct_vtot_a", "pct_vtot_12m", "mujeres"], columnas: ["entidad"] },
+  sql_corte: "SELECT MAX(edicion) AS corte FROM endireh_violencia",
+  notas: ["Los porcentajes no se suman entre entidades ni grupos.", "Verificado: total y cuatro tipos de violencia, a lo largo de la vida y en los últimos 12 meses, iguales a los cuadros 21.1 y 21.2 del INEGI en las 33 geografías (±0.0005 puntos).", "La violencia de pareja se calcula sobre las mujeres que han tenido pareja alguna vez, como lo hace el INEGI."],
+  api_dominio: "/api/v1/inegi/datos-abiertos/programas/endireh",
+};
