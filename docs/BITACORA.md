@@ -1218,3 +1218,19 @@ con 24, ~660/min (2.2 h) sin un solo rechazo del INEGI. (2) Carga a D1: los carg
 de hasta 8 MB siguen siendo la vía (esta versión de wrangler no trae `d1 import`). (3) Consultas: preagregar dentro de D1
 (denue_resumen, gastos_resumen) baja de 19-33 s a 2 s; la regla queda: ninguna tabla de hechos mayor de ~1 millón de filas
 se agrupa entera en una consulta del explorador.
+
+**ENDIREH 2021 (cubo `endireh-violencia`, `scripts/endireh_d1.py`).** La tabla TB_VD de los microdatos trae, por mujer,
+las banderas de violencia que construye el propio INEGI (total, psicológica, física, sexual, económica; escolar, laboral,
+comunitaria, familiar, de pareja; a lo largo de la vida y últimos 12 meses) con fac_muj; la edad viene de TSDEM. Se
+agregan por entidad y seis grupos de edad y se verifican contra los cuadros 21.1 y 21.2 de «Prevalencia de la violencia»
+(archivados): total y cuatro tipos en las 33 geografías, exactos (±0.0005 puntos; el cuadro apila bloques de
+estimaciones, coeficientes de variación y errores estándar: vale el primero). 2016 no está en la descarga masiva del INEGI
+y 2003-2011 tienen otra estructura: solo 2021.
+
+**Lo que NO se publica de esta ronda, y por qué.** ENSANUT 2018: con el índice de masa corporal calculado de peso y talla
+medidos (cn-antropometría, f_antrop) los adultos de 20+ dan 37.7 % de sobrepeso y 37.8 % de obesidad contra 39.1 % y
+36.1 % publicados por INSP/INEGI; sin las reglas de depuración del INSP no cuadra y no se publica. Censos nacionales de
+gobierno (2018-2019): sus resultados por entidad ya están en el Banco de Indicadores (tema «Gobierno, Seguridad y
+Justicia», 4,777 indicadores) y por eso no se duplican en un cubo. Con esta ronda son 10 de los 103 programas con
+microdatos los que tienen cubos (ENOE, ENIGH, Censo 2020, EDR, ENR, ENVIPE, ENSU, ENDUTIH, ENADID, ENDIREH), cada uno
+exacto contra una cifra publicada por el INEGI; los 93 restantes se descargan completos desde /observatorio/datos-abiertos.
