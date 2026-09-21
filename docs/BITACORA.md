@@ -1205,3 +1205,16 @@ entidad, sexo y grupo de edad, con el factor de la persona seleccionada. Verific
 los indicadores 6206972693 y 6206972694 en las once ediciones (2024 y 2025 a cuatro decimales; 2017-2019 y 2021 al
 decimal con que el INEGI los publica). 2019 no trae entidad (levantamiento reducido) y 2015 no trae sexo ni edad. El uso
 de teléfono celular no se publica: ninguna variable reproduce el 84.6 % oficial.
+
+**ENADID 2023 (cubo `enadid-mujeres`, `scripts/enadid_d1.py`).** Mujeres de 15 a 49 años (fac_mod, edad p5_2_1) por
+entidad, grupo quinquenal, tamaño de localidad y «alguna vez embarazada» (p5_6). Verificación contra el cuadro 2.1 de los
+tabulados oportunos del INEGI (archivados y leídos aquí): 33,709,740 mujeres y 22,000,554 alguna vez embarazadas,
+exactos en el total y en los siete grupos de edad. La tasa global de fecundidad (cuadro 2.3) exige la historia de
+nacimientos por trienio y no se publica hasta reproducirla.
+
+**Cuellos de botella medidos y corregidos en esta sesión.** (1) Descarga del BIE: con 6 hilos, 150 series/min (10 h);
+con 24, ~660/min (2.2 h) sin un solo rechazo del INEGI. (2) Carga a D1: los cargadores reintentan y reanudan por tabla
+(la API de Cloudflare devuelve errores 10000 transitorios en cargas largas); las sentencias de 400-500 filas en archivos
+de hasta 8 MB siguen siendo la vía (esta versión de wrangler no trae `d1 import`). (3) Consultas: preagregar dentro de D1
+(denue_resumen, gastos_resumen) baja de 19-33 s a 2 s; la regla queda: ninguna tabla de hechos mayor de ~1 millón de filas
+se agrupa entera en una consulta del explorador.

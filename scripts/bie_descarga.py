@@ -10,8 +10,8 @@ Universo: las series de data/bie/arbol/serie_temas.csv (89,032 el 2026-09-21). P
   última actualización; se guarda una vez por serie (área nacional o la primera).
 Tokens: los dos de cliente público del sitio (INEGI_TOKEN_WEB para catálogos, INEGI_TOKEN_WEB2 para valores).
 Salida: data/bie/crudo/<serie>/areas.json.gz, meta.json.gz, valor_<area>.json.gz; data/bie/manifiesto.jsonl (una
-línea por serie: áreas, observaciones por área, cuándo); data/bie/descarga.log. Reanudable por serie. Paralelismo 6
-(medido: 12 llamadas paralelas en 0.6 s sin rechazo).
+línea por serie: áreas, observaciones por área, cuándo); data/bie/descarga.log. Reanudable por serie. Paralelismo 24 (con 6 hilos salían 150 series/min: 10 horas; el sitio del INEGI respondió 12 llamadas paralelas en
+0.6 s sin rechazo, así que se sube a 24 y se vigilan los errores).
 Uso: data/.venv/bin/python scripts/bie_descarga.py [--limite N]
 """
 import argparse, csv, gzip, json, pathlib, sys, time, threading, urllib.request
@@ -19,7 +19,7 @@ import concurrent.futures as cf
 from datetime import datetime, timezone
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent; DIR = RAIZ / 'data' / 'bie'; CRUDO = DIR / 'crudo'; MANIF = DIR / 'manifiesto.jsonl'; LOG = DIR / 'descarga.log'
-BASE = 'https://www.inegi.org.mx/app/api/indicadores/interna_v1_3/API.svc'; PARALELO = 6
+BASE = 'https://www.inegi.org.mx/app/api/indicadores/interna_v1_3/API.svc'; PARALELO = 24
 UA = 'Mozilla/5.0 (observatorio datosmexico.org; contacto en datosmexico.org)'
 
 def secreto(clave):

@@ -27,7 +27,7 @@ def check(cond, msg):
     else: print("ok", msg)
 
 cat, ms, _ = get("/api/v1/cubos")
-check(cat and cat["n_cubos"] >= 36, f"catálogo con {cat and cat['n_cubos']} cubos ({ms} ms)")
+check(cat and cat["n_cubos"] >= 37, f"catálogo con {cat and cat['n_cubos']} cubos ({ms} ms)")
 cubos = [c for t in cat["temas"] for c in t["cubos"]]
 for c in cubos:
     f, ms, _ = get(c["ficha_url"])
@@ -182,6 +182,8 @@ check(s2 and s2["total"] >= 4 and "desocupada" in s2["terminos"] and any("desocu
 # ENDUTIH: el porcentaje nacional de usuarios de internet 2025 reproduce el indicador 6206972693
 d, _, _ = get("/api/v1/cubos/endutih-usuarios/datos?medidas=pct_internet,pct_computadora,personas&columnas=edicion&f.edicion=2025")
 check(d and abs(d["filas"][0]["pct_internet"] - 86.0526459579267) < 0.001 and abs(d["filas"][0]["pct_computadora"] - 38.1445287729211) < 0.001, f"ENDUTIH 2025: internet {d and d['filas'][0]['pct_internet']:.4f} %, computadora {d and d['filas'][0]['pct_computadora']:.4f} % = INEGI")
+d, _, _ = get("/api/v1/cubos/enadid-mujeres/datos?medidas=mujeres,embarazadas_alguna_vez&columnas=edicion")
+check(d and d["filas"][0]["mujeres"] == 33709740 and d["filas"][0]["embarazadas_alguna_vez"] == 22000554, "ENADID 2023: 33,709,740 mujeres de 15-49 y 22,000,554 alguna vez embarazadas = cuadro 2.1")
 # Censo: los otros dos cubos suman igual por entidad (PEA nacional, viviendas)
 d, _, _ = get("/api/v1/cubos/censo2020-hogares-vivienda/datos?medidas=pea,vivpar_hab,tothog&columnas=entidad&f.entidad=01")
 cl, _, _ = get("/api/v1/censo2020/localidades/01/000/0000")

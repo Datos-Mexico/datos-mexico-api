@@ -28,3 +28,28 @@ export const ENDUTIH_USUARIOS: Cubo = {
   notas: ["Los porcentajes no se suman entre entidades ni ediciones.", "Verificado: el porcentaje nacional de usuarios de internet y de computadora reproduce los indicadores del INEGI en las once ediciones.", "El uso de teléfono celular no se publica: ninguna variable de la tabla reproduce el porcentaje oficial."],
   api_dominio: "/api/v1/inegi/datos-abiertos/programas/endutih",
 };
+
+// ENADID 2023: mujeres de 15 a 49 años y condición de haber estado embarazada alguna vez (scripts/enadid_d1.py).
+// Exacto contra el cuadro 2.1 de los tabulados oportunos del INEGI (total nacional y cada grupo de edad).
+export const ENADID_MUJERES: Cubo = {
+  clave: "enadid-mujeres", nombre: "Mujeres de 15 a 49 años y embarazo (ENADID 2023)", tema: "poblacion",
+  fuente: "INEGI — Encuesta Nacional de la Dinámica Demográfica (ENADID) 2023, microdatos del módulo de la mujer", fuente_url: "https://www.inegi.org.mx/programas/enadid/2023/", licencia: "Términos de libre uso INEGI",
+  descripcion: "Mujeres de 15 a 49 años expandidas con el factor del módulo, por entidad, grupo quinquenal de edad, tamaño de localidad y si han estado embarazadas alguna vez. Reproduce exactamente el cuadro 2.1 de los tabulados oportunos del INEGI (33,709,740 mujeres; 22,000,554 alguna vez embarazadas).",
+  binding: "DB_ENCUESTAS", desde: "enadid_mujeres d JOIN cat_entidad e ON e.clave = d.ent JOIN cat_tam_loc tl ON tl.clave = d.tam_loc JOIN cat_si_no em ON em.clave = d.embarazada",
+  medidas: [
+    { clave: "mujeres", titulo: "Mujeres de 15 a 49 años", sql: "SUM(d.mujeres)", unidad: "mujeres", sumable: true },
+    { clave: "embarazadas_alguna_vez", titulo: "Alguna vez embarazadas", sql: "SUM(CASE WHEN d.embarazada = 1 THEN d.mujeres ELSE 0 END)", unidad: "mujeres", sumable: true },
+    { clave: "pct_embarazadas", titulo: "Porcentaje alguna vez embarazadas", sql: "100.0 * SUM(CASE WHEN d.embarazada = 1 THEN d.mujeres ELSE 0 END) / SUM(d.mujeres)", unidad: "%", sumable: false, decimales: 2 },
+  ],
+  dimensiones: [
+    { clave: "edicion", titulo: "Edición", id: "d.edicion", tipo: "temporal" },
+    { clave: "entidad", titulo: "Entidad", id: "substr('0' || d.ent, -2)", nombre: "e.nombre", tipo: "geografica", geo: "entidad", orden: "1" },
+    { clave: "edad", titulo: "Grupo de edad", id: "d.edad_grupo", tipo: "categorica", orden: "1" },
+    { clave: "tam_loc", titulo: "Tamaño de localidad", id: "d.tam_loc", nombre: "tl.nombre", tipo: "categorica", orden: "1" },
+    { clave: "embarazada", titulo: "Alguna vez embarazada", id: "d.embarazada", nombre: "em.nombre", tipo: "categorica", orden: "1" },
+  ],
+  predeterminado: { medidas: ["mujeres", "pct_embarazadas"], columnas: ["edad"] },
+  sql_corte: "SELECT MAX(edicion) AS corte FROM enadid_mujeres",
+  notas: ["Los porcentajes no se suman entre grupos.", "Verificado contra el cuadro 2.1 de los tabulados oportunos de la ENADID 2023: total y siete grupos de edad exactos."],
+  api_dominio: "/api/v1/inegi/datos-abiertos/programas/enadid",
+};
