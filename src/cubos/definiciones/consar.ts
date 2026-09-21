@@ -74,3 +74,14 @@ export const CONSAR_FLUJOS: Cubo = {
   predeterminado: { medidas: ["entradas", "salidas"], columnas: ["afore", "anio"], filtros: { anio: ["2024", "2025"] } },
   sql_corte: "SELECT MAX(fecha) AS corte FROM flujo_recurso", notas: ["Flujos mensuales: sí se suman entre meses."], api_dominio: "/api/v1/consar",
 };
+
+const D_DIA = (col: string): Dimension => ({ clave: "dia", titulo: "Día", id: col, tipo: "temporal", descripcion: "Fecha (AAAA-MM-DD)." });
+export const CONSAR_PRECIOS: Cubo = {
+  clave: "consar-precios", nombre: "Precios de las SIEFOREs (bolsa)", tema: "retiro", ...FUENTE,
+  descripcion: "Precio diario de bolsa de cada SIEFORE de cada AFORE desde 1997 (648,469 cotizaciones).",
+  binding: "DB_CONSAR", desde: "precio_bolsa p JOIN afores a ON a.id = p.afore_id JOIN cat_siefore s ON s.id = p.siefore_id",
+  medidas: [{ clave: "precio", titulo: "Precio", sql: "AVG(p.precio)", unidad: "pesos", sumable: false, decimales: 6, descripcion: "Al agrupar días o fondos se promedia." }, { clave: "precio_max", titulo: "Precio máximo", sql: "MAX(p.precio)", unidad: "pesos", sumable: false, decimales: 6 }, { clave: "precio_min", titulo: "Precio mínimo", sql: "MIN(p.precio)", unidad: "pesos", sumable: false, decimales: 6 }, { clave: "cotizaciones", titulo: "Cotizaciones", sql: "COUNT(*)", unidad: "días", sumable: true }],
+  dimensiones: [D_DIA("p.fecha"), { ...D_MES("substr(p.fecha, 1, 7) || '-01'"), descripcion: "Mes (AAAA-MM-01)." }, D_ANIO("p.fecha"), D_AFORE, D_SIEFORE, D_SIEFORE_CAT],
+  predeterminado: { medidas: ["precio"], columnas: ["afore", "mes"], filtros: { siefore: ["sb 60-64"], anio: ["2025"] } },
+  sql_corte: "SELECT MAX(fecha) AS corte FROM precio_bolsa", notas: ["Precio de bolsa (valuación pública); el precio de gestión está en /api/v1/consar/precios-gestion."], api_dominio: "/api/v1/consar",
+};

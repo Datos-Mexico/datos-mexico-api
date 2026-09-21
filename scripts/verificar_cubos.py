@@ -27,7 +27,7 @@ def check(cond, msg):
     else: print("ok", msg)
 
 cat, ms, _ = get("/api/v1/cubos")
-check(cat and cat["n_cubos"] >= 18, f"catálogo con {cat and cat['n_cubos']} cubos ({ms} ms)")
+check(cat and cat["n_cubos"] >= 24, f"catálogo con {cat and cat['n_cubos']} cubos ({ms} ms)")
 cubos = [c for t in cat["temas"] for c in t["cubos"]]
 for c in cubos:
     f, ms, _ = get(c["ficha_url"])
@@ -98,6 +98,45 @@ check(d["n"] in (3, 4) and sum(f["nombramientos"] for f in d["filas"]) == 246836
 # UNAM concurso: seleccionados 2025 febrero escolarizado = encabezados
 d, _, _ = get("/api/v1/cubos/unam-concurso/datos?medidas=presentaron,seleccionados,carreras_plantel&columnas=anio&f.concurso=licenciatura&f.sistema=escolarizado&orden=anio&sentido=desc")
 check(d["n"] >= 5 and d["filas"][0]["carreras_plantel"] > 100 and d["filas"][0]["seleccionados"] > 0, f"UNAM concurso: {d['n']} años, último {d['filas'][0]}")
+
+# fase D: ENIGH reproduce by-decil y by-entidad
+d, _, _ = get("/api/v1/cubos/enigh-hogares/datos?medidas=hogares,ing_cor,gasto_mon&columnas=decil&orden=decil&sentido=asc")
+o, _, _ = get("/api/v1/enigh/hogares/by-decil")
+ok_dec = d["n"] == 10 and all(f["hogares"] == x["n_hogares_expandido"] and abs(f["ing_cor"] - x["mean_ing_cor_trim"]) < 0.01 and abs(f["gasto_mon"] - x["mean_gasto_mon_trim"]) < 0.01 for f, x in zip(d["filas"], o))
+check(ok_dec, f"ENIGH por decil: 10 deciles, hogares e ingreso promedio iguales a /enigh/hogares/by-decil (decil 1: {d['filas'][0]['ing_cor']:,.2f})")
+d, _, _ = get("/api/v1/cubos/enigh-hogares/datos?medidas=hogares,ing_cor&columnas=entidad&f.entidad=19")
+o, _, _ = get("/api/v1/enigh/hogares/by-entidad")
+nl = [x for x in o if x["clave"] == "19"][0]
+check(d["n"] == 1 and d["filas"][0]["hogares"] == nl["n_hogares_expandido"] and abs(d["filas"][0]["ing_cor"] - nl["mean_ing_cor_trim"]) < 0.01 and d["filas"][0]["entidad"] == "Nuevo León", f"ENIGH Nuevo León: {d['filas'][0]['hogares']:,} hogares, ingreso {d['filas'][0]['ing_cor']:,.2f} = by-entidad")
+d, _, _ = get("/api/v1/cubos/enigh-hogares/datos?medidas=hogares&columnas=sexo_jefe")
+check(sum(f["hogares"] for f in d["filas"]) == 38830230, f"ENIGH hogares expandidos {sum(f['hogares'] for f in d['filas']):,} = 38,830,230")
+# BISE: filtro obligatorio, miembros del catálogo, población total 2020
+get("/api/v1/cubos/inegi-indicadores/datos?medidas=valor&columnas=geografia", 422)
+m, ms, _ = get("/api/v1/cubos/inegi-indicadores/miembros?dimension=indicador&q=poblaci%C3%B3n%20total&limite=20")
+check(m and any(i["id"] == "1002000001" for i in m["items"]) and ms < 3000, f"BISE miembros por catálogo: {m and m['n']} coincidencias de 'población total' en {ms} ms")
+d, _, _ = get("/api/v1/cubos/inegi-indicadores/datos?medidas=valor&columnas=geografia,periodo&f.indicador=1002000001&f.geografia=00|09&f.periodo=2020")
+check(d["n"] == 2 and {f["geografia_id"]: f["valor"] for f in d["filas"]} == {"00": 126014024, "09": 9209944}, "BISE población total 2020: país 126,014,024 y CDMX 9,209,944")
+# Censo: los otros dos cubos suman igual por entidad (PEA nacional, viviendas)
+d, _, _ = get("/api/v1/cubos/censo2020-hogares-vivienda/datos?medidas=pea,vivpar_hab,tothog&columnas=entidad&f.entidad=01")
+cl, _, _ = get("/api/v1/censo2020/localidades/01/000/0000")
+ind = cl
+check(d["n"] == 1 and d["filas"][0]["pea"] == ind["pea"] and d["filas"][0]["vivpar_hab"] == ind["vivpar_hab"] and d["filas"][0]["tothog"] == ind["tothog"], f"Censo Aguascalientes PEA {d['filas'][0]['pea']:,}, viviendas {d['filas'][0]['vivpar_hab']:,}, hogares {d['filas'][0]['tothog']:,} = fila total del INEGI")
+d2, _, _ = get("/api/v1/cubos/censo2020-caracteristicas/datos?medidas=p3ym_hli,pcon_disc&columnas=entidad&f.entidad=01")
+d3, _, _ = get("/api/v1/cubos/censo2020-hogares-vivienda/datos?medidas=tothog&columnas=entidad")
+nac, _, _ = get("/api/v1/censo2020/localidades/00/000/0000")
+suma_hog = sum(f["tothog"] for f in d3["filas"]); dif = (nac["tothog"] - suma_hog) / nac["tothog"]
+check(d3["n"] == 32 and 0 <= dif < 0.0005, f"Censo hogares nacional: suma de entidades {suma_hog:,} vs total {nac['tothog']:,} (diferencia {dif:.3%}, confidencialidad; tolerancia 0.05 %)")
+check(d2["n"] == 1 and d2["filas"][0]["p3ym_hli"] == ind["p3ym_hli"] and d2["filas"][0]["pcon_disc"] == ind["pcon_disc"], f"Censo Aguascalientes HLI {d2['filas'][0]['p3ym_hli']:,} = fila total")
+# DENUE preagregado = conteo de unidades; sectores con nombre
+d, _, _ = get("/api/v1/cubos/denue-unidades/datos?medidas=unidades&columnas=sector")
+r, _, _ = get("/api/v1/denue/resumen")
+tot_denue = r["unidades_economicas"]
+check(sum(f["unidades"] for f in d["filas"]) == tot_denue == 6138075 and all(f["sector"] and not f["sector"].startswith("Sector ") for f in d["filas"]), f"DENUE: {sum(f['unidades'] for f in d['filas']):,} unidades en {d['n']} sectores con nombre = resumen {tot_denue}")
+d, _, _ = get("/api/v1/cubos/denue-unidades/datos?medidas=unidades&columnas=actividad&padres=1&f.entidad=01&limite=5")
+check([c["clave"] for c in d["columnas"]][:7] == ["sector_id", "sector", "subsector", "rama", "actividad_id", "actividad", "unidades"], "DENUE padres: sector › subsector › rama › actividad")
+# CONSAR precios
+d, _, _ = get("/api/v1/cubos/consar-precios/datos?medidas=precio,cotizaciones&columnas=afore&f.siefore=sb%2060-64&f.dia=2025-12-31")
+check(d["n"] >= 8 and all(f["cotizaciones"] == 1 for f in d["filas"]), f"CONSAR precios 2025-12-31 SB 60-64: {d['n']} AFOREs con una cotización")
 
 # errores
 for path, code in [("/api/v1/cubos/no-existe", 404), ("/api/v1/cubos/anuies-matricula/datos?columnas=entidad", 422), ("/api/v1/cubos/anuies-matricula/datos?medidas=nada&columnas=entidad", 422), ("/api/v1/cubos/anuies-matricula/datos?medidas=mat_total&columnas=nada", 422), ("/api/v1/cubos/anuies-matricula/datos?medidas=mat_total&columnas=entidad&orden=zzz", 422), ("/api/v1/cubos/anuies-matricula/miembros", 422), ("/api/v1/cubos/anuies-edades/datos?medidas=mat_total&columnas=edad,procedencia", 422), ("/api/v1/cubos/anuies-matricula/datos?medidas=mat_total&columnas=entidad&formato=xml", 422)]:

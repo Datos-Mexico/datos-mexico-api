@@ -42,6 +42,7 @@ export function leerConsulta(cubo: Cubo, q: Record<string, string>): Consulta {
     if (valores.length > 500) throw err422(k, "máximo 500 valores por filtro", valores.length);
     filtros[dim] = valores;
   }
+  for (const d of cubo.filtro_obligatorio ?? []) if (!filtros[d]?.length) throw err422(`f.${d}`, `este cubo exige un filtro por '${d}' en cada consulta (por ejemplo f.${d}=${cubo.predeterminado.filtros?.[d]?.[0] ?? "…"}); los miembros están en /api/v1/cubos/${cubo.clave}/miembros?dimension=${d}&q=`, null);
   const padres = q.padres === "1" || q.padres === "true";
   const orden = q.orden?.trim() || null;
   if (orden && !medidas.includes(orden) && !columnas.includes(orden)) throw err422("orden", `'${orden}' no está entre las medidas ni las columnas de la consulta`, orden);
@@ -199,6 +200,14 @@ export async function miembros(c: AppContext, cubo: Cubo, dim: Dimension, filtro
   if (dim.virtual) {
     const k = q ? q.toLowerCase() : null;
     return dim.virtual.filter((m) => !k || m.nombre.toLowerCase().includes(k) || m.id.toLowerCase().includes(k)).slice(0, limite).map((m) => ({ id: m.id, nombre: m.nombre, n: null }));
+  }
+  if (dim.miembros) {
+    const partes: string[] = []; const params: unknown[] = [];
+    if (dim.miembros.donde) partes.push(`(${dim.miembros.donde})`);
+    if (q) { partes.push(`(${dim.miembros.nombre} LIKE ? COLLATE NOCASE OR ${dim.miembros.id} LIKE ? COLLATE NOCASE)`); params.push(`%${q}%`, `%${q}%`); }
+    const sql = `SELECT ${dim.miembros.id} AS id, ${dim.miembros.nombre} AS nombre FROM ${dim.miembros.desde}${partes.length ? ` WHERE ${partes.join(" AND ")}` : ""} ORDER BY ${dim.miembros.orden ?? "2"} LIMIT ${limite}`;
+    const r = await filas<{ id: unknown; nombre: unknown }>(c.env[cubo.binding] as D1Database, sql, params);
+    return r.map((x) => ({ id: String(x.id), nombre: x.nombre === null || x.nombre === undefined ? String(x.id) : String(x.nombre), n: null }));
   }
   const partes: string[] = []; const params: unknown[] = [];
   if (cubo.donde) partes.push(`(${cubo.donde})`);

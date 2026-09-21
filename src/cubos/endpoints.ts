@@ -17,7 +17,7 @@ const RESP_422 = { "422": { description: "Parámetro inválido.", ...contentJson
 const CLAVE = "^[a-z0-9]+(-[a-z0-9]+)*$";
 
 const MedidaZ = z.object({ clave: z.string(), titulo: z.string(), unidad: z.string().nullable(), sumable: z.boolean(), decimales: z.number().int().nullable(), descripcion: z.string().nullable() });
-const DimensionZ = z.object({ clave: z.string(), titulo: z.string(), tipo: z.enum(["categorica", "temporal", "geografica"]), geo: z.string().nullable(), padre: z.string().nullable(), virtual: z.boolean(), con_nombre: z.boolean(), descripcion: z.string().nullable() });
+const DimensionZ = z.object({ clave: z.string(), titulo: z.string(), tipo: z.enum(["categorica", "temporal", "geografica"]), geo: z.string().nullable(), padre: z.string().nullable(), virtual: z.boolean(), con_nombre: z.boolean(), filtro_obligatorio: z.boolean(), descripcion: z.string().nullable() });
 const ResumenZ = z.object({ clave: z.string(), nombre: z.string(), tema: z.string(), descripcion: z.string(), fuente: z.string(), fuente_url: z.string(), licencia: z.string(), n_medidas: z.number().int(), n_dimensiones: z.number().int(), ficha_url: z.string(), datos_url: z.string() });
 const FichaZ = ResumenZ.extend({ filas: z.number().int(), corte: z.string().nullable(), medidas: z.array(MedidaZ), dimensiones: z.array(DimensionZ), predeterminado: z.object({ medidas: z.array(z.string()), columnas: z.array(z.string()), filtros: z.record(z.string(), z.array(z.string())) }), notas: z.array(z.string()), api_dominio: z.string(), miembros_url: z.string(), como_consultar: z.string() });
 const ColumnaZ = z.object({ clave: z.string(), titulo: z.string(), tipo: z.enum(["id", "dimension", "geo", "medida"]), dimension: z.string().optional(), unidad: z.string().optional(), sumable: z.boolean().optional() });
@@ -63,7 +63,7 @@ export class CuboFicha extends OpenAPIRoute {
     return {
       ...resumen(cubo), filas, corte,
       medidas: cubo.medidas.map((m) => ({ clave: m.clave, titulo: m.titulo, unidad: m.unidad ?? null, sumable: m.sumable, decimales: m.decimales ?? null, descripcion: m.descripcion ?? null })),
-      dimensiones: cubo.dimensiones.map((d) => ({ clave: d.clave, titulo: d.titulo, tipo: d.tipo, geo: d.geo ?? null, padre: d.padre ?? null, virtual: !!d.virtual, con_nombre: !!(d.nombre || d.virtual), descripcion: d.descripcion ?? null })),
+      dimensiones: cubo.dimensiones.map((d) => ({ clave: d.clave, titulo: d.titulo, tipo: d.tipo, geo: d.geo ?? null, padre: d.padre ?? null, virtual: !!d.virtual, con_nombre: !!(d.nombre || d.virtual), filtro_obligatorio: (cubo.filtro_obligatorio ?? []).includes(d.clave), descripcion: d.descripcion ?? null })),
       predeterminado: { medidas: cubo.predeterminado.medidas, columnas: cubo.predeterminado.columnas, filtros: cubo.predeterminado.filtros ?? {} },
       notas: cubo.notas, api_dominio: cubo.api_dominio, miembros_url: `/api/v1/cubos/${cubo.clave}/miembros?dimension=${cubo.dimensiones[0].clave}`, como_consultar: COMO_CONSULTAR,
     };

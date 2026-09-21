@@ -69,9 +69,12 @@ paridad base por base.
       18 cubos: ANUIES (matrícula, trayectoria, edades, procedencia), ENOE (entidad, nacional, sector,
       posición), CONSAR (recursos, comisiones, cuentas, activo neto, rendimientos, traspasos, flujos),
       Censo 2020 (localidad › municipio › entidad), CDMX (nombramientos), UNAM (concurso). Verificador
-      `scripts/verificar_cubos.py` (cruces contra los endpoints de cada dominio). Siguiente: cubos de
-      ENIGH, BISE, Censo completo (iter_2/iter_3), precios CONSAR y DENUE preagregado (fase D del
-      explorador; plan en el sitio, docs/internal/observatorio-rediseno/MISION.md).
+      `scripts/verificar_cubos.py` (cruces contra los endpoints de cada dominio). Fase D (HECHA
+      2026-09-21): 24 cubos en 9 temas con ENIGH 2024 (promedios ponderados por factor), Banco de
+      Indicadores del INEGI (filtro obligatorio por indicador, miembros desde el catálogo), Censo
+      completo (iter_2/iter_3 con los agregados 9998/9999), precios CONSAR y DENUE sobre la tabla
+      preagregada `denue_resumen` (scripts/denue_resumen_d1.py). Plan del explorador en el sitio,
+      docs/internal/observatorio-rediseno/MISION.md.
 - F8  Ingesta del Banco de Indicadores del INEGI (BISE): fase 1 = los 31,817
       indicadores del catálogo a nivel nacional y por entidad (D1
       `datosmexico-api-bise`, endpoints /api/v1/inegi/*); fase 2 = municipios

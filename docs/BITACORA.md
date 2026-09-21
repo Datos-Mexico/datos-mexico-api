@@ -1032,3 +1032,34 @@ sigue en FALLOS 0. Publicado en github.com/Datos-Mexico/datos-mexico-api. Sin fi
 **CORS (2026-09-20, tarde).** La pestaña API del explorador muestra los encabezados reales de la respuesta y el navegador
 solo dejaba ver `cache-control` y `content-type`: faltaba `Access-Control-Expose-Headers`. Ahora `exposeHeaders: ["*"]`
 (peticiones sin credenciales). Desplegado; verificador de cubos en FALLOS 0.
+
+## 2026-09-21 — Fase D del explorador: 24 cubos en 9 temas
+
+**Nuevo.** ENIGH 2024 (`enigh-hogares`: hogares expandidos, ingreso y gasto promedio ponderados por el factor y sus
+componentes, por entidad, decil, tamaño de localidad, estrato, clase de hogar y sexo de la jefatura), Banco de Indicadores
+del INEGI (`inegi-indicadores`), Censo 2020 completo (`censo2020-caracteristicas` sobre iter_2 y `censo2020-hogares-vivienda`
+sobre iter_3, 185 medidas con los títulos del diccionario del INEGI), precios de bolsa de las SIEFOREs (`consar-precios`) y
+DENUE (`denue-unidades`) con jerarquía SCIAN sector › subsector › rama › clase y estrato de personal.
+
+**Dos mecanismos nuevos en el motor.** (1) `filtro_obligatorio`: la tabla de observaciones del BISE tiene 7.4 millones
+de filas y agruparla entera no es viable; toda consulta exige `f.indicador` (422 con la explicación si falta).
+(2) `miembros` con origen propio: los 31,039 indicadores salen del catálogo `indicadores` (134 ms con búsqueda) en lugar de
+agrupar la tabla de hechos; las geografías, del catálogo `geografias`.
+
+**DENUE preagregado.** Agrupar las 6,138,075 unidades por entidad × actividad excedía el CPU de D1 (código 7429);
+`scripts/denue_resumen_d1.py` hace 32 `INSERT … SELECT` por entidad dentro de D1 (1-6 s cada uno) hacia `denue_resumen`
+(603,668 grupos) y comprueba SUM(n) = COUNT(*) = 6,138,075. Los 20 sectores llevan el título oficial del SCIAN 2018;
+subsector y rama no tienen nombre en el DENUE (queda dicho en la ficha).
+
+**Censo: qué cuadra y qué no.** En `iter` la población total de cada localidad se publica siempre, y las filas 9998/9999
+la repiten: quedan fuera y las sumas reproducen al INEGI exacto (126,014,024). En `iter_2`/`iter_3` el INEGI suprime (*) las
+localidades de una y dos viviendas y publica sus cifras agregadas en 9998/9999: esas filas SÍ entran (Aguascalientes: PEA
+706,930, HLI 2,539, hogares 386,445 = fila total). Aun así, en 29 entidades la suma queda por debajo de la fila total en
+fracciones de punto (hogares en el país: 35,213,375 contra 35,219,141, 0.016 %): cifras suprimidas por confidencialidad en
+otras localidades pequeñas que no se publican en ningún renglón. Queda en las notas del cubo y el verificador lo tolera
+hasta 0.05 %.
+
+**Verificación.** ENIGH reproduce `/enigh/hogares/by-decil` y `by-entidad` al centavo (decil 1: 16,795.15; Nuevo León
+117,033.88; 38,830,230 hogares); BISE población total 2020 país 126,014,024 y CDMX 9,209,944; DENUE 6,138,075 en 20
+sectores con nombre; precios 2025-12-31 SB 60-64 en 10 AFOREs. `scripts/verificar_cubos.py` → **FALLOS 0** en local y en
+producción.

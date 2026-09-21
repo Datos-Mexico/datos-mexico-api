@@ -38,7 +38,9 @@ export type Dimension = {
   padre?: string;
   /** Expresión SQL para ordenar miembros (por omisión, el identificador). */
   orden?: string;
-  /** Dimensión virtual: sus miembros son columnas de una tabla ancha; la consulta se arma con UNION ALL. */
+  /** Origen alterno de los miembros (catálogo) cuando agrupar la tabla de hechos sería demasiado caro: cláusula FROM y expresiones de id y nombre sobre ella. */
+  miembros?: { desde: string; id: string; nombre: string; donde?: string; orden?: string };
+  /** Dimensión virtual: sus miembros son columnas de una tabla ancha; la consulta se despliega en el worker. */
   virtual?: MiembroVirtual[];
   descripcion?: string;
 };
@@ -63,6 +65,8 @@ export type Cubo = {
   /** SQL que devuelve el corte más reciente (columna `corte`), o null. */
   sql_corte: string | null;
   notas: string[];
+  /** Dimensiones que deben llevar filtro en toda consulta (tablas de hechos demasiado grandes para agrupar enteras). */
+  filtro_obligatorio?: string[];
   /** Prefijo de los endpoints del dominio donde vive el mismo dato con más detalle. */
   api_dominio: string;
 };

@@ -18,7 +18,7 @@ Documentación interactiva en [`/docs`](https://api.datosmexico.org/docs) (Swagg
 | Censo 2020 | Indicadores por localidad (ITER) y por AGEB y manzana | `/api/v1/censo2020/*` |
 | ANUIES | Anuario Estadístico de Educación Superior completo: 6,066 instituciones, 26 ciclos (2000-2001 a 2025-2026), 953,653 programas-ciclo con 167 cifras cada uno, por sexo, edad, discapacidad, lengua indígena y procedencia | `/api/v1/anuies/*` |
 | UNAM | Concurso de Selección a licenciatura (distribución de aciertos por carrera-plantel, encabezados oficiales, universo, cobertura, cronología; CC BY 4.0) y la UNAM en el Anuario ANUIES | `/api/v1/unam/*` |
-| Cubos | La capa que consume el explorador del observatorio (datosmexico.org/observatorio): 18 cubos con medidas y dimensiones sobre ANUIES, ENOE, CONSAR, Censo 2020, CDMX y UNAM; consulta agregada con filtros, jerarquías y descarga JSON/CSV desde una URL que reproduce cada tabla | `/api/v1/cubos/*` |
+| Cubos | La capa que consume el explorador del observatorio (datosmexico.org/observatorio): 24 cubos con medidas y dimensiones sobre ANUIES, ENOE, CONSAR, Censo 2020, DENUE, ENIGH, CDMX, UNAM y el Banco de Indicadores del INEGI; consulta agregada con filtros, jerarquías y descarga JSON/CSV desde una URL que reproduce cada tabla | `/api/v1/cubos/*` |
 | Erratas | Registro público de erratas detectadas en las fuentes, con revisión | `/api/v1/erratas/*` |
 | Catálogo | Qué bases hay, su origen, su esquema y su fecha de corte | `/api/v1/catalogo/*` |
 
