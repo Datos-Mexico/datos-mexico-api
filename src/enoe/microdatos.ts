@@ -35,9 +35,11 @@ const META: Record<Tabla, { real: string; pk: string[] }> = {
 const LLAVE_ENTERA = new Set(["n_hog", "n_ren"]);
 // Orden de las filas dentro del trimestre: la entidad primero (es el nivel de partición) y luego el resto de la PK.
 // El legacy ordenaba por la PK tal cual (cd_a antes que ent): con filtro de entidad ambos órdenes coinciden.
-// Desde 2025T2 las particiones vienen de los CSV oficiales con TODAS las filas: la llave del legado no es única (el mismo
-// hogar aparece con dos cuestionarios) y el índice marca `llave_extra = 'tipo'` como último componente de la llave.
-function orden(tabla: Tabla, extra: string | null = null): string[] { return ["ent", ...META[tabla].pk.slice(1).filter((k) => k !== "ent"), ...(extra ? [extra] : [])]; }
+// Las particiones hechas desde los CSV oficiales traen TODAS las filas: desde 2020T3 la llave del legado no es única (el mismo
+// hogar aparece con dos cuestionarios) y el índice marca `llave_extra` con los componentes finales de la llave, separados
+// por coma: 'tipo' (2021T3 en adelante) o 'tipo,d_sem' (ENOE-N mensual 2020T3-2021T2, una visita por mes); vacío en
+// 2005T1-2020T1, donde la llave del legado ya es única.
+function orden(tabla: Tabla, extra: string | null = null): string[] { return ["ent", ...META[tabla].pk.slice(1).filter((k) => k !== "ent"), ...(extra ? extra.split(",").filter((k) => k) : [])]; }
 // Columnas numeric(p,s) en Postgres que el Parquet guarda como double: se devuelven como texto con su escala, igual que el legacy.
 const DECIMALES: Record<string, number> = { ing_x_hrs: 5 };
 const CORE_SDEM = ["periodo", "cd_a", "ent", "con", "v_sel", "n_hog", "n_ren", "sex", "eda", "clase1", "clase2", "pos_ocu", "rama_est2", "fac_tri", "etapa"];

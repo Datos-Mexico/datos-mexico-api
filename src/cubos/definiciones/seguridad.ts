@@ -1,7 +1,9 @@
 // Percepción de inseguridad del INEGI: ENVIPE (anual, por entidad, 2017-2026) y ENSU (trimestral, por ciudad,
 // 2016-2026), agregadas por scripts/seguridad_d1.py desde los microdatos oficiales (D1 datosmexico-api-seguridad).
-// La ENVIPE reproduce el indicador 6200118581 del Banco de Indicadores (país y 32 entidades, a la milésima); la ENSU
-// reproduce ciudad por ciudad el cuadro 1.7 de los tabulados básicos de junio 2026.
+// La ENVIPE reproduce el indicador 6200118581 del Banco de Indicadores (país y 32 entidades, a la milésima; 2020 con el
+// levantamiento de marzo, scripts/metodologias_inegi.py); la ENSU reproduce ciudad por ciudad el cuadro 1.7 de los
+// tabulados básicos de junio 2026. La prevalencia delictiva (6200002197) sale de TMod_Vic con la regla documentada en
+// docs/METODOLOGIAS-INEGI.md y es exacta en las 33 geografías de las diez ediciones.
 import type { Cubo, Medida } from "../tipos";
 
 const MEDIDAS: Medida[] = [
@@ -15,18 +17,41 @@ const MEDIDAS: Medida[] = [
 export const ENVIPE_PERCEPCION: Cubo = {
   clave: "envipe-percepcion", nombre: "Percepción de inseguridad (ENVIPE)", tema: "seguridad",
   fuente: "INEGI — Encuesta Nacional de Victimización y Percepción sobre Seguridad Pública (ENVIPE), microdatos TPer_Vic1", fuente_url: "https://www.inegi.org.mx/programas/envipe/", licencia: "Términos de libre uso INEGI",
-  descripcion: "Personas de 18 años y más que consideran inseguro vivir en su colonia, municipio o entidad, por edición (2017-2026, sin 2020; cada edición pregunta por el momento de la entrevista), entidad y sexo. El porcentaje de inseguridad en la colonia es el indicador «Percepción de la inseguridad» del Banco de Indicadores del INEGI.",
+  descripcion: "Personas de 18 años y más que consideran inseguro vivir en su colonia, municipio o entidad, por edición (2017-2026; cada edición pregunta por el momento de la entrevista; en 2020, solo el levantamiento de marzo), entidad y sexo. El porcentaje de inseguridad en la colonia es el indicador «Percepción de la inseguridad» del Banco de Indicadores del INEGI.",
   binding: "DB_SEGURIDAD", desde: "envipe_percepcion d JOIN cat_entidad e ON e.clave = d.ent JOIN cat_sexo s ON s.clave = d.sexo JOIN cat_ambito a ON a.clave = d.ambito",
   medidas: MEDIDAS,
   dimensiones: [
-    { clave: "anio", titulo: "Edición", id: "d.anio", tipo: "temporal", descripcion: "Año de la edición de la ENVIPE (levantada entre marzo y abril de ese año); 2020 no se publica." },
+    { clave: "anio", titulo: "Edición", id: "d.anio", tipo: "temporal", descripcion: "Año de la edición de la ENVIPE (levantada entre marzo y abril de ese año; en 2020, del 17 al 31 de marzo)." },
     { clave: "entidad", titulo: "Entidad", id: "substr('0' || d.ent, -2)", nombre: "e.nombre", tipo: "geografica", geo: "entidad", orden: "1" },
     { clave: "sexo", titulo: "Sexo", id: "d.sexo", nombre: "s.nombre", tipo: "categorica", orden: "1" },
     { clave: "ambito", titulo: "Ámbito", id: "d.ambito", nombre: "a.nombre", tipo: "categorica", orden: "CASE d.ambito WHEN 'colonia' THEN 1 WHEN 'municipio' THEN 2 ELSE 3 END", descripcion: "Colonia, municipio o entidad: elija uno (las personas son las mismas en los tres; sumar ámbitos las cuenta tres veces).", particion: {} },
   ],
   predeterminado: { medidas: ["pct_inseguro", "personas"], columnas: ["entidad"], filtros: { anio: ["2026"], ambito: ["colonia"] } },
   sql_corte: "SELECT MAX(anio) AS corte FROM envipe_percepcion",
-  notas: ["Verificado: el porcentaje de inseguridad en la colonia reproduce el indicador 6200118581 del INEGI en el país y las 32 entidades en cada edición (diferencia < 0.005 puntos).", "La edición 2020 no se publica: con ningún factor de la tabla se reproduce el 48.74 % que el INEGI publica para ese año (los microdatos dan 42.93 %).", "Los porcentajes no se suman entre entidades ni ediciones: agrúpelos siempre con la dimensión que quiera comparar.", "La tasa de prevalencia delictiva no se publica: ninguna reconstrucción desde el módulo de victimización reprodujo la cifra oficial."],
+  notas: ["Verificado: el porcentaje de inseguridad en la colonia reproduce el indicador 6200118581 del INEGI en el país y las 32 entidades en cada edición (diferencia < 0.005 puntos).", "En 2020 la pandemia partió el levantamiento en dos periodos (17-31 de marzo y 27 de julio-4 de septiembre); como el INEGI, solo se toma el de marzo (TVivienda.PER = 1): 48.74 % en la colonia, exacto contra el indicador y el cuadro 5.4.", "Los porcentajes no se suman entre entidades ni ediciones: agrúpelos siempre con la dimensión que quiera comparar."],
+  api_dominio: "/api/v1/inegi/datos-abiertos/programas/envipe",
+};
+
+export const ENVIPE_PREVALENCIA: Cubo = {
+  clave: "envipe-prevalencia", nombre: "Prevalencia delictiva (ENVIPE)", tema: "seguridad",
+  fuente: "INEGI — Encuesta Nacional de Victimización y Percepción sobre Seguridad Pública (ENVIPE), microdatos TPer_Vic1 y TMod_Vic", fuente_url: "https://www.inegi.org.mx/programas/envipe/", licencia: "Términos de libre uso INEGI",
+  descripcion: "Personas de 18 años y más que fueron víctimas de al menos un delito durante el año de referencia (el anterior a la edición), por entidad de residencia y sexo, 2016-2025. La tasa por cada 100 mil habitantes es el indicador «Tasa de prevalencia delictiva» (6200002197) del Banco de Indicadores del INEGI.",
+  binding: "DB_SEGURIDAD", desde: "envipe_prevalencia d JOIN cat_entidad e ON e.clave = d.ent JOIN cat_sexo s ON s.clave = d.sexo",
+  medidas: [
+    { clave: "personas", titulo: "Personas de 18 años y más", sql: "SUM(d.personas)", unidad: "personas", sumable: true, descripcion: "Población de 18 años y más representada (factor de expansión de la persona elegida)." },
+    { clave: "victimas", titulo: "Víctimas de delito", sql: "SUM(d.victimas)", unidad: "personas", sumable: true, descripcion: "Personas con al menos un delito en el año de referencia (una persona cuenta una vez aunque haya sufrido varios)." },
+    { clave: "tasa", titulo: "Tasa de prevalencia por 100 mil habitantes", sql: "100000.0 * SUM(d.victimas) / SUM(d.personas)", unidad: "por 100 mil", sumable: false, decimales: 1, descripcion: "Víctimas entre la población de 18 y más, por cada 100 mil, como la publica el INEGI." },
+    { clave: "pct_victimas", titulo: "Porcentaje de víctimas", sql: "100.0 * SUM(d.victimas) / SUM(d.personas)", unidad: "%", sumable: false, decimales: 2 },
+  ],
+  dimensiones: [
+    { clave: "anio", titulo: "Año de referencia", id: "d.anio", tipo: "temporal", descripcion: "Año en que ocurrieron los delitos (la edición de la ENVIPE es el año siguiente: 2025 = ENVIPE 2026)." },
+    { clave: "edicion", titulo: "Edición", id: "d.edicion", tipo: "temporal", descripcion: "Año de la edición de la ENVIPE." },
+    { clave: "entidad", titulo: "Entidad", id: "substr('0' || d.ent, -2)", nombre: "e.nombre", tipo: "geografica", geo: "entidad", orden: "1", descripcion: "Entidad de residencia de la persona." },
+    { clave: "sexo", titulo: "Sexo", id: "d.sexo", nombre: "s.nombre", tipo: "categorica", orden: "1" },
+  ],
+  predeterminado: { medidas: ["tasa", "victimas", "personas"], columnas: ["entidad"], filtros: { anio: ["2025"] } },
+  sql_corte: "SELECT MAX(anio) AS corte FROM envipe_prevalencia",
+  notas: ["Verificado: la tasa reproduce el indicador 6200002197 del INEGI en el país y las 32 entidades en las diez ediciones 2017-2026 (330 comparaciones, diferencia < 0.01 por 100 mil).", "Víctima = persona elegida con al menos un delito registrado en el módulo de victimización (TMod_Vic), sin contar el código 03 (pintas, rayones y otro vandalismo, que la encuesta capta pero el INEGI no cuenta como delito); los delitos del hogar (robo de vehículo, de accesorios y en casa habitación) sí cuentan a la persona elegida.", "Las tasas no se suman entre entidades ni años: agrúpelas siempre con la dimensión que quiera comparar."],
   api_dominio: "/api/v1/inegi/datos-abiertos/programas/envipe",
 };
 

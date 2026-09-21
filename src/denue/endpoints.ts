@@ -145,3 +145,56 @@ export class DenueActividades extends OpenAPIRoute {
     return { n: items.length, items };
   }
 }
+
+// ---------------------------------------------------------------- histórico (20 ediciones, scripts/denue_historico.py)
+const Edicion = z.object({ edicion: z.string(), periodo_inegi: z.string(), orden: z.number().int(), unidades: z.number().int(), publicado: z.number().int().nullable(), diferencia: z.number().int().nullable(), verificado: z.boolean().nullable(), grupos: z.number().int(), municipios: z.number().int(), clases: z.number().int(), archivos: z.number().int(), scian: z.string(), fuente_cifra: z.string().nullable(), parquet_url: z.string(), fuentes_prefijo: z.string() });
+export class DenueEdiciones extends OpenAPIRoute {
+  schema = {
+    tags: TAG, operationId: "denue_ediciones", summary: "Las 25 ediciones del DENUE (2010 a 05/2026) y su verificación",
+    description: "Cada edición de la descarga masiva del INEGI (archivos por entidad) con el total de unidades de sus archivos, la cifra que el INEGI publicó para esa edición (comunicado o documento metodológico) y la diferencia. `verificado` es true cuando coinciden, false cuando no (esas ediciones no entran en los cubos) y null cuando el INEGI no publicó una cifra exacta. `parquet_url` descarga la edición completa (todas las columnas) en Parquet.",
+    responses: { ...ok("Ediciones del DENUE.", z.object({ fuente: z.string(), fuente_url: z.string(), n: z.number().int(), items: z.array(Edicion) })), ...RESP_429 },
+  };
+  async handle(c: AppContext) {
+    const items = await memo("denue:ediciones", 30, () => filas<Record<string, unknown>>(c.env.DB_DENUE, "SELECT * FROM denue_ediciones ORDER BY orden"));
+    const base = new URL(c.req.url).origin;
+    return { fuente: "INEGI — DENUE, descarga masiva por entidad, 25 ediciones (2010 a 05/2026)", fuente_url: "https://www.inegi.org.mx/app/descarga/?ti=6", n: items.length,
+      items: items.map((r) => ({ edicion: r.edicion, periodo_inegi: r.periodo_inegi, orden: r.orden, unidades: r.unidades, publicado: r.publicado, diferencia: r.diferencia, verificado: r.verificado === null ? null : r.verificado === 1, grupos: r.grupos, municipios: r.municipios, clases: r.clases, archivos: r.archivos, scian: r.scian, fuente_cifra: r.fuente_cifra, parquet_url: `${base}/api/v1/denue/historico/descarga/${r.edicion}`, fuentes_prefijo: r.clave_fuentes })) };
+  }
+}
+
+const Serie = z.object({ fuente: z.string(), filtros: z.object({ cve_ent: z.string().nullable(), codigo_act: z.string().nullable(), per_ocu_cod: z.number().int().nullable() }), n: z.number().int(), items: z.array(z.object({ edicion: z.string(), periodo_inegi: z.string(), verificado: z.boolean().nullable(), unidades: z.number().int() })) });
+export class DenueHistorico extends OpenAPIRoute {
+  schema = {
+    tags: TAG, operationId: "denue_historico", summary: "Unidades económicas por edición del DENUE (serie 2010-2026)",
+    description: "Total de unidades económicas en cada edición del DENUE, con filtros opcionales: `cve_ent` (2 dígitos), `codigo_act` (código SCIAN completo o prefijo de 2 a 5 dígitos; el DENUE de 2010 a 10/2013 usa el SCIAN 2007, de 2015 a 03/2018 el SCIAN 2013 y de 11/2018 en adelante el SCIAN 2018) y `per_ocu_cod` (estrato 1 = 0 a 5 personas … 7 = 251 y más; 0 = no especificado). Incluye todas las ediciones y marca `verificado`.",
+    request: { query: z.object({ cve_ent: z.string().regex(/^\d{2}$/).optional(), codigo_act: z.string().regex(/^\d{2,6}$/).optional(), per_ocu_cod: z.number().int().min(0).max(7).optional() }) },
+    responses: { ...ok("Serie por edición.", Serie), ...RESP_422, ...RESP_429 },
+  };
+  async handle(c: AppContext) {
+    const ent = textoConPatron(c.req.query("cve_ent"), "cve_ent", "^\\d{2}$"); const act = textoConPatron(c.req.query("codigo_act"), "codigo_act", "^\\d{2,6}$"); const per = enteroOpcional(c.req.query("per_ocu_cod"), "per_ocu_cod", 0, 7);
+    const cond: string[] = []; const params: unknown[] = [];
+    if (ent) { cond.push("h.cve_ent = ?"); params.push(ent); }
+    if (act) { if (act.length === 6) { cond.push("h.codigo_act = ?"); params.push(act); } else { cond.push("h.codigo_act LIKE ?"); params.push(`${act}%`); } }
+    if (per !== null && per !== undefined) { cond.push("h.per_ocu_cod = ?"); params.push(per); }
+    const where = cond.length ? " WHERE " + cond.join(" AND ") : "";
+    const r = await filas<{ edicion: string; periodo_inegi: string; verificado: number | null; unidades: number }>(c.env.DB_DENUE, `SELECT e.edicion, e.periodo_inegi, e.verificado, COALESCE(SUM(h.n), 0) AS unidades FROM denue_ediciones e LEFT JOIN denue_hist_entidad h ON h.edicion = e.edicion${where ? where.replace(" WHERE ", " AND ") : ""} GROUP BY e.edicion, e.periodo_inegi, e.verificado, e.orden ORDER BY e.orden`, params);
+    return { fuente: "INEGI — DENUE, descarga masiva por entidad, 25 ediciones", filtros: { cve_ent: ent ?? null, codigo_act: act ?? null, per_ocu_cod: per ?? null }, n: r.length, items: r.map((x) => ({ ...x, verificado: x.verificado === null ? null : x.verificado === 1 })) };
+  }
+}
+
+export class DenueHistoricoDescarga extends OpenAPIRoute {
+  schema = {
+    tags: TAG, operationId: "denue_historico_descarga", summary: "Descargar una edición completa del DENUE en Parquet",
+    description: "Devuelve el archivo Parquet de la edición (todas las unidades con sus columnas originales, tal como las publica el INEGI), desde el almacén del observatorio.",
+    request: { params: z.object({ edicion: z.string().regex(/^\d{4}(-\d{2})?$/) }) },
+    responses: { "200": { description: "Archivo Parquet." }, ...RESP_404, ...RESP_429 },
+  };
+  async handle(c: AppContext) {
+    const ed = c.req.param("edicion");
+    const r = await fila<{ clave_parquet: string; bytes_parquet: number }>(c.env.DB_DENUE, "SELECT clave_parquet, bytes_parquet FROM denue_ediciones WHERE edicion = ?", [ed]);
+    if (!r) throw new ErrorHttp(404, "No existe esa edición del DENUE");
+    const obj = await c.env.DATOS.get(r.clave_parquet);
+    if (!obj) throw new ErrorHttp(404, "El archivo no está en el almacén");
+    return new Response(obj.body, { headers: { "content-type": "application/vnd.apache.parquet", "content-length": String(r.bytes_parquet), "content-disposition": `attachment; filename="denue_${ed}.parquet"`, "cache-control": "public, max-age=86400" } });
+  }
+}

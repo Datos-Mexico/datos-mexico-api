@@ -24,13 +24,15 @@ import { CatalogoDatasets, CatalogoEsquema } from "./catalogo/endpoints";
 import { InegiCatalogo, InegiArbol, InegiIndicador, InegiIndicadores, InegiObservaciones, InegiResumen } from "./inegi/endpoints";
 import { BieArbol, BieObservaciones, BieResumen, BieSerie, BieSeries } from "./bie/endpoints";
 import { DatosAbiertosDescarga, DatosAbiertosPrograma, DatosAbiertosProgramas, DatosAbiertosResumen, DatosAbiertosTabulados } from "./inegi/datos_abiertos";
-import { DenueActividades, DenueCerca, DenueResumen, DenueUnidad, DenueUnidades } from "./denue/endpoints";
+import { DenueActividades, DenueCerca, DenueEdiciones, DenueHistorico, DenueHistoricoDescarga, DenueResumen, DenueUnidad, DenueUnidades } from "./denue/endpoints";
 import { CensoIndicador, CensoIndicadores, CensoLocalidad, CensoLocalidades, CensoResumen } from "./censo2020/endpoints";
 import { AuthMe, AuthRegister, AuthToken } from "./auth/endpoints";
 import { ErrataBorrar, ErrataDetalle, ErrataReportar, ErrataRevisar, ErratasLista } from "./erratas/endpoints";
 import { DemoBorrar, DemoCrear, DemoEditar, DemoEstudiante, DemoEstudiantes, DemoReset, DemoResumen, DemoToggleBono } from "./demo/endpoints";
 import { AdminRefrescarTablero } from "./cdmx/operacion";
 import { AdminEspejo } from "./admin/espejo";
+import { ClasificadorCmo, ClasificadorCmoCodigo, ClasificadorScian, ClasificadorScianCodigo, ClasificadorSinco, ClasificadorSincoCodigo, ClasificadoresLista, GeoEntidades, GeoLocalidad, GeoLocalidades, GeoMunicipios } from "./clasificadores/endpoints";
+import { MgCapa, MgDescargaCapa, MgDescargaEstado, MgDescargaNacional, MgEstados, MgResumen } from "./inegi/mg";
 import { MicrodatosCount, MicrodatosList, MicrodatosSchema } from "./enoe/microdatos";
 import { AnuiesAgregado, AnuiesCiclos, AnuiesColumnas, AnuiesDescarga, AnuiesEdades, AnuiesInstitucion, AnuiesInstituciones, AnuiesPrograma, AnuiesProgramas, AnuiesProcedencia, AnuiesResumen, AnuiesSerie, AnuiesValores } from "./anuies/endpoints";
 import { UnamAnuarioAgregado, UnamAnuarioCampos, UnamAnuarioCarreras, UnamAnuarioEdades, UnamAnuarioNiveles, UnamAnuarioPlanteles, UnamAnuarioProcedencia, UnamAnuarioSerie, UnamConcursoArchivos, UnamConcursoDistribucion, UnamConcursoEncabezados, UnamConcursoTabla, UnamConcursoUniverso, UnamDescarga, UnamResumen } from "./unam/endpoints";
@@ -53,6 +55,7 @@ export type Env = {
   DB_PLATAFORMA: D1Database;
   DB_ANUIES: D1Database;
   DB_UNAM: D1Database;
+  DB_CLASIFICADORES: D1Database;
   SECRET_KEY: string;
   DATOS: R2Bucket;
   RL_5: RateLimit;
@@ -114,7 +117,8 @@ const openapi = fromHono(app, {
       { name: "enoe", description: "ENOE 15+ — indicadores laborales trimestrales por entidad y microdatos completos (101.5 millones de filas). Fuente: INEGI." },
       { name: "inegi", description: "Banco de Indicadores del INEGI completo: 31,817 indicadores a nivel nacional, estatal y municipal, al día con la última actualización publicada." },
       { name: "inegi-datos-abiertos", description: "Todos los microdatos y tabulados de la descarga masiva del INEGI: microdatos en Parquet con tipado riguroso y el zip original conservado, tabulados archivados íntegros, todo con manifiesto (SHA-256, filas, esquema) y avance medible contra el inventario oficial." },
-      { name: "denue", description: "DENUE — las 6,138,075 unidades económicas del país con sus 42 campos (edición 05/2026). Fuente: INEGI." },
+      { name: "clasificadores", description: "Catálogos y clasificadores del INEGI: SCIAN 2023/2018/2013 con productos, SINCO 2019/2011, CMO histórica y el Catálogo Único de Claves de Áreas Geoestadísticas (32 entidades, 2,478 municipios, 296,633 localidades con coordenadas). Cada uno verificado contra los conteos publicados por el INEGI." },
+      { name: "denue", description: "DENUE — las 6,138,075 unidades económicas del país con sus 42 campos (edición 05/2026) y las 25 ediciones históricas 2010-2026 por edición, entidad, municipio, clase y estrato. Fuente: INEGI." },
       { name: "censo2020", description: "Censo de Población y Vivienda 2020 — 286 indicadores por localidad, municipio y entidad (ITER); AGEB y manzana en archivos Parquet. Fuente: INEGI." },
       { name: "anuies", description: "Anuario Estadístico de Educación Superior (ANUIES) completo: todas las instituciones del país, 2000-2001 a 2025-2026, programa por programa (matrícula, nuevo ingreso, egresados, lugares, titulados y solicitudes por sexo, edad, discapacidad, lengua indígena y procedencia). Fuente: anuario.anuies.mx." },
       { name: "unam", description: "Todo lo que tenemos de la UNAM: el Concurso de Selección a licenciatura (distribución de aciertos por carrera-plantel, encabezados oficiales, universo, cobertura, cronología; dataset del observatorio, CC BY 4.0) y la UNAM en el Anuario ANUIES ciclo por ciclo." },
@@ -257,6 +261,26 @@ openapi.get("/api/v1/denue/unidades", DenueUnidades);
 openapi.get("/api/v1/denue/unidades/cerca", DenueCerca);
 openapi.get("/api/v1/denue/unidades/:id", DenueUnidad);
 openapi.get("/api/v1/denue/actividades", DenueActividades);
+openapi.get("/api/v1/clasificadores", ClasificadoresLista);
+openapi.get("/api/v1/clasificadores/scian", ClasificadorScian);
+openapi.get("/api/v1/clasificadores/scian/:codigo", ClasificadorScianCodigo);
+openapi.get("/api/v1/clasificadores/sinco", ClasificadorSinco);
+openapi.get("/api/v1/clasificadores/sinco/:codigo", ClasificadorSincoCodigo);
+openapi.get("/api/v1/clasificadores/cmo", ClasificadorCmo);
+openapi.get("/api/v1/clasificadores/cmo/:codigo", ClasificadorCmoCodigo);
+openapi.get("/api/v1/geo/entidades", GeoEntidades);
+openapi.get("/api/v1/geo/municipios", GeoMunicipios);
+openapi.get("/api/v1/geo/localidades", GeoLocalidades);
+openapi.get("/api/v1/geo/localidades/:cvegeo", GeoLocalidad);
+openapi.get("/api/v1/inegi/mg", MgResumen);
+openapi.get("/api/v1/inegi/mg/estados", MgEstados);
+openapi.get("/api/v1/inegi/mg/capas/:capa", MgCapa);
+openapi.get("/api/v1/inegi/mg/descarga/nacional", MgDescargaNacional);
+openapi.get("/api/v1/inegi/mg/descarga/estado/:cve_ent", MgDescargaEstado);
+openapi.get("/api/v1/inegi/mg/descarga/:capa", MgDescargaCapa);
+openapi.get("/api/v1/denue/ediciones", DenueEdiciones);
+openapi.get("/api/v1/denue/historico", DenueHistorico);
+openapi.get("/api/v1/denue/historico/descarga/:edicion", DenueHistoricoDescarga);
 
 // Censo de Población y Vivienda 2020, ITER (nuevo)
 openapi.get("/api/v1/anuies/resumen", AnuiesResumen);

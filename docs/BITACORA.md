@@ -1278,3 +1278,122 @@ El CEO dio por validada la auditoría con las cifras de cobertura (BIE 88,678/88
 masiva 4,259/4,259 microdatos y 18,150/18,150 tabulados verificados; 39 cubos, 25 del INEGI) y con las exclusiones
 declaradas por su nombre. Todo el estado, los métodos, los quirks y el plan para cerrar cada exclusión quedan en
 `docs/TRASPASO-INEGI.md`, punto de entrada de la siguiente sesión (F16 en PLAN.md).
+
+## 2026-09-21 — F16, «tenemos todos los datos del INEGI»: microdatos ENOE 2005T1-2025T1 rehechos desde los CSV oficiales (exclusión 5)
+
+**Qué faltaba.** Los 80 trimestres 2005T1-2025T1 de /enoe/microdatos venían del sistema anterior (Neon), que al cargar los DBF
+descartó filas con llave repetida: 101,512,667 filas contra 103,616,567 en los CSV oficiales del INEGI (2.1 % menos), y sin
+viv 2005T1.
+
+**Cómo se rehizo.** `scripts/enoe_particiones_csv.py` cubre ahora los 85 trimestres con CSV (nombres `2005trim1`,
+`enoe-n-2020-trim3` y `enoe-2023-trim1` del catálogo de datos abiertos) y proyecta cada uno al esquema del legado con tres
+reglas medidas: (1) la llave se decide contando en la tabla, no por calendario: única en 2005T1-2020T1 (sin `tipo`), llave +
+`tipo` desde 2021T3, y llave + `tipo` + `d_sem` en la ENOE-N mensual 2020T3-2021T2, donde la misma vivienda aparece hasta
+tres veces (una por mes) con dos cuestionarios; (2) los anchos de texto se toman del legado del mismo trimestre, porque el
+legado guardó cada campo con el ancho del DBF de su año (est_d_tri '260' en 2015 y '0260' en 2025), y fac/est_d/t_loc del
+CSV viejo se mapean a fac_tri/est_d_tri/t_loc_tri como hizo el legado; (3) `etapa` es 'clasica' antes de 2020T3.
+Particiones nuevas bajo `enoe/particiones-csv/<tabla>/<periodo>/<ent>.parquet` (12,800 objetos, 80 trimestres), sin tocar
+las del legado.
+
+**Verificación.** Suma de particiones = filas del CSV = catálogo en las 400 tablas-trimestre; HEAD en R2 12,800/12,800 con
+tamaño exacto. Contra el legado completo, emparejando por llave + tipo + d_sem, en 2005T1, 2015T1, 2020T3, 2021T2 y 2025T1
+(cinco tablas): 0 filas del legado sin par y 0 columnas con diferencias. Índice D1 apuntado a las particiones nuevas en 76
+trimestres (12,160 particiones); en producción sdem 2015T1 pasa de 396,851 a 404,432 (= CSV), viv 2005T1 de 0 a 120,221, y
+la paginación por cursor de sdem 2015T1 ent 01 devuelve 13,011 llaves distintas en 14 páginas (= total). Tres procesos en
+paralelo, ~50 min; el cuello es el CPU de la proyección (extras_jsonb fila por fila), no la subida.
+
+**Pendiente.** 2020T3-2021T2 exigen `llave_extra` compuesta ('tipo,d_sem'): el worker ya la admite (`orden()` separa por
+comas) y al desplegar se cargan con `--cargar --desde 2020T3 --hasta 2021T2 --prefijo enoe/particiones-csv
+--incluir-compuestas`. Las particiones viejas del legado siguen en R2 (borrarlas es decisión del CEO). 2020T2 no tiene
+microdatos (ETOE telefónica).
+
+## 2026-09-21 — F16: Marco Geoestadístico 2025 íntegro (exclusión 2)
+
+**Qué faltaba.** Solo teníamos la geometría de estados y municipios en el sitio. El INEGI publica el Marco Geoestadístico
+2025 (versión por área geoestadística estatal, corte «actualización cartográfica base julio 2025») como un zip nacional de
+2.9 GB (upc 794551163061) con 32 zips estatales de 16 capas SHAPE cada uno (entidad, municipio, localidad amanzanada,
+localidad rural puntual, AGEB urbana y rural, manzana, caserío disperso, territorio insular, polígono externo y de manzana,
+eje de vialidad, frente de manzana, servicios de área, línea y punto) más catálogos CSV y metadatos.
+
+**Cómo se ingirió (`scripts/mg_2025.py`).** La descarga directa del INEGI va a 0.7 MB/s por IP (6 h): se copió por el espejo
+del worker (`POST /api/v1/admin/espejo`, 2.9 GB en 12 min) a `inegi/fuentes/marco-geoestadistico/2025/`, y de R2 a local en
+40 s. Cada zip estatal se lee con pyogrio (geometría a WKB, atributos tal cual, CRS original ITRF2008 / Cónica Conforme de
+Lambert, EPSG:6372) y se escribe un Parquet por capa y estado; después se unen en un Parquet nacional por capa
+(`mg/2025/<capa>.parquet`, 2.1 GB en total; frentes de manzana 851 MB, manzanas 539 MB, ejes 324 MB) y se suben junto con
+los 32 zips estatales originales y los catálogos CSV del INEGI concatenados a nivel nacional (`mg/2025/catalogos/`). En D1
+(datosmexico-api-censo2020): `mg_capas` (16 capas con geometría, campos, objetos y clave R2), `mg_conteos` (objetos por capa
+y entidad) y `mg_ediciones`. 32 estados en ~2 min con 4 procesos.
+
+**Verificación.** El propio producto declara sus totales nacionales en `catalogos/contenido.txt`; los ocho coinciden exactos:
+2,478 municipios, 51,766 polígonos de localidades amanzanadas, 291,933 puntos de localidades rurales, 367 polígonos
+insulares, 17,475 AGEB rurales, 64,808 AGEB urbanas, 2,634,771 manzanas (2,539,214 + 95,557 de caserío disperso) y 32
+entidades; el cargador no carga si alguno difiere. Capas sin cifra publicada (ejes 7,224,753; frentes 13,167,925; polígonos
+externos 89,310 y 11,199; servicios 229,071 / 544,154 / 458,376) se publican con su conteo y `publicado` nulo.
+
+**API.** `/api/v1/inegi/mg` (resumen con verificación y capas), `/mg/capas/{capa}` (objetos por entidad), `/mg/estados`,
+`/mg/descarga/{capa}` (Parquet nacional), `/mg/descarga/estado/{cve_ent}` (zip original) y `/mg/descarga/nacional` (2.9 GB).
+Quirk: `unzip` de macOS falla con los nombres acentuados del INEGI («léeme.pdf», «áreas_geoestadísticas…csv»): se extrae con
+zipfile de Python.
+
+## 2026-09-21 — F16: catálogos y clasificadores autónomos del INEGI (exclusión 4)
+
+**Qué faltaba.** SCIAN, SINCO, CMO y el Catálogo Único de Claves de Áreas Geoestadísticas no existían como catálogos propios
+(el DENUE solo trae las clases con unidades; la ENOE codifica ocupaciones sin catálogo).
+
+**Origen y normalización (`scripts/catalogos_inegi.py`, `data/catalogos/README.md`).** SCIAN 2023, 2018 y 2013 desde los
+archivos de «estructura y productos» del visor del INEGI (xlsx; cinco niveles con título, descripción, «incluye»,
+«excluye», marca de comparabilidad con Canadá y EE. UU., y el índice de productos: 35,764 / 35,670 / 35,273). SINCO 2019
+(edición 2020 con la fe de erratas del 2 de septiembre de 2025) y la CMO histórica se extraen de los PDF, únicos formatos
+en que el INEGI los publica (el visor de clasificadores responde «No existe información» para el SINCO); SINCO 2011 desde
+las tablas comparativas xlsx (solo códigos y títulos). AGEEML: entidades y municipios de los zips «catálogos completos» y
+las localidades vigentes (corte 2026/08) por la API interna del visor (`/app/api/cateml/catuniAPI/EXPLOCAGEML/`, misma
+exportación CSV del botón; la descarga masiva `catun_localidad.zip` está al corte 2024/12 y se conserva aparte).
+
+**Verificación (data/catalogos/verificacion.json; el cargador exige que cuadre).** SCIAN 2023: 20 / 94 / 305 / 610 / 1,086
+(Síntesis metodológica, upc 889463909682); SCIAN 2018: 20 / 94 / 306 / 615 / 1,084 y SCIAN 2013: 20 / 94 / 303 / 614 / 1,059
+(cuadro comparativo del documento SCIAN 2018); SINCO 2019: 9 / 52 / 163 / 490 y SINCO 2011: 9 / 53 / 156 / 468 (documento
+SINCO 2019); CMO: 19 grupos principales y 461 grupos unitarios (vol. I, 1.4); AGEEML: 32 / 2,478 / 296,633 (fechas de corte
+del propio visor). Cero códigos con padre inexistente. Avisos: el PDF del SINCO repite la clave 971 (se toma el título de la
+versión ampliada); 26 categorías residuales sin descripción; 70 títulos de la CMO difieren en acentos entre volúmenes (se
+conservan ambos); 9,070 localidades con población «*» o «-» (sin dato) quedan nulas.
+
+**API (D1 nueva `datosmexico-api-clasificadores`, `scripts/clasificadores_d1.py`, tag `clasificadores`).**
+`/api/v1/clasificadores` (los 9 catálogos con su verificación), `/clasificadores/{scian|sinco|cmo}` (nivel, versión,
+padre, búsqueda, paginado) y `/{codigo}` (ficha con ancestros, hijos, productos u ocupaciones), `/api/v1/geo/entidades`,
+`/geo/municipios`, `/geo/localidades` (filtros, paginado) y `/geo/localidades/{cvegeo}`. Quirk de carga: las descripciones
+largas del SCIAN exceden el tope de 100 KB por sentencia de D1 con 300 filas: las sentencias se cortan por tamaño (≤ 80 KB).
+
+## 2026-09-21 — F16: DENUE histórico, 25 ediciones 2010-2026 (exclusión 1)
+
+**Qué hay.** La «Descarga masiva» del INEGI (ti=6) publica el DENUE de dos formas: archivos nacionales por sector de
+actividad (20 ediciones, 2015 a 05/2026, 484 CSV, 8.2 GB) y archivos por entidad (25 ediciones, desde el DENUE de julio de
+2010 hasta 05/2026, 815 CSV, 10.2 GB). Se inventariaron con la API interna de esa página (`obtenerarchivos` con tipoInfo
+OTROS, carpeta «Otros|DENUE|Actividad económica|» para los sectoriales y «Otros|DENUE|» con `ag` = entidad para los
+estatales), se copiaron ambos juegos íntegros a R2 por el espejo del worker (el INEGI limita la descarga directa a 0.7
+MB/s por IP; el espejo copia 968 archivos en 15 min) y se procesaron con `scripts/denue_historico.py` (ámbito `entidad`
+por omisión, `DENUE_AMBITO=sector` para el otro): Parquet completo por edición (todas las columnas originales, 6.3 GB,
+`denue/historico/<edición>/`) y resumen por edición, entidad, municipio, clase de actividad y estrato de personal ocupado.
+En D1 (datosmexico-api-denue): `denue_historico` (municipio × clase × estrato), `denue_hist_entidad`, catálogos de
+municipios y actividades por edición, `denue_ediciones` con la verificación. Los archivos por entidad son la fuente de los
+cubos porque son los mismos con que se cargó el DENUE vigente (05/2026: 6,138,075 exactos) y los sectoriales de esa misma
+edición traen una unidad menos y una repetida.
+
+**Quirks del INEGI, medidos.** 2010 y 2011 no traen clave de municipio ni id (se asigna la clave por nombre con el AGEEML y
+los nombres del propio DENUE 2011 y 10/2013; 2,528 pares); 2011 mezcla el formato de 2010 en algunos estados y 2012 cambia
+la ortografía de los títulos entre entidades («Nombre de clase dela actividad», «Descripción de estrato»): el lector mapea
+por patrón y el Parquet usa la unión de encabezados; en 01/2016 varios archivos pegan el encabezado con la primera fila
+(«fecha_alta"6281881,…»); la misma unidad aparece en dos archivos (hasta 311 ids repetidos en 11/2023; se cuenta una
+vez); el archivo de la Ciudad de México de 07/2013 trae 214,154 unidades, la mitad de las de 10/2013. Versión del SCIAN:
+2007 hasta 10/2013, 2013 hasta 03/2018, 2018 desde 11/2018 (diccionarios de datos de los zips).
+
+**Verificación contra la cifra que el INEGI publicó para cada edición** (comunicados de prensa y documentos
+metodológicos, archivados en data/denue/historico/boletines/). Coinciden exactas: 2012 (4,400,943), 2015 (4,926,061),
+11/2018 (5,081,192), 05/2021 (5,515,863), 05/2022 (5,528,698) y 05/2026 (6,138,075). Sin cifra exacta publicada: 10/2013, 04/2019, 04/2020 y
+11/2021 (el INEGI solo dice «más de 5 millones»). Las 15 restantes difieren entre −1 y +852 unidades (0.00002 % a 0.017 %)
+salvo 07/2013 (−214,602, archivo truncado del INEGI) y 05/2024 (+21,661: los archivos por entidad se regeneraron después
+del comunicado; los sectoriales de esa edición dan +1). La tabla completa está en `/api/v1/denue/ediciones` (columnas
+`publicado`, `diferencia`, `verificado`, `fuente_cifra`). Regla aplicada: los cubos `denue-historico` y
+`denue-historico-municipal` incluyen solo las ediciones cuya suma es exacta o sin cifra publicada (`verificado IS NOT 0`);
+las demás quedan visibles en el catálogo, en `/api/v1/denue/historico` (serie con la bandera) y descargables en Parquet.
+Decisión abierta para el CEO: si las diferencias de una decena de unidades se consideran del INEGI y no nuestras, basta
+quitar la condición `donde` de los dos cubos para incluir las 25 ediciones.

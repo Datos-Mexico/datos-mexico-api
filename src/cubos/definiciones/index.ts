@@ -9,11 +9,13 @@ import { ENIGH_HOGARES } from "./enigh";
 import { BISE_INDICADORES } from "./bise";
 import { BIE_SERIES } from "./bie_series";
 import { DENUE_UNIDADES } from "./denue";
+import { DENUE_HISTORICO, DENUE_HISTORICO_MUNICIPAL } from "./denue_historico";
 import { CDMX_NOMBRAMIENTOS } from "./cdmx";
 import { UNAM_CONCURSO } from "./unam";
 import { DEF_CAUSA, DEF_LISTA, DEF_MUNICIPIO, NAC_MADRE, NAC_MUNICIPIO } from "./vitales";
 import { ENIGH_GASTOS, ENIGH_INGRESOS, ENIGH_PERSONAS, ENIGH_VIVIENDAS } from "./enigh_mas";
-import { ENDIREH_VIOLENCIA, ENSU_PERCEPCION, ENVIPE_PERCEPCION } from "./seguridad";
+import { ENDIREH_VIOLENCIA, ENSU_PERCEPCION, ENVIPE_PERCEPCION, ENVIPE_PREVALENCIA } from "./seguridad";
+import { ENSANUT_IMC } from "./ensanut";
 import { ENADID_MUJERES, ENDUTIH_USUARIOS } from "./endutih";
 
 export const TEMAS: Tema[] = [
@@ -24,7 +26,8 @@ export const TEMAS: Tema[] = [
   { clave: "economia", nombre: "Economía", descripcion: "Unidades económicas del DENUE (INEGI) por lugar, actividad y tamaño." },
   { clave: "ingreso-gasto", nombre: "Ingreso y gasto de los hogares", descripcion: "ENIGH 2024 (INEGI): hogares, personas, viviendas, ingresos por fuente y gastos por rubro, por entidad, decil y tipo de hogar." },
   { clave: "tecnologia", nombre: "Tecnologías de la información", descripcion: "ENDUTIH (INEGI): usuarios de internet y computadora por entidad, sexo y edad, 2015-2025." },
-  { clave: "seguridad", nombre: "Seguridad pública", descripcion: "Percepción de inseguridad (ENVIPE anual por entidad 2017-2026; ENSU trimestral por ciudad 2016-2026) y violencia contra las mujeres (ENDIREH 2021), del INEGI." },
+  { clave: "seguridad", nombre: "Seguridad pública", descripcion: "Prevalencia delictiva y percepción de inseguridad (ENVIPE anual por entidad 2017-2026; ENSU trimestral por ciudad 2016-2026) y violencia contra las mujeres (ENDIREH 2021), del INEGI." },
+  { clave: "salud", nombre: "Salud", descripcion: "Encuesta Nacional de Salud y Nutrición (ENSANUT 2018-19, INSP/INEGI): sobrepeso y obesidad en adultos por entidad, sexo y edad." },
   { clave: "cdmx", nombre: "Gobierno de la Ciudad de México", descripcion: "Padrón de remuneraciones de servidores públicos de la CDMX." },
   { clave: "unam", nombre: "UNAM", descripcion: "Concurso de Selección a licenciatura (dataset del observatorio)." },
   { clave: "inegi", nombre: "Bancos de indicadores del INEGI", descripcion: "Banco de Indicadores (31,039 indicadores con datos por país, entidad y municipio) y Banco de Información Económica (89 mil series económicas: inflación, PIB, IGAE, comercio exterior, coyuntura)." },
@@ -34,7 +37,7 @@ export const CUBOS: Cubo[] = [
   ANUIES_MATRICULA, ANUIES_TRAYECTORIA, ANUIES_EDADES, ANUIES_PROCEDENCIA,
   ENOE_ENTIDAD, ENOE_NACIONAL, ENOE_SECTOR, ENOE_POSICION,
   CONSAR_RECURSOS, CONSAR_COMISIONES, CONSAR_CUENTAS, CONSAR_ACTIVO, CONSAR_RENDIMIENTOS, CONSAR_TRASPASOS, CONSAR_FLUJOS, CONSAR_PRECIOS,
-  CENSO_ITER, CENSO_CARACTERISTICAS, CENSO_HOGARES, NAC_MUNICIPIO, NAC_MADRE, DEF_MUNICIPIO, DEF_CAUSA, DEF_LISTA, ENADID_MUJERES, DENUE_UNIDADES, ENIGH_HOGARES, ENIGH_PERSONAS, ENIGH_VIVIENDAS, ENIGH_GASTOS, ENIGH_INGRESOS, ENVIPE_PERCEPCION, ENSU_PERCEPCION, ENDIREH_VIOLENCIA, ENDUTIH_USUARIOS, CDMX_NOMBRAMIENTOS, UNAM_CONCURSO, BISE_INDICADORES, BIE_SERIES,
+  CENSO_ITER, CENSO_CARACTERISTICAS, CENSO_HOGARES, NAC_MUNICIPIO, NAC_MADRE, DEF_MUNICIPIO, DEF_CAUSA, DEF_LISTA, ENADID_MUJERES, DENUE_UNIDADES, DENUE_HISTORICO, DENUE_HISTORICO_MUNICIPAL, ENIGH_HOGARES, ENIGH_PERSONAS, ENIGH_VIVIENDAS, ENIGH_GASTOS, ENIGH_INGRESOS, ENVIPE_PREVALENCIA, ENVIPE_PERCEPCION, ENSU_PERCEPCION, ENDIREH_VIOLENCIA, ENSANUT_IMC, ENDUTIH_USUARIOS, CDMX_NOMBRAMIENTOS, UNAM_CONCURSO, BISE_INDICADORES, BIE_SERIES,
 ];
 
 // Invariantes de las definiciones (fallan al arrancar el worker, no en producción a media consulta).

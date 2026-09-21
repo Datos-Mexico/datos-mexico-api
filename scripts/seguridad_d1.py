@@ -6,11 +6,11 @@ ENVIPE (Encuesta Nacional de Victimización y Percepción sobre Seguridad Públi
 entidad (ap4_3_3); 9 = no sabe. Se pondera con fac_ele. Verificación: el porcentaje de «inseguro en su colonia» sobre
 toda la población de 18 y más (incluido «no sabe») reproduce el indicador 6200118581 del Banco de Indicadores
 («Percepción de la inseguridad») en el país y en las 32 entidades, 2025 y 2026, a la milésima (medido antes de escribir
-esto) en todas las ediciones 2017-2026 salvo 2020, que se excluye porque ningún factor de la tabla reproduce el 48.74 %
-publicado (fac_ele da 42.93 %). Las ediciones 2014-2016 no traen sexo ni entidad en la tabla y 2011-2013 tienen otra
+esto) en todas las ediciones 2017-2026. En 2020 el levantamiento se partió por la pandemia (17-31 de marzo y 27 de julio-4 de
+septiembre) y el INEGI publica la percepción solo del de marzo: se toman los elegidos con TVivienda.PER = 1 (48.74 %; con
+todos daría 42.93 %), regla documentada en scripts/metodologias_inegi.py y docs/METODOLOGIAS-INEGI.md. Las ediciones 2014-2016 no traen sexo ni entidad en la tabla y 2011-2013 tienen otra
 estructura: quedan fuera.
-La tasa de prevalencia delictiva NO se publica aquí: ninguna reconstrucción desde el módulo de victimización reprodujo
-el indicador 6200002197 (23,472.5 por 100 mil en 2025; la más cercana dio 25,594.7), y no se publica lo que no cuadra.
+La tasa de prevalencia delictiva (indicador 6200002197) se calcula y carga con scripts/metodologias_inegi.py envipe-prevalencia.
 
 ENSU (Encuesta Nacional de Seguridad Pública Urbana), tabla CB por trimestre (marzo, junio, septiembre, diciembre):
 bp1_1 = ¿considera seguro (1) o inseguro (2) vivir en su ciudad?, 9 = no sabe; fac_sel pondera a la persona de 18 y más;
@@ -25,7 +25,7 @@ import argparse, csv, io, json, pathlib, re, subprocess, sys, tempfile, time, ur
 from collections import Counter, defaultdict
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import inegi_ingesta as ing
-import numpy as np, pyarrow.parquet as pq
+import numpy as np, pyarrow as pa, pyarrow.parquet as pq
 
 RAIZ = ing.RAIZ; DIR = RAIZ / 'data/seguridad'; CRUDO = DIR / 'crudo'; CRUDO.mkdir(parents=True, exist_ok=True)
 DB = 'datosmexico-api-seguridad'; API = 'https://api.datosmexico.org/api/v1'
@@ -59,8 +59,12 @@ def envipe(arch):
     acc = defaultdict(lambda: [0.0, 0.0, 0.0, 0.0])
     for a in sorted(arch, key=lambda a: a['edicion']):
         if a['programa_slug'] != 'envipe': continue
-        if a['edicion'] == '2020': log('ENVIPE 2020: fuera. Con ningún factor de la tabla (fac_ele 42.93 %, fac_ele_am 52.01 %) se reproduce el 48.74 % que publica el INEGI para 2020; no se publica lo que no cuadra.'); continue
-        t = leer(a); anio = int(a['edicion']); fac = entero(t, 'fac_ele', 0); ent = entero(t, 'cve_ent').astype(int); sexo = entero(t, 'sexo', 9).astype(int)
+        t = leer(a); anio = int(a['edicion'])
+        if anio == 2020:  # solo el levantamiento del 17 al 31 de marzo (TVivienda.PER = 1), como lo publica el INEGI; ver scripts/metodologias_inegi.py
+            import metodologias_inegi as met
+            viv = met.leer({x['tabla']: x for x in met.catalogo("programa_slug='envipe' AND edicion='2020' AND tabla IN ('tper-vic1','tvivienda')")}['tvivienda'])
+            t = t.filter(pa.array(met.marzo_2020(t.to_pandas()[['id_viv']], viv).to_numpy())); log(f'ENVIPE 2020: {t.num_rows:,} elegidos del levantamiento de marzo (los de julio-septiembre no entran en la percepción publicada)')
+        fac = entero(t, 'fac_ele', 0); ent = entero(t, 'cve_ent').astype(int); sexo = entero(t, 'sexo', 9).astype(int)
         edad = entero(t, 'edad', 99)
         if (edad < 18).any(): log(f'ENVIPE {anio}: {(edad < 18).sum()} elegidos menores de 18 (se conservan: el INEGI los pondera igual)')
         for clave, col, _ in AMBITOS:

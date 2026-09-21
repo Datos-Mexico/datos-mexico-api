@@ -47,10 +47,12 @@ hasta nueva orden del CEO; ANUIES nunca en el hero ni cerca; todo queda en `docs
 7. **Censos Económicos por municipio y rama (SAIC).** Microdatos no públicos; el SAIC (www.inegi.org.mx/app/saic/) sirve
    cuadros. Plan: con Chrome, identificar la API interna del SAIC (como se hizo con el BIE: pestaña Red del navegador),
    descargar los cuadros por entidad, municipio y rama, y verificar contra los tabulados de los Censos Económicos.
-8. **No reproducibles hoy:** ENSANUT 2018 (IMC da 37.7/37.8 vs 39.1/36.1 publicados: faltan las reglas de depuración del
-   INSP, buscar su nota metodológica), tasa de víctimas de la ENVIPE (ninguna combinación del módulo de victimización
-   reproduce 23,472.5; leer el «Diseño conceptual» y la nota técnica del INEGI), ENVIPE 2020 (ningún factor de la tabla da
-   el 48.74 % publicado). Regla: no se publica lo que no cuadra.
+8. **Resuelta (2026-09-21):** las tres cifras se reproducen exactas con `scripts/metodologias_inegi.py` (ENSANUT 2018:
+   sección de adultos mayores + depuración del INSP + F_ANTROP_INSP → 39.1/36.1, n = 16,579; prevalencia delictiva: víctimas
+   de TMod_Vic sin el código 03 «vandalismo» → 6200002197 exacto en 330 comparaciones; ENVIPE 2020: solo el levantamiento de
+   marzo, TVivienda.PER = 1 → 48.74 %). Fuentes, fórmulas y diferencias en `docs/METODOLOGIAS-INEGI.md`. Pendiente: cargar
+   con `--cargar` (ensanut → datosmexico-api-encuestas; envipe-prevalencia y envipe-2020 → datosmexico-api-seguridad) y
+   desplegar los cubos `envipe-prevalencia` y `ensanut-imc`. Regla vigente: no se publica lo que no cuadra.
 9. **Fuera de alcance por decisión:** cartografía e imágenes del geoportal, PDF y boletines, catálogos del SNIEG/RNM.
 
 ## 3. Cómo se repite cada cosa (manual, por decisión del CEO)

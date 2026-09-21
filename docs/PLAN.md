@@ -87,10 +87,18 @@ paridad base por base.
       Sitio en producción (PRs #171-#173): mapa municipal, 422 legibles, /observatorio/datos-abiertos, hero
       «INEGI · CONSAR». Sistema anterior alineado a la ENOE exacta (Neon). Librería Python 0.3.0 en PyPI. Sin cubo: Censos Económicos (microdatos no públicos; SAIC sería otro frente) y la
       prevalencia delictiva de la ENVIPE (no reproducible). Microdatos ENOE 2025T2-2026T2 en /enoe/microdatos hechos.
-- F16 «Tenemos todos los datos del INEGI» (SIGUIENTE): cerrar las nueve exclusiones declaradas en
-      docs/TRASPASO-INEGI.md §2 (DENUE histórico, Marco Geoestadístico completo, tabulados explorables,
-      catálogos y clasificadores, microdatos ENOE 2005T1-2025T1 completos, ediciones fuera de la descarga
-      masiva, SAIC, metodologías no reproducidas), cada una verificada contra una cifra del INEGI.
+- F16 «Tenemos todos los datos del INEGI» (EN CURSO 2026-09-21; traspaso en docs/TRASPASO-INEGI.md): cerrar las nueve
+      exclusiones declaradas, cada una verificada contra una cifra del INEGI. HECHAS: 1 DENUE histórico (25 ediciones
+      2010-2026 por entidad + 20 por sector, scripts/denue_historico.py, cubos denue-historico y -municipal, verificación
+      por edición contra comunicados); 2 Marco Geoestadístico 2025 íntegro (scripts/mg_2025.py, 16 capas, ocho totales
+      exactos, /api/v1/inegi/mg/*); 4 catálogos y clasificadores (SCIAN 2023/2018/2013, SINCO 2019/2011, CMO, AGEEML;
+      scripts/catalogos_inegi.py + clasificadores_d1.py, D1 datosmexico-api-clasificadores, /api/v1/clasificadores/*,
+      /api/v1/geo/*); 5 microdatos ENOE 2005T1-2025T1 desde los CSV oficiales (enoe/particiones-csv, 80 trimestres);
+      8 metodologías (ENSANUT 39.11/36.07, ENVIPE prevalencia 330/330, ENVIPE 2020 48.74 %: scripts/metodologias_inegi.py,
+      docs/METODOLOGIAS-INEGI.md, cubos ensanut-imc y envipe-prevalencia). EN CURSO: 7 SAIC (API interna descubierta,
+      scripts/saic_descarga.py por fases; el servidor cobra por variable y no paraleliza), 6 ediciones fuera de la
+      descarga masiva (inventario y ingesta). PENDIENTE: 3 tabulados explorables (los Censos Económicos quedan cubiertos
+      por el SAIC; faltan censos de población y cuentas por sectores institucionales).
 - F8  Ingesta del Banco de Indicadores del INEGI (BISE): fase 1 = los 31,817
       indicadores del catálogo a nivel nacional y por entidad (D1
       `datosmexico-api-bise`, endpoints /api/v1/inegi/*); fase 2 = municipios
