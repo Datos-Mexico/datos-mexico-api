@@ -1548,3 +1548,24 @@ estimada 2010 111,960,139 del cuadro 01_01A, población 2000 97,014,867 del C2KD
 nacionales» y cubos `tabulados-*` visibles sin cambios en el sitio. Librería de Python: PR #21 (`client.inegi`: cubos, tabulados,
 Censos Económicos, bancos de indicadores; 0.4.0; ruff, mypy, 241 pruebas y 3 de integración en vivo en verde) esperando merge y
 go para PyPI.
+
+## 2026-09-22 — Costos: la factura de septiembre y la regla de escritura en D1
+
+**Lo que cobró Cloudflare (ciclo 22-ago a 21-sep, factura IN-80339144 del 22-sep, 117.27 USD).** 112.00 USD son «D1 - Rows
+Written»: 161.94 M de filas escritas en el ciclo, 111.94 M por encima de los 50 M incluidos, a 1 USD por millón. 0.27 USD de
+almacenamiento R2 (27.76 GB-mes de promedio, 18 sobre los 10 incluidos) y 5 USD del plan Workers Paid. Todo lo demás
+(peticiones 147 k, CPU 1.82 M ms, filas leídas 12.88 B de 25 B incluidas, operaciones R2, KV, colas) quedó dentro de lo
+incluido. El almacenamiento D1 aún no aparece cobrado (0.49 GB-mes de promedio porque las bases crecieron al final del
+ciclo); con los 9.95 GB actuales serán ≈ 3.7 USD/mes a partir del ciclo que empezó el 22-sep.
+
+**De dónde salieron las 162 M de filas escritas.** De las cargas masivas de F15-F16 entre el 19 y el 21 de septiembre
+(DENUE histórico 13.4 M, BIE 8.7 M, BISE municipal, registros vitales, ENIGH, Censos Económicos 7.3 M, tabulados 7.5 M) y de
+las recargas: D1 cuenta cada fila insertada y cada entrada de índice, y tres familias de tabulados se cargaron dos veces.
+Es un costo de una sola vez por ingesta, no recurrente; el gasto recurrente estimado es ≈ 10-11 USD/mes (plan 5 + D1 ≈ 3.7 +
+R2 ≈ 1.8 con 125 GB).
+
+**Regla desde hoy (CEO):** cada carga a D1 cuesta 1 USD por millón de filas (índices incluidos) una vez pasados los 50 M
+del mes; por eso (1) nunca recargar una tabla cuyo conteo ya coincide (los cargadores ya lo comprueban: mantenerlo), (2) los
+detalles fríos van a Parquet en R2 y a D1 solo lo que consulta el explorador, (3) antes de una ingesta de más de 5 M de filas se
+anota aquí el costo esperado, (4) las filas leídas van en 12.9 B/mes (la mitad de lo incluido): vigilar los cubos sin filtro
+sobre tablas grandes. Alerta de presupuesto: existe una en el panel; el CEO fija el umbral.
