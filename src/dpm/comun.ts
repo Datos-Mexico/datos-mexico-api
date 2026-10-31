@@ -5,7 +5,7 @@ import { fila } from "../lib/db";
 import { ErrorHttp } from "../lib/errores";
 import type { Detalle } from "../lib/validacion";
 
-export const PROTOCOLO_VERSION = "0.2.0";
+export const PROTOCOLO_VERSION = "0.2.1";
 export const PROTOCOLO_URL = "https://github.com/Datos-Mexico/datos-mexico-dpm";
 export const CLASES = ["DPMS", "DPS", "DPM", "fuera-de-clase", "sin-ventana"] as const;
 export type Clase = (typeof CLASES)[number];

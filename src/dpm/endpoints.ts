@@ -26,6 +26,14 @@ type DatoFila = { sistema: string; dato: string; nombre: string; fuente: string;
 const DatoPublico = z.object({ sistema: z.string(), dato: z.string(), nombre: z.string(), fuente: z.string(), modo: z.enum(MODOS), relojes: z.object({ fuente_ms: z.number().int().nullable(), refresco_peor_intervalo_ms: z.number().int().nullable(), verificacion: z.string().nullable() }), clase: z.enum(CLASES), clase_desde: z.string().nullable(), instante_evaluado: z.string().nullable(), evaluado_en: z.string().nullable(), declarado_en: z.string() });
 const datoPublico = (d: DatoFila) => ({ sistema: d.sistema, dato: d.dato, nombre: d.nombre, fuente: d.fuente, modo: d.modo, relojes: { fuente_ms: d.reloj_fuente_ms, refresco_peor_intervalo_ms: d.w_ms, verificacion: d.ultima_verificacion }, clase: d.clase, clase_desde: d.clase_desde, instante_evaluado: d.instante_evaluado, evaluado_en: d.evaluado_en, declarado_en: d.declarado_en });
 const SistemaPublico = z.object({ sistema: z.string(), nombre: z.string(), operador: z.string(), url: z.string().nullable(), estado: z.enum(ESTADOS), adhesion_declarada: z.string(), estado_desde: z.string().nullable(), datos: z.array(DatoPublico) });
+/** §2 antes que nada: lee `sistema` del cuerpo, exige la llave y solo entonces se valida el resto del cuerpo. */
+async function cuerpoConLlave(c: AppContext): Promise<unknown> {
+  const cuerpo = await c.req.json().catch(() => ({}));
+  const sistema = (cuerpo as { sistema?: unknown })?.sistema;
+  if (typeof sistema !== "string" || !SLUG.test(sistema)) throw new ErrorHttp(401, "Falta el campo sistema o no es válido; la llave de reporte se verifica contra él", { "WWW-Authenticate": "Bearer" });
+  await sistemaConLlave(c, sistema);
+  return cuerpo;
+}
 async function datosDe(c: AppContext, sistema: string): Promise<DatoFila[]> { return filas<DatoFila>(c.env.DB_DPM, "SELECT * FROM datos WHERE sistema = ? ORDER BY dato", [sistema]); }
 async function datoPorId(c: AppContext, sistema: string, dato: string): Promise<DatoFila> {
   const d = await fila<DatoFila>(c.env.DB_DPM, "SELECT * FROM datos WHERE sistema = ? AND dato = ?", [sistema, dato]);
@@ -185,10 +193,9 @@ export class DpmResumenes extends OpenAPIRoute {
     responses: { ...ok("Resúmenes recibidos.", z.object({ sistema: z.string(), recibidos: z.number().int(), puntuales: z.number().int(), tardios: z.number().int(), recibido: z.string() })), ...RESP_401_LLAVE, ...RESP_404, ...RESP_422, "413": { description: "Más de 1,000 resúmenes en un envío.", ...contentJson(Detalle) }, ...RESP_429 },
   };
   async handle(c: AppContext) {
-    const cuerpo = await c.req.json().catch(() => ({}));
+    const cuerpo = await cuerpoConLlave(c);
     if (Array.isArray((cuerpo as { resumenes?: unknown })?.resumenes) && ((cuerpo as { resumenes: unknown[] }).resumenes.length > MAX_RESUMENES)) throw new ErrorHttp(413, `Máximo ${MAX_RESUMENES} resúmenes por envío`);
     const b = validar(LoteResumenes, cuerpo);
-    await sistemaConLlave(c, b.sistema);
     const declarados = new Set((await datosDe(c, b.sistema)).map((d) => d.dato));
     const ahora = new Date(); const ahoraIso = iso(ahora);
     const vistos = new Set<string>(); const sentencias: D1PreparedStatement[] = []; let puntuales = 0;
@@ -234,8 +241,7 @@ export class DpmIngestas extends OpenAPIRoute {
     responses: { "201": { description: "Ingesta registrada.", ...contentJson(z.object({ sistema: z.string(), dato: z.string(), inicio: z.string(), fin: z.string(), observaciones: z.number().int(), cuenta_en_caudal: z.boolean(), recibido: z.string() })) }, ...RESP_401_LLAVE, ...RESP_404, ...RESP_422, ...RESP_429 },
   };
   async handle(c: AppContext) {
-    const b = validar(Ingesta, await c.req.json().catch(() => ({})));
-    await sistemaConLlave(c, b.sistema);
+    const b = validar(Ingesta, await cuerpoConLlave(c));
     const d = await datoPorId(c, b.sistema, b.dato);
     if (d.modo !== "custodiado") throw e422(["body", "dato"], "solo un dato custodiado puede reportar ingestas", b.dato);
     const inicio = parseInstante(b.inicio, ["body", "inicio"]), fin = parseInstante(b.fin, ["body", "fin"]); const ahora = new Date();
@@ -255,8 +261,7 @@ export class DpmUsuariosReporte extends OpenAPIRoute {
     responses: { "201": { description: "Reporte registrado.", ...contentJson(z.object({ sistema: z.string(), fecha: z.string(), usuarios_distintos: z.number().int(), metodo: z.string(), datos: z.array(z.string()), recibido: z.string() })) }, ...RESP_401_LLAVE, ...RESP_404, ...RESP_422, ...RESP_429 },
   };
   async handle(c: AppContext) {
-    const b = validar(Usuarios, await c.req.json().catch(() => ({})));
-    await sistemaConLlave(c, b.sistema);
+    const b = validar(Usuarios, await cuerpoConLlave(c));
     if (!esFechaValida(b.fecha)) throw e422(["body", "fecha"], "Fecha inválida (AAAA-MM-DD)", b.fecha);
     const ahora = new Date(); const hoy = fechaMx(ahora);
     if (b.fecha >= hoy) throw e422(["body", "fecha"], "solo se reportan días completos: la fecha debe ser anterior al día en curso en America/Mexico_City", b.fecha);
