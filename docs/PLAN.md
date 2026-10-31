@@ -124,5 +124,7 @@ con Swagger como origen. No depende de que todo esté migrado.
       (PRs #1 y #2, versión 7a7665a3, cron activo, batería local 68/68, verificación en producción en la
       bitácora); cuatro llaves emitidas en data/.dpm-llaves.env (sin entregar). ReparaCDMX REPORTA desde 2026-10-31
       22:02 UTC (seis datos). Protocolo 0.3 (fuentes por evento, vía de entrega) IMPLEMENTADO en la rama dpm/pulso-0.3
-      (baterías 68/68 y 19/19), ESPERA EL GO para migración schema_0_3.sql + deploy. Después: ReparaCDMX reporta
-      latencias y entregas, página /dpm en el sitio, insignias en los pies.
+      (baterías 68/68 y 19/19), ESPERA EL GO para migración schema_0_3.sql + deploy. HECHO: ReparaCDMX reporta latencias
+      y entregas (31-oct), /dpm en producción, insignias en los cuatro pies, clima custodiado y reportado
+      (/api/v1/clima/actual). 0.4 (comprobación de cara pública) en la rama dpm/pulso-0.4. Siguen: INDEPAR y
+      BPM Stream reportando, menciones en MANIFESTO/MODELO, búsqueda del primer dato por segundo de México.

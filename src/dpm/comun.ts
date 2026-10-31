@@ -5,7 +5,12 @@ import { fila } from "../lib/db";
 import { ErrorHttp } from "../lib/errores";
 import type { Detalle } from "../lib/validacion";
 
-export const PROTOCOLO_VERSION = "0.3.0";
+export const PROTOCOLO_VERSION = "0.4.0";
+export const COMPROBACION_CADA_MIN = 10;
+export const COMPROBACION_PLAZO_MS = 10_000;
+export const COMPROBACION_TOLERANCIA_MS = 300_000;
+export const COMPROBACION_FALLAS = 3;
+export const RESULTADOS_COMPROBACION = ["coincide", "no-coincide", "sin-respuesta"] as const;
 export const PROTOCOLO_URL = "https://github.com/Datos-Mexico/datos-mexico-dpm";
 export const CLASES = ["DPMS", "DPS", "DPM", "fuera-de-clase", "sin-ventana"] as const;
 export type Clase = (typeof CLASES)[number];

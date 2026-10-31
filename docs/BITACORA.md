@@ -1706,3 +1706,30 @@ local dio 404 porque el dato no estaba declarado en la D1 local; se agregó la r
 
 **Pendiente.** Que el sitio lea el clima de `/api/v1/clima/actual` en lugar de Open-Meteo directo (cambio en el sitio; requiere OK
 del CEO). Con eso el dato pasaría de «servido» a custodiado también de cara al visitante.
+
+## 2026-10-31 — F17: el pulso implementa el protocolo 0.4 (comprobación: qué pasa si un sistema miente)
+
+**Por qué.** El pulso juzgaba solo con lo que cada sistema reportaba. La 0.4 (PR #7 de `datos-mexico-dpm`) exige que todo dato
+que aspire a clase declare una dirección pública de comprobación, sin llave, que diga cuándo fue su último refresco y cuántos
+hubo en la última hora; el pulso la consulta por su cuenta cada diez minutos y publica si coincide con lo reportado.
+
+**Qué cambia (rama `dpm/pulso-0.4`).** `schema_0_4.sql`: `url_comprobacion` en `datos` y `datos_historial`; tabla
+`comprobaciones` (instante, resultado, lo visto, lo reportado, detalle). Catálogo: `url_comprobacion` opcional, solo https.
+`comprobarCaraPublica` (cada diez minutos, antes de evaluar clases, y en `admin/evaluar`): GET con plazo de 10 s y
+`user-agent` del pulso; coincide si el último refresco visto y el reportado distan ≤ 300 s y los refrescos (o entregas, en la
+vía de entrega) de la última hora difieren ≤ 20 % con margen absoluto de dos; «no coincide» o «sin respuesta» en otro caso;
+historial de 90 días. Evaluación de clase: sin dirección no hay clase (fuera de clase aunque los relojes estén en regla); tres
+comprobaciones seguidas distintas de «coincide» también sacan de clase. Lecturas: la ficha del dato trae `comprobacion.url` y la
+última comprobación; `GET /dpm/v1/datos/{s}/{d}/comprobaciones` el historial. El clima del observatorio declara su propia
+dirección `GET /api/v1/clima/comprobacion` (leída de `clima_refrescos`): comprobar al observatorio con el observatorio es
+débil y se dice; vale como ejemplo de contrato y como cara pública fechada por un camino distinto del reporte.
+
+**Verificación local.** Baterías 0.2 (68/68) y 0.3 (19/19) adaptadas a la regla nueva (sus datos declaran dirección) y 0.4
+(11/11): http rechazado, https aceptado y visible; con dirección y relojes en regla → DPM; sin dirección, mismos relojes → fuera
+de clase; dirección inexistente → «sin respuesta» con detalle, una falla no quita la clase, tres seguidas sí y la ficha muestra la
+última; clima contra su propia dirección → «coincide»; endpoint público del clima. Las baterías esperan seis segundos tras cada
+cron simulado porque ahora el disparador refresca el clima antes de evaluar y el trabajo sigue en segundo plano. `tsc` limpio.
+
+**Transición en producción.** Al desplegar, los siete datos de ReparaCDMX quedan fuera de clase hasta que declaren su dirección
+de comprobación (en curso: endpoint público en `reparacdmx-app` y `url_comprobacion` en el catálogo que manda su webhook). El clima
+la trae desde su siguiente redeclaración (cada hora o ante 404).

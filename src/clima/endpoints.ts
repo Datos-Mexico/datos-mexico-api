@@ -27,3 +27,14 @@ export class ClimaActual extends OpenAPIRoute {
     };
   }
 }
+
+/** Dirección pública de comprobación del dato datos-mexico/clima-capitales (protocolo 0.4 §8 bis). */
+export class ClimaComprobacion extends OpenAPIRoute {
+  schema = { tags: TAG, operationId: "clima_comprobacion", summary: "Comprobación de cara pública del clima para el pulso DPM", description: "Responde cuándo fue el último refresco del clima y cuántos hubo en la última hora, leído de la bitácora de refrescos. Es la dirección que el pulso consulta por su cuenta cada diez minutos para cotejar lo reportado.", responses: { ...{ "200": { description: "Último refresco y refrescos de la última hora.", ...contentJson(z.object({ ultimo_refresco: z.string().nullable(), refrescos_ultima_hora: z.number().int() })) } }, ...RESP_429 } };
+  async handle(c: AppContext) {
+    const hace1h = new Date(Date.now() - 60 * 60_000).toISOString();
+    const u = (await fila<{ t: string | null }>(c.env.DB_PLATAFORMA, "SELECT MAX(obtenido_en) AS t FROM clima_refrescos"))?.t ?? null;
+    const n = (await fila<{ n: number }>(c.env.DB_PLATAFORMA, "SELECT COUNT(*) AS n FROM clima_refrescos WHERE obtenido_en >= ?", [hace1h]))?.n ?? 0;
+    return { ultimo_refresco: u, refrescos_ultima_hora: n };
+  }
+}
