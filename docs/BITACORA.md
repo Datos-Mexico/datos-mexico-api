@@ -1569,3 +1569,46 @@ del mes; por eso (1) nunca recargar una tabla cuyo conteo ya coincide (los carga
 detalles fríos van a Parquet en R2 y a D1 solo lo que consulta el explorador, (3) antes de una ingesta de más de 5 M de filas se
 anota aquí el costo esperado, (4) las filas leídas van en 12.9 B/mes (la mitad de lo incluido): vigilar los cubos sin filtro
 sobre tablas grandes. Alerta de presupuesto: existe una en el panel; el CEO fija el umbral.
+
+## 2026-10-31 — F17: el pulso del Protocolo DPM en la API
+
+**Qué es.** El Protocolo DPM · Datos Por Minuto (repo público `Datos-Mexico/datos-mexico-dpm`, versión 0.2.0 del mismo día) es el
+régimen bajo el cual un sistema declara, mide y presume la frescura de sus datos: tres clases presumibles (DPM ≤ 60 s, DPS ≤ 1 s,
+DPMS ≤ 1 ms por periodo observado entre refrescos), los tres relojes de cada dato (fuente, refresco, verificación), la etiqueta que
+se cae sola y dos cifras públicas (caudal y usuarios DPM diarios) que solo puede producir el pulso. El pulso vive aquí, en
+`/dpm/v1/*`, con su propia base D1 `datosmexico-api-dpm` (regla 1 del plan: una base por dominio, nombres del observatorio).
+
+**Cómo está hecho (`src/dpm/`).** `schema.sql` (sistemas, estados, datos, datos_historial, resumenes, ingestas, usuarios_dia,
+clases) y `semilla.sql` (los cuatro sistemas del registro, sin llave). `comun.ts`: clases, umbrales, tiempo (instantes ISO UTC con
+milisegundos; días civiles en America/Mexico_City con UTC-6 fijo, sin horario de verano desde 2022), llaves (`dpm_<sistema>_<48 hex>`,
+solo se guarda el SHA-256) y validación con la misma forma de error del resto de la API. `evaluacion.ts`: la clase se evalúa al cierre
+de T = piso(ahora) − 5 min, porque cinco minutos es la gracia de puntualidad del §4: al evaluar T ya llegó todo lo que puede contar y
+lo que llega después es tardío y no reescribe la clase; cobertura (hace falta un resumen puntual anterior a la ventana), peor
+intervalo (dentro de cada cubeta, entre cubetas consecutivas incluida la anterior a la ventana, y hasta T), cota de la fuente
+declarada, historial de clases con clave (sistema, dato, T): si dos evaluaciones caen en el mismo T, queda el veredicto final de
+ese T. El estado de adhesión se evalúa una vez por hora (minuto 5): verificada con resúmenes puntuales en cada uno de los siete
+días civiles completos anteriores; vuelve a declarada tras siete días completos sin ninguno. `endpoints.ts`: trece operaciones en
+once rutas; `insignia.ts`: SVG servido por el pulso con estado y clase más fina vigente. El worker exporta ahora `{ fetch, scheduled }`
+y `wrangler.jsonc` lleva `triggers.crons = ["* * * * *"]`. Caché: lecturas `/dpm/v1` públicas 60 s; escrituras y admin `no-store`.
+Límites: los de `/api/v1` (60/min por IP y ruta por omisión).
+
+**Rigor en la recepción.** Un resumen por minuto debe traer `primero` y `ultimo` dentro de su minuto, `intervalo_max_ms` entre el
+promedio y el lapso (o 0 con un solo refresco), minuto truncado y no futuro, no más de 24 h de atraso, sin repetidos en el envío y
+hasta 1,000 por envío (413). Es puntual si llega dentro de los 5 min posteriores al fin de su minuto; un reemplazo nunca recupera
+puntualidad (`puntual = MIN(previo, nuevo)`). Usuarios: solo días completos, no más de 7 días de atraso, datos declarados. Ingestas:
+solo datos custodiados; sin verificación se guardan pero no cuentan. Cifras: `null` mientras no haya sistema verificado.
+
+**Verificación.** Batería local (`wrangler dev --test-scheduled`, D1 local): 68 comprobaciones, 0 fallos. Cubre autenticación por
+llave (401/404), catálogo, resúmenes puntuales y tardíos, los doce rechazos, evaluación con 75 minutos puntuales (DPM con peor
+intervalo 20 s y T = piso − 5 min), cota de la fuente (15 min → fuera de clase), minuto ausente (→ fuera de clase con peor intervalo
+80 s) y recuperación, usuarios (declarada no cuenta; verificada sin clase no cuenta; verificada con clase suma 52), caudales (refresco
+> 0; ingesta 43,200 obs/h → 1.0 por minuto; sin verificación no cuenta), insignia (SVG con clase; declarada), administración (alta
+con llave de un solo uso, 409, rotación invalida la anterior, evaluar), OpenAPI (11 rutas, 13 operaciones, esquema LlaveDPM).
+`tsc --noEmit` limpio. Base remota `datosmexico-api-dpm` con esquema y semilla aplicados (4 sistemas en declarada, sin llave).
+
+**Costo.** Un dato en clase escribe 1,440 filas de `resumenes` al día (más índices); diez datos, ≈ 0.5 M filas al mes: dentro de los
+50 M incluidos. La compactación a `resumenes_hora` después de 90 días (PULSO.md §10) queda para cuando haya 90 días de datos.
+
+**Pendiente.** Go del CEO para `wrangler deploy` (primer despliegue con cron). Después: emitir llaves con `POST /dpm/v1/sistemas/{s}/llave`
+(JWT admin), primer sistema que reporta (ReparaCDMX: Worker del webhook y cron diario de la app), página /dpm en el sitio, insignias en
+los tres pies, protocolo 0.3 con la cota de la fuente para fuentes por evento.

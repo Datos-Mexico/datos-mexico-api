@@ -1,8 +1,10 @@
 // Cache-Control por prefijo, igual que el CacheControlMiddleware del legacy.
 import type { MiddlewareHandler } from "hono";
 const PREFIJOS_NO_STORE = ["/api/v1/auth", "/api/v1/personas", "/api/v1/nombramientos", "/api/v1/ingest", "/api/v1/admin", "/api/v1/demo"];
-function valor(path: string): string | null {
+function valor(path: string, metodo: string): string | null {
   if (PREFIJOS_NO_STORE.some((p) => path.startsWith(p))) return "no-store";
+  // Pulso DPM (§9): lecturas públicas con caché de 60 s; los reportes y la administración nunca se guardan.
+  if (path.startsWith("/dpm/v1")) return metodo === "GET" && !path.startsWith("/dpm/v1/admin") ? "public, max-age=60" : "no-store";
   // el catálogo y las fichas de los cubos cambian con cada despliegue: caché corta para que el explorador vea los cubos nuevos pronto
   if (path === "/api/v1/cubos" || /^\/api\/v1\/cubos\/[^/]+$/.test(path)) return "public, max-age=300";
   if (path.includes("/catalogos/") || path.startsWith("/api/v1/sectores")) return "public, max-age=3600";
@@ -14,7 +16,7 @@ function valor(path: string): string | null {
 }
 export const cacheControl: MiddlewareHandler = async (c, next) => {
   await next();
-  const v = valor(new URL(c.req.url).pathname);
+  const v = valor(new URL(c.req.url).pathname, c.req.method);
   if (!v) return;
   c.res.headers.set("Cache-Control", v);
   if (v !== "no-store") {

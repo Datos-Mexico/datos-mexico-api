@@ -21,10 +21,12 @@ Documentación interactiva en [`/docs`](https://api.datosmexico.org/docs) (Swagg
 | UNAM | Concurso de Selección a licenciatura (distribución de aciertos por carrera-plantel, encabezados oficiales, universo, cobertura, cronología; CC BY 4.0) y la UNAM en el Anuario ANUIES | `/api/v1/unam/*` |
 | Cubos | La capa que consume el explorador del observatorio (datosmexico.org/observatorio): 39 cubos con medidas y dimensiones sobre ANUIES, ENOE, CONSAR, Censo 2020, registros vitales (defunciones 1990-2024 y nacimientos 1985-2024), DENUE, ENIGH, ENDUTIH, ENADID, ENDIREH, percepción de inseguridad (ENVIPE y ENSU), CDMX, UNAM y los dos bancos del INEGI (Banco de Indicadores y BIE); consulta agregada con filtros, jerarquías y descarga JSON/CSV desde una URL que reproduce cada tabla | `/api/v1/cubos/*` |
 | Erratas | Registro público de erratas detectadas en las fuentes, con revisión | `/api/v1/erratas/*` |
+| Pulso DPM | El pulso del [Protocolo DPM · Datos Por Minuto](https://github.com/Datos-Mexico/datos-mexico-dpm): los sistemas adheridos reportan resúmenes por minuto, ingestas y usuarios por día; el pulso calcula por reloj la clase de cada dato (DPM, DPS, DPMS o fuera de clase), el caudal y los usuarios DPM diarios, y sirve la insignia viva. Corre cada minuto con un disparador programado | `/dpm/v1/*` |
 | Catálogo | Qué bases hay, su origen, su esquema y su fecha de corte | `/api/v1/catalogo/*` |
 
 Las bases oficiales son de solo lectura a través de la API. La única escritura pública es el reporte de erratas
-(requiere cuenta); las demás escrituras son administrativas o de la tabla de demostración del curso.
+(requiere cuenta); los reportes al pulso DPM exigen la llave de reporte de cada sistema adherido; las demás escrituras son
+administrativas o de la tabla de demostración del curso.
 
 ## Principios
 
@@ -40,7 +42,7 @@ Las bases oficiales son de solo lectura a través de la API. La única escritura
 ## Estructura
 
 ```
-src/            worker (TypeScript): un módulo por dominio, cubos/ (capa declarativa del explorador), más lib/ (auth, límites, caché, errores)
+src/            worker (TypeScript): un módulo por dominio, cubos/ (capa declarativa del explorador), dpm/ (pulso del Protocolo DPM: esquema, evaluación, rutas, insignia), más lib/ (auth, límites, caché, errores)
 scripts/        ingesta y verificación (Python: pyarrow, boto3; zsh para cargas a D1)
 data/           (no versionado) exportes, manifiestos, secretos locales
 docs/           BITACORA.md, PLAN.md, INEGI-UNIVERSO.md, paridad/ (comparación con el legacy), legacy/ (contratos originales)
