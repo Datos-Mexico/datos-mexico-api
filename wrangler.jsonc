@@ -7,6 +7,7 @@
   "workers_dev": true,
   "routes": [ { "pattern": "api.datosmexico.org", "custom_domain": true } ],
   "observability": { "enabled": true },
+  "triggers": { "crons": ["* * * * *"] },
   "ratelimits": [
     { "name": "RL_5", "namespace_id": "5005", "simple": { "limit": 5, "period": 60 } },
     { "name": "RL_10", "namespace_id": "5010", "simple": { "limit": 10, "period": 60 } },
@@ -34,6 +35,7 @@
     { "binding": "DB_ANUIES", "database_name": "datosmexico-api-anuies", "database_id": "7a70874c-750d-4cb4-b067-391bd6905d37" },
     { "binding": "DB_UNAM", "database_name": "datosmexico-api-unam", "database_id": "5d10dfb0-c07d-43be-b27d-972311f68630" },
     { "binding": "DB_CLASIFICADORES", "database_name": "datosmexico-api-clasificadores", "database_id": "5932e7b7-98a2-4bbc-9ad1-2324d350a098" },
-    { "binding": "DB_TABULADOS", "database_name": "datosmexico-api-tabulados", "database_id": "ea072a87-096d-4ceb-8dde-a8dfdfd7e2e4" }
+    { "binding": "DB_TABULADOS", "database_name": "datosmexico-api-tabulados", "database_id": "ea072a87-096d-4ceb-8dde-a8dfdfd7e2e4" },
+    { "binding": "DB_DPM", "database_name": "datosmexico-api-dpm", "database_id": "49f31067-d3f3-4e49-8c7c-ac831a418c27" }
   ]
 }

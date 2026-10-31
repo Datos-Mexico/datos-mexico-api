@@ -39,6 +39,7 @@ import { MicrodatosCount, MicrodatosList, MicrodatosSchema } from "./enoe/microd
 import { AnuiesAgregado, AnuiesCiclos, AnuiesColumnas, AnuiesDescarga, AnuiesEdades, AnuiesInstitucion, AnuiesInstituciones, AnuiesPrograma, AnuiesProgramas, AnuiesProcedencia, AnuiesResumen, AnuiesSerie, AnuiesValores } from "./anuies/endpoints";
 import { UnamAnuarioAgregado, UnamAnuarioCampos, UnamAnuarioCarreras, UnamAnuarioEdades, UnamAnuarioNiveles, UnamAnuarioPlanteles, UnamAnuarioProcedencia, UnamAnuarioSerie, UnamConcursoArchivos, UnamConcursoDistribucion, UnamConcursoEncabezados, UnamConcursoTabla, UnamConcursoUniverso, UnamDescarga, UnamResumen } from "./unam/endpoints";
 import { CuboDatos, CuboFicha, CuboMiembros, CubosCatalogo } from "./cubos/endpoints";
+import { DpmDato, DpmDatoDeclarar, DpmDatoHistorial, DpmEstado, DpmEvaluar, DpmIngestas, DpmInsignia, DpmResumenes, DpmSistema, DpmSistemaAlta, DpmSistemaLlave, DpmUsuariosLectura, DpmUsuariosReporte, cicloPulso } from "./dpm/endpoints";
 import { ErrorHttp, respuestaError } from "./lib/errores";
 import { limitarPeticiones } from "./lib/limites";
 
@@ -59,6 +60,7 @@ export type Env = {
   DB_UNAM: D1Database;
   DB_CLASIFICADORES: D1Database;
   DB_TABULADOS: D1Database;
+  DB_DPM: D1Database;
   SECRET_KEY: string;
   DATOS: R2Bucket;
   RL_5: RateLimit;
@@ -76,6 +78,8 @@ const app = new Hono<{ Bindings: Env }>();
 app.use("*", cors({ origin: "*", allowMethods: ["GET", "OPTIONS"], exposeHeaders: ["*"] }));
 app.use("/api/v1/*", limitarPeticiones);
 app.use("/api/v1/*", cacheControl);
+app.use("/dpm/v1/*", limitarPeticiones);
+app.use("/dpm/v1/*", cacheControl);
 
 // chanfana recorta la barra final de las rutas de colección en el documento OpenAPI; el legacy las publica con barra.
 const CON_BARRA = ["/api/v1/servidores", "/api/v1/sectores", "/api/v1/personas", "/api/v1/nombramientos"];
@@ -127,6 +131,7 @@ const openapi = fromHono(app, {
       { name: "unam", description: "Todo lo que tenemos de la UNAM: el Concurso de Selección a licenciatura (distribución de aciertos por carrera-plantel, encabezados oficiales, universo, cobertura, cronología; dataset del observatorio, CC BY 4.0) y la UNAM en el Anuario ANUIES ciclo por ciclo." },
       { name: "cubos", description: "Cubos del explorador del observatorio (datosmexico.org/observatorio): una capa uniforme de medidas y dimensiones sobre las bases del catálogo, con consulta agregada en JSON o CSV y una URL que reproduce cada tabla." },
       { name: "catalogo", description: "Qué bases tenemos, hasta cuándo llegan, con qué se verificaron y su esquema. Lo que no está aquí, no lo tenemos." },
+      { name: "dpm", description: "El pulso del Protocolo DPM · Datos Por Minuto (github.com/Datos-Mexico/datos-mexico-dpm): los sistemas adheridos reportan resúmenes por minuto, ingestas y usuarios por día; el pulso calcula por reloj la clase de cada dato (DPM, DPS, DPMS o fuera de clase), el caudal y los usuarios DPM diarios, y sirve la insignia viva. Ninguna cifra del protocolo se enuncia en público si no la produjo el pulso." },
       { name: "erratas", description: "Registro público de posibles errores en datos oficiales: quién lo reportó, qué se observó, qué se propone, revisión y edición en que se corrigió. El dato publicado nunca cambia por esta vía." },
       { name: "auth", description: "Autenticación OAuth2 (password flow → JWT). Las cuentas las provisiona el observatorio; el registro público está deshabilitado." },
       { name: "admin", description: "Operación: recálculo de tablas derivadas a partir de las oficiales. Solo administradores." },
@@ -329,6 +334,21 @@ openapi.get("/api/v1/censo2020/localidades/:entidad/:mun/:loc", CensoLocalidad);
 openapi.get("/api/v1/censo2020/indicadores", CensoIndicadores);
 openapi.get("/api/v1/censo2020/indicadores/:columna", CensoIndicador);
 
+// Pulso del Protocolo DPM (ruta propia /dpm/v1, contrato en datos-mexico-dpm/PULSO.md)
+openapi.get("/dpm/v1/estado", DpmEstado);
+openapi.get("/dpm/v1/sistemas/:sistema", DpmSistema);
+openapi.post("/dpm/v1/sistemas", DpmSistemaAlta);
+openapi.post("/dpm/v1/sistemas/:sistema/llave", DpmSistemaLlave);
+openapi.get("/dpm/v1/datos/:sistema/:dato", DpmDato);
+openapi.put("/dpm/v1/datos/:sistema/:dato", DpmDatoDeclarar);
+openapi.get("/dpm/v1/datos/:sistema/:dato/historial", DpmDatoHistorial);
+openapi.post("/dpm/v1/resumenes", DpmResumenes);
+openapi.post("/dpm/v1/ingestas", DpmIngestas);
+openapi.get("/dpm/v1/usuarios", DpmUsuariosLectura);
+openapi.post("/dpm/v1/usuarios", DpmUsuariosReporte);
+openapi.get("/dpm/v1/insignia/:archivo", DpmInsignia);
+openapi.post("/dpm/v1/admin/evaluar", DpmEvaluar);
+
 // Erratas (registro público de observaciones sobre datos oficiales; las bases oficiales son de solo lectura)
 openapi.get("/api/v1/erratas", ErratasLista);
 openapi.post("/api/v1/erratas", ErrataReportar);
@@ -357,6 +377,8 @@ openapi.post("/api/v1/admin/demo/reset", DemoReset);
 
 // Esquema de seguridad (candado en el Swagger): OAuth2 password flow contra /api/v1/auth/token
 openapi.registry.registerComponent("securitySchemes", "OAuth2PasswordBearer", { type: "oauth2", flows: { password: { tokenUrl: "/api/v1/auth/token", scopes: {} } } });
+// Llave de reporte de un sistema adherido al Protocolo DPM (Authorization: Bearer dpm_<sistema>_…)
+openapi.registry.registerComponent("securitySchemes", "LlaveDPM", { type: "http", scheme: "bearer", description: "Llave de reporte del sistema adherido; la emite un administrador del observatorio." });
 // Rutas de colección sin barra final: 307 hacia la ruta con barra, como Starlette.
 for (const col of ["servidores", "sectores", "personas", "nombramientos"]) {
   app.get(`/api/v1/${col}`, (c) => { const u = new URL(c.req.url); u.pathname += "/"; return c.redirect(u.toString(), 307); });
@@ -388,4 +410,10 @@ app.onError(async (err, c) => {
   return respuestaError(500, "Internal Server Error");
 });
 
-export default app;
+// El worker atiende HTTP y, cada minuto, el pulso del Protocolo DPM (wrangler.jsonc → triggers.crons).
+export default {
+  fetch: app.fetch,
+  scheduled(ev: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(cicloPulso(env, new Date(ev.scheduledTime)).catch((e) => console.error("pulso DPM", e)));
+  },
+};
