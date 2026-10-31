@@ -122,6 +122,7 @@ con Swagger como origen. No depende de que todo esté migrado.
       github.com/Datos-Mexico/datos-mexico-dpm, PULSO.md 0.2.0): rutas /dpm/v1/*, base D1
       `datosmexico-api-dpm`, disparador programado cada minuto, insignia viva. EN PRODUCCIÓN 2026-10-31
       (PRs #1 y #2, versión 7a7665a3, cron activo, batería local 68/68, verificación en producción en la
-      bitácora); cuatro llaves emitidas en data/.dpm-llaves.env (sin entregar). Pendiente: entregar la llave a
-      ReparaCDMX e implementar su reporte, página /dpm en el sitio, insignias en los pies, protocolo 0.3
-      (cota de la fuente para fuentes por evento).
+      bitácora); cuatro llaves emitidas en data/.dpm-llaves.env (sin entregar). ReparaCDMX REPORTA desde 2026-10-31
+      22:02 UTC (seis datos). Protocolo 0.3 (fuentes por evento, vía de entrega) IMPLEMENTADO en la rama dpm/pulso-0.3
+      (baterías 68/68 y 19/19), ESPERA EL GO para migración schema_0_3.sql + deploy. Después: ReparaCDMX reporta
+      latencias y entregas, página /dpm en el sitio, insignias en los pies.

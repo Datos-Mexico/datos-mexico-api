@@ -7,7 +7,7 @@ import { ErrorHttp } from "../lib/errores";
 import { RESP_401, RESP_403, SEGURIDAD, requiereAdmin } from "../lib/auth";
 import { RESP_429 } from "../lib/comun";
 import {
-  CLASES, type Clase, EN_CLASE, ESTADOS, GRACIA_MS, MAX_ATRASO_MS, MAX_ATRASO_USUARIOS_DIAS, MAX_RESUMENES, MINUTO_MS, MODOS, PROTOCOLO_URL, PROTOCOLO_VERSION, SLUG, type Sistema,
+  CLASES, type Clase, EN_CLASE, ESTADOS, FUENTE_TIPOS, GRACIA_MS, MAX_ATRASO_MS, MAX_ATRASO_USUARIOS_DIAS, MAX_RESUMENES, MINUTO_MS, MODOS, PROTOCOLO_URL, PROTOCOLO_VERSION, SLUG, type Sistema, VIAS,
   e422, esFechaValida, fechaMx, iso, masFina, nuevaLlave, parseInstante, pisoMinuto, rangoUtcDeFechaMx, sha256hex, sistemaConLlave, sistemaPorId, slugRuta, sumarDias, validar,
 } from "./comun";
 import { cicloPulso, evaluarClases, evaluarEstados } from "./evaluacion";
@@ -22,9 +22,9 @@ const LLAVE = [{ LlaveDPM: [] }];
 const ok = (d: string, e: z.ZodTypeAny) => ({ "200": { description: d, ...contentJson(e) } });
 const CAMPOS_SISTEMA = "sistema, nombre, operador, url, estado, adhesion_declarada, llave_hash, creado_en";
 
-type DatoFila = { sistema: string; dato: string; nombre: string; fuente: string; reloj_fuente_ms: number | null; modo: "servido" | "custodiado"; ultima_verificacion: string | null; clase: Clase; clase_desde: string | null; w_ms: number | null; instante_evaluado: string | null; evaluado_en: string | null; declarado_en: string };
-const DatoPublico = z.object({ sistema: z.string(), dato: z.string(), nombre: z.string(), fuente: z.string(), modo: z.enum(MODOS), relojes: z.object({ fuente_ms: z.number().int().nullable(), refresco_peor_intervalo_ms: z.number().int().nullable(), verificacion: z.string().nullable() }), clase: z.enum(CLASES), clase_desde: z.string().nullable(), instante_evaluado: z.string().nullable(), evaluado_en: z.string().nullable(), declarado_en: z.string() });
-const datoPublico = (d: DatoFila) => ({ sistema: d.sistema, dato: d.dato, nombre: d.nombre, fuente: d.fuente, modo: d.modo, relojes: { fuente_ms: d.reloj_fuente_ms, refresco_peor_intervalo_ms: d.w_ms, verificacion: d.ultima_verificacion }, clase: d.clase, clase_desde: d.clase_desde, instante_evaluado: d.instante_evaluado, evaluado_en: d.evaluado_en, declarado_en: d.declarado_en });
+type DatoFila = { sistema: string; dato: string; nombre: string; fuente: string; reloj_fuente_ms: number | null; fuente_tipo: "calendario" | "evento"; latencia_fuente_ms: number | null; via: "consulta" | "entrega"; modo: "servido" | "custodiado"; ultima_verificacion: string | null; clase: Clase; clase_desde: string | null; w_ms: number | null; instante_evaluado: string | null; evaluado_en: string | null; declarado_en: string };
+const DatoPublico = z.object({ sistema: z.string(), dato: z.string(), nombre: z.string(), fuente: z.string(), fuente_tipo: z.enum(FUENTE_TIPOS), via: z.enum(VIAS), modo: z.enum(MODOS), relojes: z.object({ fuente_ms: z.number().int().nullable().describe("Fuente por calendario: periodo de publicación. Fuente por evento: latencia de entrega declarada (el pulso la eleva si observa una mayor)."), refresco_peor_intervalo_ms: z.number().int().nullable().describe("Vía de consulta: peor intervalo entre consultas de la última ventana. Vía de entrega: peor latencia del evento a la persona."), verificacion: z.string().nullable() }), clase: z.enum(CLASES), clase_desde: z.string().nullable(), instante_evaluado: z.string().nullable(), evaluado_en: z.string().nullable(), declarado_en: z.string() });
+const datoPublico = (d: DatoFila) => ({ sistema: d.sistema, dato: d.dato, nombre: d.nombre, fuente: d.fuente, fuente_tipo: d.fuente_tipo ?? "calendario", via: d.via ?? "consulta", modo: d.modo, relojes: { fuente_ms: (d.fuente_tipo ?? "calendario") === "evento" ? d.latencia_fuente_ms : d.reloj_fuente_ms, refresco_peor_intervalo_ms: d.w_ms, verificacion: d.ultima_verificacion }, clase: d.clase, clase_desde: d.clase_desde, instante_evaluado: d.instante_evaluado, evaluado_en: d.evaluado_en, declarado_en: d.declarado_en });
 const SistemaPublico = z.object({ sistema: z.string(), nombre: z.string(), operador: z.string(), url: z.string().nullable(), estado: z.enum(ESTADOS), adhesion_declarada: z.string(), estado_desde: z.string().nullable(), datos: z.array(DatoPublico) });
 /** §2 antes que nada: lee `sistema` del cuerpo, exige la llave y solo entonces se valida el resto del cuerpo. */
 async function cuerpoConLlave(c: AppContext): Promise<unknown> {
@@ -114,11 +114,11 @@ export class DpmDato extends OpenAPIRoute {
   async handle(c: AppContext) { return datoPublico(await datoPorId(c, slugRuta(c.req.param("sistema"), "sistema"), slugRuta(c.req.param("dato"), "dato"))); }
 }
 export class DpmDatoHistorial extends OpenAPIRoute {
-  schema = { tags: TAG, operationId: "dpm_dato_historial", summary: "Historial de clases de un dato (no se edita) y versiones de su catálogo", request: { params: z.object({ sistema: z.string(), dato: z.string() }) }, responses: { ...ok("Historial.", z.object({ sistema: z.string(), dato: z.string(), clases: z.array(z.object({ desde: z.string(), clase: z.enum(CLASES), w_ms: z.number().int().nullable() })), catalogo: z.array(z.object({ desde: z.string(), nombre: z.string(), fuente: z.string(), reloj_fuente_ms: z.number().int().nullable(), modo: z.enum(MODOS), ultima_verificacion: z.string().nullable() })) })), ...RESP_404, ...RESP_422, ...RESP_429 } };
+  schema = { tags: TAG, operationId: "dpm_dato_historial", summary: "Historial de clases de un dato (no se edita) y versiones de su catálogo", request: { params: z.object({ sistema: z.string(), dato: z.string() }) }, responses: { ...ok("Historial.", z.object({ sistema: z.string(), dato: z.string(), clases: z.array(z.object({ desde: z.string(), clase: z.enum(CLASES), w_ms: z.number().int().nullable() })), catalogo: z.array(z.object({ desde: z.string(), nombre: z.string(), fuente: z.string(), reloj_fuente_ms: z.number().int().nullable(), fuente_tipo: z.enum(FUENTE_TIPOS), latencia_fuente_ms: z.number().int().nullable(), via: z.enum(VIAS), modo: z.enum(MODOS), ultima_verificacion: z.string().nullable(), nota: z.string().nullable() })) })), ...RESP_404, ...RESP_422, ...RESP_429 } };
   async handle(c: AppContext) {
     const d = await datoPorId(c, slugRuta(c.req.param("sistema"), "sistema"), slugRuta(c.req.param("dato"), "dato"));
     const clases = await filas<{ desde: string; clase: Clase; w_ms: number | null }>(c.env.DB_DPM, "SELECT desde, clase, w_ms FROM clases WHERE sistema = ? AND dato = ? ORDER BY desde", [d.sistema, d.dato]);
-    const catalogo = await filas<{ desde: string; nombre: string; fuente: string; reloj_fuente_ms: number | null; modo: "servido" | "custodiado"; ultima_verificacion: string | null }>(c.env.DB_DPM, "SELECT desde, nombre, fuente, reloj_fuente_ms, modo, ultima_verificacion FROM datos_historial WHERE sistema = ? AND dato = ? ORDER BY desde", [d.sistema, d.dato]);
+    const catalogo = await filas<{ desde: string; nombre: string; fuente: string; reloj_fuente_ms: number | null; fuente_tipo: "calendario" | "evento"; latencia_fuente_ms: number | null; via: "consulta" | "entrega"; modo: "servido" | "custodiado"; ultima_verificacion: string | null; nota: string | null }>(c.env.DB_DPM, "SELECT desde, nombre, fuente, reloj_fuente_ms, fuente_tipo, latencia_fuente_ms, via, modo, ultima_verificacion, nota FROM datos_historial WHERE sistema = ? AND dato = ? ORDER BY desde", [d.sistema, d.dato]);
     return { sistema: d.sistema, dato: d.dato, clases, catalogo };
   }
 }
@@ -161,11 +161,11 @@ export class DpmInsignia extends OpenAPIRoute {
 
 // ------------------------------------------------------------------ reportes de los sistemas (§3-§6)
 
-const Declaracion = z.object({ nombre: z.string().min(1).max(200), fuente: z.string().min(1).max(200), reloj_fuente_ms: z.number().int().min(0).nullable(), modo: z.enum(MODOS), ultima_verificacion: z.string().nullable().optional() });
+const Declaracion = z.object({ nombre: z.string().min(1).max(200), fuente: z.string().min(1).max(200), fuente_tipo: z.enum(FUENTE_TIPOS).default("calendario").optional(), reloj_fuente_ms: z.number().int().min(0).nullable().optional(), latencia_fuente_ms: z.number().int().min(0).nullable().optional(), via: z.enum(VIAS).default("consulta").optional(), modo: z.enum(MODOS), ultima_verificacion: z.string().nullable().optional() });
 export class DpmDatoDeclarar extends OpenAPIRoute {
   schema = {
     tags: TAG, operationId: "dpm_dato_declarar", summary: "Declarar o actualizar un dato en el catálogo (llave del sistema)", security: LLAVE,
-    description: "§3. `reloj_fuente_ms` es la cota de la fuente: periodo con el que la fuente publica observaciones nuevas; `null` deja al dato fuera de clase. `ultima_verificacion` es el reloj de la verificación; sin él, un dato custodiado no cuenta en el caudal. Cada versión queda en el historial del dato.",
+    description: "§3. `fuente_tipo` `calendario` (por omisión): `reloj_fuente_ms` es la cota, el periodo con el que la fuente publica; `null` deja al dato fuera de clase. `fuente_tipo` `evento`: `latencia_fuente_ms` es la latencia de entrega declarada del evento al sistema, cota cuando la ventana no tiene eventos; el pulso la eleva si observa una mayor; `null` deja al dato fuera de clase. `via` `consulta` (por omisión) o `entrega` (protocolo 0.3 §6). `ultima_verificacion` es el reloj de la verificación; sin él, un dato custodiado no cuenta en el caudal. Cada versión queda en el historial del dato.",
     request: { params: z.object({ sistema: z.string(), dato: z.string() }), body: contentJson(Declaracion) },
     responses: { ...ok("Dato declarado.", DatoPublico), ...RESP_401_LLAVE, ...RESP_404, ...RESP_422, ...RESP_429 },
   };
@@ -174,21 +174,24 @@ export class DpmDatoDeclarar extends OpenAPIRoute {
     await sistemaConLlave(c, sistema);
     const b = validar(Declaracion, await c.req.json().catch(() => ({})));
     const verificacion = b.ultima_verificacion == null ? null : iso(parseInstante(b.ultima_verificacion, ["body", "ultima_verificacion"]));
+    const fuenteTipo = b.fuente_tipo ?? "calendario", via = b.via ?? "consulta";
+    const reloj = fuenteTipo === "calendario" ? (b.reloj_fuente_ms ?? null) : null;
+    const latencia = fuenteTipo === "evento" ? (b.latencia_fuente_ms ?? null) : null;
     const ahora = iso(new Date());
     await c.env.DB_DPM.batch([
-      c.env.DB_DPM.prepare("INSERT INTO datos (sistema, dato, nombre, fuente, reloj_fuente_ms, modo, ultima_verificacion, declarado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (sistema, dato) DO UPDATE SET nombre = excluded.nombre, fuente = excluded.fuente, reloj_fuente_ms = excluded.reloj_fuente_ms, modo = excluded.modo, ultima_verificacion = excluded.ultima_verificacion").bind(sistema, dato, b.nombre, b.fuente, b.reloj_fuente_ms, b.modo, verificacion, ahora),
-      c.env.DB_DPM.prepare("INSERT OR REPLACE INTO datos_historial (sistema, dato, desde, nombre, fuente, reloj_fuente_ms, modo, ultima_verificacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(sistema, dato, ahora, b.nombre, b.fuente, b.reloj_fuente_ms, b.modo, verificacion),
+      c.env.DB_DPM.prepare("INSERT INTO datos (sistema, dato, nombre, fuente, reloj_fuente_ms, fuente_tipo, latencia_fuente_ms, via, modo, ultima_verificacion, declarado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (sistema, dato) DO UPDATE SET nombre = excluded.nombre, fuente = excluded.fuente, reloj_fuente_ms = excluded.reloj_fuente_ms, fuente_tipo = excluded.fuente_tipo, latencia_fuente_ms = excluded.latencia_fuente_ms, via = excluded.via, modo = excluded.modo, ultima_verificacion = excluded.ultima_verificacion").bind(sistema, dato, b.nombre, b.fuente, reloj, fuenteTipo, latencia, via, b.modo, verificacion, ahora),
+      c.env.DB_DPM.prepare("INSERT OR REPLACE INTO datos_historial (sistema, dato, desde, nombre, fuente, reloj_fuente_ms, fuente_tipo, latencia_fuente_ms, via, modo, ultima_verificacion, nota) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)").bind(sistema, dato, ahora, b.nombre, b.fuente, reloj, fuenteTipo, latencia, via, b.modo, verificacion),
     ]);
     return datoPublico(await datoPorId(c, sistema, dato));
   }
 }
 
-const ResumenEntrada = z.object({ dato: z.string().regex(SLUG), minuto: z.string(), refrescos: z.number().int().min(1), primero: z.string(), ultimo: z.string(), intervalo_max_ms: z.number().int().min(0), observaciones: z.number().int().min(0) });
+const ResumenEntrada = z.object({ dato: z.string().regex(SLUG), minuto: z.string(), refrescos: z.number().int().min(0), primero: z.string(), ultimo: z.string(), intervalo_max_ms: z.number().int().min(0), observaciones: z.number().int().min(0), eventos: z.number().int().min(0).optional(), latencia_fuente_max_ms: z.number().int().min(0).optional(), entregas: z.number().int().min(0).optional(), latencia_entrega_max_ms: z.number().int().min(0).optional() });
 const LoteResumenes = z.object({ sistema: z.string().regex(SLUG), resumenes: z.array(ResumenEntrada).min(1).max(MAX_RESUMENES) });
 export class DpmResumenes extends OpenAPIRoute {
   schema = {
     tags: TAG, operationId: "dpm_resumenes", summary: "Reportar resúmenes por minuto (llave del sistema)", security: LLAVE,
-    description: "§4. Por cada dato y minuto: refrescos ocurridos, instante del primero y del último, peor intervalo dentro del minuto y observaciones nuevas. Un minuto sin refrescos no se reporta. Hasta 1,000 resúmenes por envío. Un resumen es puntual si llega dentro de los cinco minutos posteriores al fin de su minuto; solo los puntuales cuentan para la clase. Se aceptan hasta 24 horas tarde para historial y caudal; después, 422. Reenviar la misma clave reemplaza el resumen sin recuperar la puntualidad perdida.",
+    description: "§4. Por cada dato y minuto: refrescos ocurridos, instante del primero y del último, peor intervalo dentro del minuto y observaciones nuevas. Fuentes por evento: `eventos` y `latencia_fuente_max_ms` (obligatoria si hubo eventos). Vía de entrega: `entregas` y `latencia_entrega_max_ms` (obligatoria si hubo entregas); con entregas, `refrescos` puede ser 0 y entonces `primero` y `ultimo` son la primera y la última entrega. Un minuto sin refrescos ni entregas no se reporta. Hasta 1,000 resúmenes por envío. Un resumen es puntual si llega dentro de los cinco minutos posteriores al fin de su minuto; solo los puntuales cuentan para la clase. Se aceptan hasta 24 horas tarde para historial y caudal; después, 422. Reenviar la misma clave reemplaza el resumen sin recuperar la puntualidad perdida.",
     request: { body: contentJson(LoteResumenes) },
     responses: { ...ok("Resúmenes recibidos.", z.object({ sistema: z.string(), recibidos: z.number().int(), puntuales: z.number().int(), tardios: z.number().int(), recibido: z.string() })), ...RESP_401_LLAVE, ...RESP_404, ...RESP_422, "413": { description: "Más de 1,000 resúmenes en un envío.", ...contentJson(Detalle) }, ...RESP_429 },
   };
@@ -196,12 +199,18 @@ export class DpmResumenes extends OpenAPIRoute {
     const cuerpo = await cuerpoConLlave(c);
     if (Array.isArray((cuerpo as { resumenes?: unknown })?.resumenes) && ((cuerpo as { resumenes: unknown[] }).resumenes.length > MAX_RESUMENES)) throw new ErrorHttp(413, `Máximo ${MAX_RESUMENES} resúmenes por envío`);
     const b = validar(LoteResumenes, cuerpo);
-    const declarados = new Set((await datosDe(c, b.sistema)).map((d) => d.dato));
+    const catalogo = new Map((await datosDe(c, b.sistema)).map((d) => [d.dato, d]));
     const ahora = new Date(); const ahoraIso = iso(ahora);
     const vistos = new Set<string>(); const sentencias: D1PreparedStatement[] = []; let puntuales = 0;
     b.resumenes.forEach((r, i) => {
       const loc = ["body", "resumenes", i];
-      if (!declarados.has(r.dato)) throw new ErrorHttp(404, `el dato ${r.dato} no está declarado en el catálogo de ${b.sistema}`);
+      const def = catalogo.get(r.dato);
+      if (!def) throw new ErrorHttp(404, `el dato ${r.dato} no está declarado en el catálogo de ${b.sistema}`);
+      const eventos = r.eventos ?? 0, entregas = r.entregas ?? 0;
+      if (eventos > 0 && r.latencia_fuente_max_ms === undefined) throw e422([...loc, "latencia_fuente_max_ms"], "con eventos > 0 se exige latencia_fuente_max_ms", null);
+      if (entregas > 0 && r.latencia_entrega_max_ms === undefined) throw e422([...loc, "latencia_entrega_max_ms"], "con entregas > 0 se exige latencia_entrega_max_ms", null);
+      if (r.refrescos === 0 && entregas === 0) throw e422([...loc, "refrescos"], "un resumen sin refrescos debe traer entregas > 0", r.refrescos);
+      if (r.refrescos === 0 && (def.via ?? "consulta") !== "entrega") throw e422([...loc, "refrescos"], "refrescos = 0 solo se admite en un dato por vía de entrega", r.refrescos);
       const minuto = parseInstante(r.minuto, [...loc, "minuto"]);
       if (minuto.getTime() % MINUTO_MS !== 0) throw e422([...loc, "minuto"], "minuto debe estar truncado al minuto (segundos y milisegundos en cero)", r.minuto);
       const fin = minuto.getTime() + MINUTO_MS;
@@ -212,7 +221,9 @@ export class DpmResumenes extends OpenAPIRoute {
       if (ultimo.getTime() < minuto.getTime() || ultimo.getTime() >= fin) throw e422([...loc, "ultimo"], "ultimo debe caer dentro de su minuto", r.ultimo);
       if (ultimo.getTime() < primero.getTime()) throw e422([...loc, "ultimo"], "ultimo no puede ser anterior a primero", r.ultimo);
       const lapso = ultimo.getTime() - primero.getTime();
-      if (r.refrescos === 1) {
+      if (r.refrescos === 0) {
+        if (r.intervalo_max_ms !== 0) throw e422([...loc, "intervalo_max_ms"], "sin refrescos, intervalo_max_ms debe ser 0", r.intervalo_max_ms);
+      } else if (r.refrescos === 1) {
         if (lapso !== 0) throw e422([...loc, "ultimo"], "con un solo refresco, primero y ultimo deben ser iguales", r.ultimo);
         if (r.intervalo_max_ms !== 0) throw e422([...loc, "intervalo_max_ms"], "con un solo refresco, intervalo_max_ms debe ser 0", r.intervalo_max_ms);
       } else {
@@ -224,8 +235,8 @@ export class DpmResumenes extends OpenAPIRoute {
       vistos.add(clave);
       const puntual = ahora.getTime() <= fin + GRACIA_MS ? 1 : 0; puntuales += puntual;
       // Un reemplazo nunca recupera puntualidad: puntual = MIN(previo, nuevo).
-      sentencias.push(c.env.DB_DPM.prepare("INSERT INTO resumenes (sistema, dato, minuto, refrescos, primero, ultimo, intervalo_max_ms, observaciones, recibido, puntual) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (sistema, dato, minuto) DO UPDATE SET refrescos = excluded.refrescos, primero = excluded.primero, ultimo = excluded.ultimo, intervalo_max_ms = excluded.intervalo_max_ms, observaciones = excluded.observaciones, recibido = excluded.recibido, puntual = MIN(resumenes.puntual, excluded.puntual)")
-        .bind(b.sistema, r.dato, iso(minuto), r.refrescos, iso(primero), iso(ultimo), r.intervalo_max_ms, r.observaciones, ahoraIso, puntual));
+      sentencias.push(c.env.DB_DPM.prepare("INSERT INTO resumenes (sistema, dato, minuto, refrescos, primero, ultimo, intervalo_max_ms, observaciones, eventos, latencia_fuente_max_ms, entregas, latencia_entrega_max_ms, recibido, puntual) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (sistema, dato, minuto) DO UPDATE SET refrescos = excluded.refrescos, primero = excluded.primero, ultimo = excluded.ultimo, intervalo_max_ms = excluded.intervalo_max_ms, observaciones = excluded.observaciones, eventos = excluded.eventos, latencia_fuente_max_ms = excluded.latencia_fuente_max_ms, entregas = excluded.entregas, latencia_entrega_max_ms = excluded.latencia_entrega_max_ms, recibido = excluded.recibido, puntual = MIN(resumenes.puntual, excluded.puntual)")
+        .bind(b.sistema, r.dato, iso(minuto), r.refrescos, iso(primero), iso(ultimo), r.intervalo_max_ms, r.observaciones, r.eventos ?? null, r.latencia_fuente_max_ms ?? null, r.entregas ?? null, r.latencia_entrega_max_ms ?? null, ahoraIso, puntual));
     });
     await c.env.DB_DPM.batch(sentencias);
     return { sistema: b.sistema, recibidos: b.resumenes.length, puntuales, tardios: b.resumenes.length - puntuales, recibido: ahoraIso };
