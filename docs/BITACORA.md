@@ -1681,3 +1681,28 @@ clase, y fuente por evento con vía de consulta (el caso de ReparaCDMX hoy) → 
 una sola vez); 2) `wrangler deploy`; 3) `GET /dpm/v1/estado` con versión 0.3.0 y los seis datos de ReparaCDMX con
 `fuente_tipo` calendario / `via` consulta (lo declarado bajo 0.2 no cambia); 4) ReparaCDMX redeclara sus datos como fuente
 por evento con latencia y empieza a reportar `eventos`, `latencia_fuente_max_ms` y, para la respuesta al cliente, entregas.
+
+## 2026-10-31 — El observatorio cumple su propio protocolo: clima custodiado y reportado al pulso
+
+**Decisión.** De la lista de mejoras del cierre del Protocolo DPM, la primera: que Datos México reporte y no solo registre a los
+demás. El único dato del observatorio que se mueve en minutos es el clima de las 32 capitales, que el sitio pedía desde el
+navegador a Open-Meteo sin custodia ni verificación. Medido antes de escribir código: Open-Meteo declara `current.interval = 900`
+en cada respuesta, es decir, publica el estado actual cada 15 minutos. Con esa cota el dato queda fuera de clase por
+construcción, y así se publica; lo que gana el observatorio es reportar cada refresco con su verificación y que el pulso lo juzgue.
+
+**Qué se hizo** (`src/clima/`). `capitales.ts` con la misma lista del sitio (32, clave INEGI, Marco Geoestadístico). `refresco.ts`:
+cada 5 minutos, desde el disparador programado y antes de evaluar el pulso, un solo pedido para las 32 capitales; verificación al
+peso (32 de 32 respuestas, coordenadas dentro de 0.2° de lo pedido, observación fechada por la fuente dentro de la última hora,
+intervalo 900); guardado en `clima_actual` (estado actual, 32 filas) y `clima_refrescos` (bitácora de 30 días) en la D1
+plataforma; observaciones nuevas = capitales cuyo tiempo de la fuente cambió. Reporte al pulso **como cualquier otro sistema**: por
+HTTP, con la llave de Datos México en el secreto `DPM_LLAVE_DATOS_MEXICO`, un resumen por refresco (refrescos 1, observaciones
+solo si la verificación pasó) y el catálogo redeclarado cada hora o ante un 404: fuente por calendario de 900,000 ms, custodiado,
+con el reloj de la verificación. `endpoints.ts`: `GET /api/v1/clima/actual` (caché 60 s) con relojes y enlace a la ficha del
+pulso. Catálogo público: dataset `clima` sobre la D1 plataforma con las demás tablas excluidas.
+
+**Verificación local** (`wrangler dev --test-scheduled`, cron en un minuto múltiplo de 5): 32/32 verificadas para la observación
+de las 23:15Z, 32 observaciones nuevas, endpoint con 32 capitales y relojes correctos, `Cache-Control` 60 s. El reporte al pulso
+local dio 404 porque el dato no estaba declarado en la D1 local; se agregó la redeclaración ante 404 con reintento. `tsc` limpio.
+
+**Pendiente.** Que el sitio lea el clima de `/api/v1/clima/actual` en lugar de Open-Meteo directo (cambio en el sitio; requiere OK
+del CEO). Con eso el dato pasaría de «servido» a custodiado también de cara al visitante.

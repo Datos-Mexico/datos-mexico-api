@@ -40,6 +40,8 @@ import { AnuiesAgregado, AnuiesCiclos, AnuiesColumnas, AnuiesDescarga, AnuiesEda
 import { UnamAnuarioAgregado, UnamAnuarioCampos, UnamAnuarioCarreras, UnamAnuarioEdades, UnamAnuarioNiveles, UnamAnuarioPlanteles, UnamAnuarioProcedencia, UnamAnuarioSerie, UnamConcursoArchivos, UnamConcursoDistribucion, UnamConcursoEncabezados, UnamConcursoTabla, UnamConcursoUniverso, UnamDescarga, UnamResumen } from "./unam/endpoints";
 import { CuboDatos, CuboFicha, CuboMiembros, CubosCatalogo } from "./cubos/endpoints";
 import { DpmDato, DpmDatoDeclarar, DpmDatoHistorial, DpmEstado, DpmEvaluar, DpmIngestas, DpmInsignia, DpmResumenes, DpmSistema, DpmSistemaAlta, DpmSistemaLlave, DpmUsuariosLectura, DpmUsuariosReporte, cicloPulso } from "./dpm/endpoints";
+import { ClimaActual } from "./clima/endpoints";
+import { refrescarClima, CLIMA_CADA_MIN } from "./clima/refresco";
 import { ErrorHttp, respuestaError } from "./lib/errores";
 import { limitarPeticiones } from "./lib/limites";
 
@@ -62,6 +64,9 @@ export type Env = {
   DB_TABULADOS: D1Database;
   DB_DPM: D1Database;
   SECRET_KEY: string;
+  /** Protocolo DPM: llave con la que el observatorio reporta su propio dato (clima) al pulso. */
+  DPM_LLAVE_DATOS_MEXICO?: string;
+  DPM_PULSO_URL?: string;
   DATOS: R2Bucket;
   RL_5: RateLimit;
   RL_10: RateLimit;
@@ -131,6 +136,7 @@ const openapi = fromHono(app, {
       { name: "unam", description: "Todo lo que tenemos de la UNAM: el Concurso de Selección a licenciatura (distribución de aciertos por carrera-plantel, encabezados oficiales, universo, cobertura, cronología; dataset del observatorio, CC BY 4.0) y la UNAM en el Anuario ANUIES ciclo por ciclo." },
       { name: "cubos", description: "Cubos del explorador del observatorio (datosmexico.org/observatorio): una capa uniforme de medidas y dimensiones sobre las bases del catálogo, con consulta agregada en JSON o CSV y una URL que reproduce cada tabla." },
       { name: "catalogo", description: "Qué bases tenemos, hasta cuándo llegan, con qué se verificaron y su esquema. Lo que no está aquí, no lo tenemos." },
+      { name: "clima", description: "Clima actual de las 32 capitales estatales, custodiado por el observatorio desde Open-Meteo (fuente de 15 minutos; refresco cada 5) y reportado al pulso del Protocolo DPM como el dato datos-mexico/clima-capitales." },
       { name: "dpm", description: "El pulso del Protocolo DPM · Datos Por Minuto (github.com/Datos-Mexico/datos-mexico-dpm): los sistemas adheridos reportan resúmenes por minuto, ingestas y usuarios por día; el pulso calcula por reloj la clase de cada dato (DPM, DPS, DPMS o fuera de clase), el caudal y los usuarios DPM diarios, y sirve la insignia viva. Ninguna cifra del protocolo se enuncia en público si no la produjo el pulso." },
       { name: "erratas", description: "Registro público de posibles errores en datos oficiales: quién lo reportó, qué se observó, qué se propone, revisión y edición en que se corrigió. El dato publicado nunca cambia por esta vía." },
       { name: "auth", description: "Autenticación OAuth2 (password flow → JWT). Las cuentas las provisiona el observatorio; el registro público está deshabilitado." },
@@ -334,6 +340,9 @@ openapi.get("/api/v1/censo2020/localidades/:entidad/:mun/:loc", CensoLocalidad);
 openapi.get("/api/v1/censo2020/indicadores", CensoIndicadores);
 openapi.get("/api/v1/censo2020/indicadores/:columna", CensoIndicador);
 
+// Clima custodiado (dato del observatorio bajo el Protocolo DPM)
+openapi.get("/api/v1/clima/actual", ClimaActual);
+
 // Pulso del Protocolo DPM (ruta propia /dpm/v1, contrato en datos-mexico-dpm/PULSO.md)
 openapi.get("/dpm/v1/estado", DpmEstado);
 openapi.get("/dpm/v1/sistemas/:sistema", DpmSistema);
@@ -414,6 +423,9 @@ app.onError(async (err, c) => {
 export default {
   fetch: app.fetch,
   scheduled(ev: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(cicloPulso(env, new Date(ev.scheduledTime)).catch((e) => console.error("pulso DPM", e)));
+    const ahora = new Date(ev.scheduledTime);
+    // Clima custodiado: cada 5 minutos, antes de evaluar el pulso, para que el refresco del minuto entre puntual.
+    const clima = ahora.getUTCMinutes() % CLIMA_CADA_MIN === 0 ? refrescarClima(env, ahora).then((r) => console.log("clima", JSON.stringify(r))) : Promise.resolve();
+    ctx.waitUntil(clima.catch((e) => console.error("clima", e)).then(() => cicloPulso(env, ahora)).catch((e) => console.error("pulso DPM", e)));
   },
 };

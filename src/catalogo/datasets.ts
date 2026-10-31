@@ -13,6 +13,14 @@ export type DatasetDef = {
 
 export const DATASETS: DatasetDef[] = [
   {
+    clave: "clima", nombre: "Clima actual de las 32 capitales estatales", fuente: "Open-Meteo", fuente_url: "https://open-meteo.com/", licencia: "CC BY 4.0 (Open-Meteo)",
+    descripcion: "Temperatura, humedad, viento y código de tiempo de cada capital estatal, con el instante de la observación según la fuente. La fuente publica cada 15 minutos; el observatorio refresca cada 5 en un solo pedido y verifica cada respuesta (32 de 32, observación fechada en la última hora, coordenadas que coinciden). Es el dato datos-mexico/clima-capitales del Protocolo DPM: cada refresco se reporta al pulso y queda fuera de clase por la cota de la fuente.",
+    binding: "DB_PLATAFORMA", prefijo_api: "/api/v1/clima", periodicidad: "cada 15 minutos en la fuente; refresco cada 5",
+    sql_corte: "SELECT MAX(tiempo_fuente) AS corte FROM clima_actual", unidad_corte: "instante de la observación más reciente según la fuente",
+    tablas_excluidas: /^(users|erratas|demo_curso_bd|_cf)/,
+    notas: ["Solo se conserva el estado actual (32 filas) y la bitácora de refrescos de los últimos 30 días; no es una serie histórica.", "Ficha viva en el pulso: https://api.datosmexico.org/dpm/v1/datos/datos-mexico/clima-capitales."],
+  },
+  {
     clave: "consar", nombre: "CONSAR — Sistema de Ahorro para el Retiro", fuente: "CONSAR vía datos.gob.mx", fuente_url: "https://datos.gob.mx/busca/organization/consar", licencia: "CC-BY-4.0",
     descripcion: "Recursos registrados en el SAR por AFORE y tipo de recurso, comisiones, flujos, traspasos, activo neto, rendimientos, medidas de sensibilidad, cuentas administradas y precios diarios de las SIEFOREs (bolsa y gestión).",
     binding: "DB_CONSAR", prefijo_api: "/api/v1/consar", periodicidad: "mensual (precios: diaria)",
