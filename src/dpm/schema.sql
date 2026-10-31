@@ -1,4 +1,5 @@
--- Pulso del Protocolo DPM (datos-mexico-dpm/PULSO.md §10). Base D1 datosmexico-api-dpm.
+-- Pulso del Protocolo DPM (datos-mexico-dpm/PULSO.md §10, protocolo 0.3.0). Base D1 datosmexico-api-dpm.
+-- Instalaciones anteriores a 0.3: aplicar schema_0_3.sql.
 -- Instantes en ISO 8601 UTC con milisegundos ("2026-10-31T18:04:00.000Z"); fechas civiles en America/Mexico_City ("2026-10-31").
 CREATE TABLE IF NOT EXISTS sistemas (
   sistema TEXT PRIMARY KEY,
@@ -22,6 +23,9 @@ CREATE TABLE IF NOT EXISTS datos (
   nombre TEXT NOT NULL,
   fuente TEXT NOT NULL,
   reloj_fuente_ms INTEGER,
+  fuente_tipo TEXT NOT NULL DEFAULT 'calendario' CHECK (fuente_tipo IN ('calendario', 'evento')),
+  latencia_fuente_ms INTEGER,
+  via TEXT NOT NULL DEFAULT 'consulta' CHECK (via IN ('consulta', 'entrega')),
   modo TEXT NOT NULL CHECK (modo IN ('servido', 'custodiado')),
   ultima_verificacion TEXT,
   clase TEXT NOT NULL DEFAULT 'sin-ventana',
@@ -39,8 +43,12 @@ CREATE TABLE IF NOT EXISTS datos_historial (
   nombre TEXT NOT NULL,
   fuente TEXT NOT NULL,
   reloj_fuente_ms INTEGER,
+  fuente_tipo TEXT NOT NULL DEFAULT 'calendario',
+  latencia_fuente_ms INTEGER,
+  via TEXT NOT NULL DEFAULT 'consulta',
   modo TEXT NOT NULL,
   ultima_verificacion TEXT,
+  nota TEXT,
   PRIMARY KEY (sistema, dato, desde)
 );
 CREATE TABLE IF NOT EXISTS resumenes (
@@ -52,6 +60,10 @@ CREATE TABLE IF NOT EXISTS resumenes (
   ultimo TEXT NOT NULL,
   intervalo_max_ms INTEGER NOT NULL,
   observaciones INTEGER NOT NULL,
+  eventos INTEGER,
+  latencia_fuente_max_ms INTEGER,
+  entregas INTEGER,
+  latencia_entrega_max_ms INTEGER,
   recibido TEXT NOT NULL,
   puntual INTEGER NOT NULL,
   PRIMARY KEY (sistema, dato, minuto)

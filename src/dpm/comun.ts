@@ -5,12 +5,14 @@ import { fila } from "../lib/db";
 import { ErrorHttp } from "../lib/errores";
 import type { Detalle } from "../lib/validacion";
 
-export const PROTOCOLO_VERSION = "0.2.1";
+export const PROTOCOLO_VERSION = "0.3.0";
 export const PROTOCOLO_URL = "https://github.com/Datos-Mexico/datos-mexico-dpm";
 export const CLASES = ["DPMS", "DPS", "DPM", "fuera-de-clase", "sin-ventana"] as const;
 export type Clase = (typeof CLASES)[number];
 export const EN_CLASE: readonly Clase[] = ["DPMS", "DPS", "DPM"];
 export const MODOS = ["servido", "custodiado"] as const;
+export const FUENTE_TIPOS = ["calendario", "evento"] as const;
+export const VIAS = ["consulta", "entrega"] as const;
 export const ESTADOS = ["declarada", "verificada"] as const;
 export const SLUG = /^[a-z0-9][a-z0-9-]{1,62}$/;
 export const MINUTO_MS = 60_000;

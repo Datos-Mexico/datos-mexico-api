@@ -1649,3 +1649,35 @@ ficha en el registro. Clase vigente: sin ventana, porque nadie reporta resúmene
 **Estado.** Pulso en producción, protocolo 0.2.1, registro al día (`datos-mexico-dpm` PRs #3 y #4). Cero sistemas verificados,
 cero cifras públicas, por regla. Siguiente: entregar su llave a ReparaCDMX e implementar ahí el resumen por minuto y el reporte
 diario de usuarios; página /dpm en el sitio; insignias en los pies; protocolo 0.3 (cota de la fuente para fuentes por evento).
+
+## 2026-10-31 — F17: el pulso implementa el protocolo 0.3 (fuentes por evento y vía de entrega)
+
+**Por qué.** ReparaCDMX, primer sistema que reporta (desde las 22:02 UTC de hoy; seis datos declarados, cubetas cada minuto),
+tiene fuentes por evento y lleva datos a las personas sin que lo pidan; con la 0.2 quedaba fuera de clase por construcción.
+El protocolo 0.3 (PR #5 de `datos-mexico-dpm`) define la cota de una fuente por evento como la peor latencia de entrega
+observada en la ventana (o la declarada si no hubo eventos, elevada por el pulso cuando la realidad la supera) y una vía de
+entrega cuya clase se mide por la peor latencia del evento a la persona.
+
+**Qué cambia en el pulso (rama `dpm/pulso-0.3`, sin desplegar).** `schema_0_3.sql`: columnas `fuente_tipo`, `latencia_fuente_ms`
+y `via` en `datos` y `datos_historial` (más `nota`), y `eventos`, `latencia_fuente_max_ms`, `entregas`,
+`latencia_entrega_max_ms` en `resumenes`; `schema.sql` las trae para instalaciones nuevas. Catálogo: `fuente_tipo` y `via`
+opcionales con los valores de la 0.2 por omisión (nada declarado cambia de significado); por tipo de fuente se guarda solo el
+reloj que corresponde. Resúmenes: `refrescos` admite 0 cuando hay entregas en un dato por vía de entrega; con eventos se
+exige `latencia_fuente_max_ms` y con entregas `latencia_entrega_max_ms` (422 si faltan; 422 si `refrescos` = 0 sin entregas
+o en un dato por consulta, o con `intervalo_max_ms` ≠ 0). Evaluación: vía de consulta como antes; vía de entrega, W = peor
+`latencia_entrega_max_ms` de la ventana y sin entregas = sin ventana (sin requisito de cobertura, porque no hay huecos que
+medir); cota por calendario con `reloj_fuente_ms` y por evento con la peor latencia observada o la declarada, que el pulso
+eleva al valor observado y anota en `datos_historial` con nota. La ficha pública expone `fuente_tipo` y `via`;
+`relojes.fuente_ms` es el periodo o la latencia declarada según el tipo. Versión 0.3.0 en `/dpm/v1/estado`.
+
+**Verificación local.** Batería 0.2 completa 68/68 (regresión) y batería 0.3 19/19: catálogo evento+entrega y compatibilidad
+sin campos nuevos, resumen con refrescos 0 y entregas, los cinco rechazos nuevos, DPM por vía de entrega con peor latencia 8 s
+sin cobertura, una entrega de 61 s → fuera de clase y vuelta, latencia de la fuente de 70 s observada → fuera de clase con la
+declarada elevada y nota en el historial, redeclaración → DPM, sin entregas → sin ventana, latencia declarada null → fuera de
+clase, y fuente por evento con vía de consulta (el caso de ReparaCDMX hoy) → DPM con huecos de 20 s y latencia 1.2 s ≤ 3 s.
+`tsc --noEmit` limpio.
+
+**Para publicar (con el go).** 1) `wrangler d1 execute datosmexico-api-dpm --remote --file src/dpm/schema_0_3.sql` (once ALTER,
+una sola vez); 2) `wrangler deploy`; 3) `GET /dpm/v1/estado` con versión 0.3.0 y los seis datos de ReparaCDMX con
+`fuente_tipo` calendario / `via` consulta (lo declarado bajo 0.2 no cambia); 4) ReparaCDMX redeclara sus datos como fuente
+por evento con latencia y empieza a reportar `eventos`, `latencia_fuente_max_ms` y, para la respuesta al cliente, entregas.
