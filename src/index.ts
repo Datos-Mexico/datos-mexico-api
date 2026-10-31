@@ -39,8 +39,8 @@ import { MicrodatosCount, MicrodatosList, MicrodatosSchema } from "./enoe/microd
 import { AnuiesAgregado, AnuiesCiclos, AnuiesColumnas, AnuiesDescarga, AnuiesEdades, AnuiesInstitucion, AnuiesInstituciones, AnuiesPrograma, AnuiesProgramas, AnuiesProcedencia, AnuiesResumen, AnuiesSerie, AnuiesValores } from "./anuies/endpoints";
 import { UnamAnuarioAgregado, UnamAnuarioCampos, UnamAnuarioCarreras, UnamAnuarioEdades, UnamAnuarioNiveles, UnamAnuarioPlanteles, UnamAnuarioProcedencia, UnamAnuarioSerie, UnamConcursoArchivos, UnamConcursoDistribucion, UnamConcursoEncabezados, UnamConcursoTabla, UnamConcursoUniverso, UnamDescarga, UnamResumen } from "./unam/endpoints";
 import { CuboDatos, CuboFicha, CuboMiembros, CubosCatalogo } from "./cubos/endpoints";
-import { DpmDato, DpmDatoDeclarar, DpmDatoHistorial, DpmEstado, DpmEvaluar, DpmIngestas, DpmInsignia, DpmResumenes, DpmSistema, DpmSistemaAlta, DpmSistemaLlave, DpmUsuariosLectura, DpmUsuariosReporte, cicloPulso } from "./dpm/endpoints";
-import { ClimaActual } from "./clima/endpoints";
+import { DpmDato, DpmDatoComprobaciones, DpmDatoDeclarar, DpmDatoHistorial, DpmEstado, DpmEvaluar, DpmIngestas, DpmInsignia, DpmResumenes, DpmSistema, DpmSistemaAlta, DpmSistemaLlave, DpmUsuariosLectura, DpmUsuariosReporte, cicloPulso } from "./dpm/endpoints";
+import { ClimaActual, ClimaComprobacion } from "./clima/endpoints";
 import { refrescarClima, CLIMA_CADA_MIN } from "./clima/refresco";
 import { ErrorHttp, respuestaError } from "./lib/errores";
 import { limitarPeticiones } from "./lib/limites";
@@ -342,6 +342,7 @@ openapi.get("/api/v1/censo2020/indicadores/:columna", CensoIndicador);
 
 // Clima custodiado (dato del observatorio bajo el Protocolo DPM)
 openapi.get("/api/v1/clima/actual", ClimaActual);
+openapi.get("/api/v1/clima/comprobacion", ClimaComprobacion);
 
 // Pulso del Protocolo DPM (ruta propia /dpm/v1, contrato en datos-mexico-dpm/PULSO.md)
 openapi.get("/dpm/v1/estado", DpmEstado);
@@ -351,6 +352,7 @@ openapi.post("/dpm/v1/sistemas/:sistema/llave", DpmSistemaLlave);
 openapi.get("/dpm/v1/datos/:sistema/:dato", DpmDato);
 openapi.put("/dpm/v1/datos/:sistema/:dato", DpmDatoDeclarar);
 openapi.get("/dpm/v1/datos/:sistema/:dato/historial", DpmDatoHistorial);
+openapi.get("/dpm/v1/datos/:sistema/:dato/comprobaciones", DpmDatoComprobaciones);
 openapi.post("/dpm/v1/resumenes", DpmResumenes);
 openapi.post("/dpm/v1/ingestas", DpmIngestas);
 openapi.get("/dpm/v1/usuarios", DpmUsuariosLectura);

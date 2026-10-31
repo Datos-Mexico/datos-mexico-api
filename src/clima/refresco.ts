@@ -82,5 +82,5 @@ async function reportarAlPulso(env: Env, ahora: Date, observaciones: number, ver
 }
 async function declararCatalogo(env: Env, base: string, cab: Record<string, string>, fetchImpl: typeof fetch): Promise<void> {
   const ultimaVerificacion = (await fila<{ t: string | null }>(env.DB_PLATAFORMA, "SELECT MAX(verificado_en) AS t FROM clima_actual"))?.t ?? null;
-  await fetchImpl(`${base}/datos/${SISTEMA}/${DATO}`, { method: "PUT", headers: cab, body: JSON.stringify({ nombre: "Clima actual de las 32 capitales estatales", fuente: CLIMA_FUENTE, fuente_tipo: "calendario", reloj_fuente_ms: 900_000, via: "consulta", modo: "custodiado", ultima_verificacion: ultimaVerificacion }) }).catch(() => null);
+  await fetchImpl(`${base}/datos/${SISTEMA}/${DATO}`, { method: "PUT", headers: cab, body: JSON.stringify({ nombre: "Clima actual de las 32 capitales estatales", fuente: CLIMA_FUENTE, fuente_tipo: "calendario", reloj_fuente_ms: 900_000, via: "consulta", url_comprobacion: "https://api.datosmexico.org/api/v1/clima/comprobacion", modo: "custodiado", ultima_verificacion: ultimaVerificacion }) }).catch(() => null);
 }

@@ -7,10 +7,10 @@ import { ErrorHttp } from "../lib/errores";
 import { RESP_401, RESP_403, SEGURIDAD, requiereAdmin } from "../lib/auth";
 import { RESP_429 } from "../lib/comun";
 import {
-  CLASES, type Clase, EN_CLASE, ESTADOS, FUENTE_TIPOS, GRACIA_MS, MAX_ATRASO_MS, MAX_ATRASO_USUARIOS_DIAS, MAX_RESUMENES, MINUTO_MS, MODOS, PROTOCOLO_URL, PROTOCOLO_VERSION, SLUG, type Sistema, VIAS,
+  CLASES, type Clase, EN_CLASE, ESTADOS, FUENTE_TIPOS, GRACIA_MS, RESULTADOS_COMPROBACION, MAX_ATRASO_MS, MAX_ATRASO_USUARIOS_DIAS, MAX_RESUMENES, MINUTO_MS, MODOS, PROTOCOLO_URL, PROTOCOLO_VERSION, SLUG, type Sistema, VIAS,
   e422, esFechaValida, fechaMx, iso, masFina, nuevaLlave, parseInstante, pisoMinuto, rangoUtcDeFechaMx, sha256hex, sistemaConLlave, sistemaPorId, slugRuta, sumarDias, validar,
 } from "./comun";
-import { cicloPulso, evaluarClases, evaluarEstados } from "./evaluacion";
+import { cicloPulso, comprobarCaraPublica, evaluarClases, evaluarEstados } from "./evaluacion";
 import { svgInsignia, textoInsignia } from "./insignia";
 
 const TAG = ["dpm"];
@@ -22,9 +22,12 @@ const LLAVE = [{ LlaveDPM: [] }];
 const ok = (d: string, e: z.ZodTypeAny) => ({ "200": { description: d, ...contentJson(e) } });
 const CAMPOS_SISTEMA = "sistema, nombre, operador, url, estado, adhesion_declarada, llave_hash, creado_en";
 
-type DatoFila = { sistema: string; dato: string; nombre: string; fuente: string; reloj_fuente_ms: number | null; fuente_tipo: "calendario" | "evento"; latencia_fuente_ms: number | null; via: "consulta" | "entrega"; modo: "servido" | "custodiado"; ultima_verificacion: string | null; clase: Clase; clase_desde: string | null; w_ms: number | null; instante_evaluado: string | null; evaluado_en: string | null; declarado_en: string };
-const DatoPublico = z.object({ sistema: z.string(), dato: z.string(), nombre: z.string(), fuente: z.string(), fuente_tipo: z.enum(FUENTE_TIPOS), via: z.enum(VIAS), modo: z.enum(MODOS), relojes: z.object({ fuente_ms: z.number().int().nullable().describe("Fuente por calendario: periodo de publicación. Fuente por evento: latencia de entrega declarada (el pulso la eleva si observa una mayor)."), refresco_peor_intervalo_ms: z.number().int().nullable().describe("Vía de consulta: peor intervalo entre consultas de la última ventana. Vía de entrega: peor latencia del evento a la persona."), verificacion: z.string().nullable() }), clase: z.enum(CLASES), clase_desde: z.string().nullable(), instante_evaluado: z.string().nullable(), evaluado_en: z.string().nullable(), declarado_en: z.string() });
-const datoPublico = (d: DatoFila) => ({ sistema: d.sistema, dato: d.dato, nombre: d.nombre, fuente: d.fuente, fuente_tipo: d.fuente_tipo ?? "calendario", via: d.via ?? "consulta", modo: d.modo, relojes: { fuente_ms: (d.fuente_tipo ?? "calendario") === "evento" ? d.latencia_fuente_ms : d.reloj_fuente_ms, refresco_peor_intervalo_ms: d.w_ms, verificacion: d.ultima_verificacion }, clase: d.clase, clase_desde: d.clase_desde, instante_evaluado: d.instante_evaluado, evaluado_en: d.evaluado_en, declarado_en: d.declarado_en });
+type DatoFila = { sistema: string; dato: string; nombre: string; fuente: string; reloj_fuente_ms: number | null; fuente_tipo: "calendario" | "evento"; latencia_fuente_ms: number | null; via: "consulta" | "entrega"; url_comprobacion: string | null; modo: "servido" | "custodiado"; ultima_verificacion: string | null; clase: Clase; clase_desde: string | null; w_ms: number | null; instante_evaluado: string | null; evaluado_en: string | null; declarado_en: string };
+const Comprobacion = z.object({ url: z.string().nullable(), ultima: z.object({ instante: z.string(), resultado: z.enum(RESULTADOS_COMPROBACION), detalle: z.string().nullable() }).nullable() });
+const DatoPublico = z.object({ sistema: z.string(), dato: z.string(), nombre: z.string(), fuente: z.string(), fuente_tipo: z.enum(FUENTE_TIPOS), via: z.enum(VIAS), modo: z.enum(MODOS), comprobacion: Comprobacion, relojes: z.object({ fuente_ms: z.number().int().nullable().describe("Fuente por calendario: periodo de publicación. Fuente por evento: latencia de entrega declarada (el pulso la eleva si observa una mayor)."), refresco_peor_intervalo_ms: z.number().int().nullable().describe("Vía de consulta: peor intervalo entre consultas de la última ventana. Vía de entrega: peor latencia del evento a la persona."), verificacion: z.string().nullable() }), clase: z.enum(CLASES), clase_desde: z.string().nullable(), instante_evaluado: z.string().nullable(), evaluado_en: z.string().nullable(), declarado_en: z.string() });
+type UltimaComprobacion = { instante: string; resultado: "coincide" | "no-coincide" | "sin-respuesta"; detalle: string | null };
+async function ultimaComprobacion(c: AppContext, sistema: string, dato: string): Promise<UltimaComprobacion | null> { return fila<UltimaComprobacion>(c.env.DB_DPM, "SELECT instante, resultado, detalle FROM comprobaciones WHERE sistema = ? AND dato = ? ORDER BY instante DESC LIMIT 1", [sistema, dato]); }
+const datoPublico = (d: DatoFila, ultima: UltimaComprobacion | null = null) => ({ sistema: d.sistema, dato: d.dato, nombre: d.nombre, fuente: d.fuente, fuente_tipo: d.fuente_tipo ?? "calendario", via: d.via ?? "consulta", modo: d.modo, comprobacion: { url: d.url_comprobacion ?? null, ultima }, relojes: { fuente_ms: (d.fuente_tipo ?? "calendario") === "evento" ? d.latencia_fuente_ms : d.reloj_fuente_ms, refresco_peor_intervalo_ms: d.w_ms, verificacion: d.ultima_verificacion }, clase: d.clase, clase_desde: d.clase_desde, instante_evaluado: d.instante_evaluado, evaluado_en: d.evaluado_en, declarado_en: d.declarado_en });
 const SistemaPublico = z.object({ sistema: z.string(), nombre: z.string(), operador: z.string(), url: z.string().nullable(), estado: z.enum(ESTADOS), adhesion_declarada: z.string(), estado_desde: z.string().nullable(), datos: z.array(DatoPublico) });
 /** §2 antes que nada: lee `sistema` del cuerpo, exige la llave y solo entonces se valida el resto del cuerpo. */
 async function cuerpoConLlave(c: AppContext): Promise<unknown> {
@@ -43,7 +46,8 @@ async function datoPorId(c: AppContext, sistema: string, dato: string): Promise<
 async function estadoDesde(c: AppContext, sistema: string): Promise<string | null> {
   return (await fila<{ desde: string }>(c.env.DB_DPM, "SELECT desde FROM estados WHERE sistema = ? ORDER BY desde DESC LIMIT 1", [sistema]))?.desde ?? null;
 }
-const sistemaPublico = async (c: AppContext, s: Sistema) => ({ sistema: s.sistema, nombre: s.nombre, operador: s.operador, url: s.url, estado: s.estado, adhesion_declarada: s.adhesion_declarada, estado_desde: await estadoDesde(c, s.sistema), datos: (await datosDe(c, s.sistema)).map(datoPublico) });
+async function datosPublicos(c: AppContext, sistema: string) { const out = []; for (const d of await datosDe(c, sistema)) out.push(datoPublico(d, await ultimaComprobacion(c, d.sistema, d.dato))); return out; }
+const sistemaPublico = async (c: AppContext, s: Sistema) => ({ sistema: s.sistema, nombre: s.nombre, operador: s.operador, url: s.url, estado: s.estado, adhesion_declarada: s.adhesion_declarada, estado_desde: await estadoDesde(c, s.sistema), datos: await datosPublicos(c, s.sistema) });
 
 /** ¿Tuvo el dato alguna clase DPM/DPS/DPMS en algún instante de [inicio, fin)? Se lee del historial de clases. */
 async function enClaseDurante(c: AppContext, sistema: string, dato: string, inicio: string, fin: string): Promise<boolean> {
@@ -111,7 +115,7 @@ export class DpmSistema extends OpenAPIRoute {
 }
 export class DpmDato extends OpenAPIRoute {
   schema = { tags: TAG, operationId: "dpm_dato", summary: "Un dato: catálogo vigente, clase vigente, peor intervalo y los tres relojes", request: { params: z.object({ sistema: z.string(), dato: z.string() }) }, responses: { ...ok("Dato.", DatoPublico), ...RESP_404, ...RESP_422, ...RESP_429 } };
-  async handle(c: AppContext) { return datoPublico(await datoPorId(c, slugRuta(c.req.param("sistema"), "sistema"), slugRuta(c.req.param("dato"), "dato"))); }
+  async handle(c: AppContext) { const d = await datoPorId(c, slugRuta(c.req.param("sistema"), "sistema"), slugRuta(c.req.param("dato"), "dato")); return datoPublico(d, await ultimaComprobacion(c, d.sistema, d.dato)); }
 }
 export class DpmDatoHistorial extends OpenAPIRoute {
   schema = { tags: TAG, operationId: "dpm_dato_historial", summary: "Historial de clases de un dato (no se edita) y versiones de su catálogo", request: { params: z.object({ sistema: z.string(), dato: z.string() }) }, responses: { ...ok("Historial.", z.object({ sistema: z.string(), dato: z.string(), clases: z.array(z.object({ desde: z.string(), clase: z.enum(CLASES), w_ms: z.number().int().nullable() })), catalogo: z.array(z.object({ desde: z.string(), nombre: z.string(), fuente: z.string(), reloj_fuente_ms: z.number().int().nullable(), fuente_tipo: z.enum(FUENTE_TIPOS), latencia_fuente_ms: z.number().int().nullable(), via: z.enum(VIAS), modo: z.enum(MODOS), ultima_verificacion: z.string().nullable(), nota: z.string().nullable() })) })), ...RESP_404, ...RESP_422, ...RESP_429 } };
@@ -161,11 +165,11 @@ export class DpmInsignia extends OpenAPIRoute {
 
 // ------------------------------------------------------------------ reportes de los sistemas (§3-§6)
 
-const Declaracion = z.object({ nombre: z.string().min(1).max(200), fuente: z.string().min(1).max(200), fuente_tipo: z.enum(FUENTE_TIPOS).default("calendario").optional(), reloj_fuente_ms: z.number().int().min(0).nullable().optional(), latencia_fuente_ms: z.number().int().min(0).nullable().optional(), via: z.enum(VIAS).default("consulta").optional(), modo: z.enum(MODOS), ultima_verificacion: z.string().nullable().optional() });
+const Declaracion = z.object({ nombre: z.string().min(1).max(200), fuente: z.string().min(1).max(200), fuente_tipo: z.enum(FUENTE_TIPOS).default("calendario").optional(), reloj_fuente_ms: z.number().int().min(0).nullable().optional(), latencia_fuente_ms: z.number().int().min(0).nullable().optional(), via: z.enum(VIAS).default("consulta").optional(), url_comprobacion: z.string().url().max(500).regex(/^https:\/\//, "la dirección de comprobación debe ser https").nullable().optional(), modo: z.enum(MODOS), ultima_verificacion: z.string().nullable().optional() });
 export class DpmDatoDeclarar extends OpenAPIRoute {
   schema = {
     tags: TAG, operationId: "dpm_dato_declarar", summary: "Declarar o actualizar un dato en el catálogo (llave del sistema)", security: LLAVE,
-    description: "§3. `fuente_tipo` `calendario` (por omisión): `reloj_fuente_ms` es la cota, el periodo con el que la fuente publica; `null` deja al dato fuera de clase. `fuente_tipo` `evento`: `latencia_fuente_ms` es la latencia de entrega declarada del evento al sistema, cota cuando la ventana no tiene eventos; el pulso la eleva si observa una mayor; `null` deja al dato fuera de clase. `via` `consulta` (por omisión) o `entrega` (protocolo 0.3 §6). `ultima_verificacion` es el reloj de la verificación; sin él, un dato custodiado no cuenta en el caudal. Cada versión queda en el historial del dato.",
+    description: "§3. `fuente_tipo` `calendario` (por omisión): `reloj_fuente_ms` es la cota, el periodo con el que la fuente publica; `null` deja al dato fuera de clase. `fuente_tipo` `evento`: `latencia_fuente_ms` es la latencia de entrega declarada del evento al sistema, cota cuando la ventana no tiene eventos; el pulso la eleva si observa una mayor; `null` deja al dato fuera de clase. `via` `consulta` (por omisión) o `entrega` (protocolo 0.3 §6). `url_comprobacion` (0.4 §8 bis): dirección pública https que responde `{ultimo_refresco, refrescos_ultima_hora}`; sin ella el dato no puede estar en clase. `ultima_verificacion` es el reloj de la verificación; sin él, un dato custodiado no cuenta en el caudal. Cada versión queda en el historial del dato.",
     request: { params: z.object({ sistema: z.string(), dato: z.string() }), body: contentJson(Declaracion) },
     responses: { ...ok("Dato declarado.", DatoPublico), ...RESP_401_LLAVE, ...RESP_404, ...RESP_422, ...RESP_429 },
   };
@@ -179,10 +183,20 @@ export class DpmDatoDeclarar extends OpenAPIRoute {
     const latencia = fuenteTipo === "evento" ? (b.latencia_fuente_ms ?? null) : null;
     const ahora = iso(new Date());
     await c.env.DB_DPM.batch([
-      c.env.DB_DPM.prepare("INSERT INTO datos (sistema, dato, nombre, fuente, reloj_fuente_ms, fuente_tipo, latencia_fuente_ms, via, modo, ultima_verificacion, declarado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (sistema, dato) DO UPDATE SET nombre = excluded.nombre, fuente = excluded.fuente, reloj_fuente_ms = excluded.reloj_fuente_ms, fuente_tipo = excluded.fuente_tipo, latencia_fuente_ms = excluded.latencia_fuente_ms, via = excluded.via, modo = excluded.modo, ultima_verificacion = excluded.ultima_verificacion").bind(sistema, dato, b.nombre, b.fuente, reloj, fuenteTipo, latencia, via, b.modo, verificacion, ahora),
-      c.env.DB_DPM.prepare("INSERT OR REPLACE INTO datos_historial (sistema, dato, desde, nombre, fuente, reloj_fuente_ms, fuente_tipo, latencia_fuente_ms, via, modo, ultima_verificacion, nota) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)").bind(sistema, dato, ahora, b.nombre, b.fuente, reloj, fuenteTipo, latencia, via, b.modo, verificacion),
+      c.env.DB_DPM.prepare("INSERT INTO datos (sistema, dato, nombre, fuente, reloj_fuente_ms, fuente_tipo, latencia_fuente_ms, via, url_comprobacion, modo, ultima_verificacion, declarado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (sistema, dato) DO UPDATE SET nombre = excluded.nombre, fuente = excluded.fuente, reloj_fuente_ms = excluded.reloj_fuente_ms, fuente_tipo = excluded.fuente_tipo, latencia_fuente_ms = excluded.latencia_fuente_ms, via = excluded.via, url_comprobacion = excluded.url_comprobacion, modo = excluded.modo, ultima_verificacion = excluded.ultima_verificacion").bind(sistema, dato, b.nombre, b.fuente, reloj, fuenteTipo, latencia, via, b.url_comprobacion ?? null, b.modo, verificacion, ahora),
+      c.env.DB_DPM.prepare("INSERT OR REPLACE INTO datos_historial (sistema, dato, desde, nombre, fuente, reloj_fuente_ms, fuente_tipo, latencia_fuente_ms, via, url_comprobacion, modo, ultima_verificacion, nota) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)").bind(sistema, dato, ahora, b.nombre, b.fuente, reloj, fuenteTipo, latencia, via, b.url_comprobacion ?? null, b.modo, verificacion),
     ]);
-    return datoPublico(await datoPorId(c, sistema, dato));
+    const d = await datoPorId(c, sistema, dato); return datoPublico(d, await ultimaComprobacion(c, d.sistema, d.dato));
+  }
+}
+
+export class DpmDatoComprobaciones extends OpenAPIRoute {
+  schema = { tags: TAG, operationId: "dpm_dato_comprobaciones", summary: "Historial de comprobaciones de cara pública de un dato (§7 bis)", description: "Cada diez minutos el pulso consulta por su cuenta la dirección pública de comprobación del dato y compara con lo reportado: último refresco a ±5 minutos y refrescos de la última hora a ±20 %. Tres resultados seguidos distintos de «coincide» sacan al dato de clase. Un dato sin dirección no puede estar en clase.", request: { params: z.object({ sistema: z.string(), dato: z.string() }), query: z.object({ limit: z.number().int().min(1).max(500).default(50).optional() }) }, responses: { ...ok("Comprobaciones, de la más reciente a la más antigua.", z.object({ sistema: z.string(), dato: z.string(), url_comprobacion: z.string().nullable(), comprobaciones: z.array(z.object({ instante: z.string(), resultado: z.enum(RESULTADOS_COMPROBACION), ultimo_refresco_visto: z.string().nullable(), refrescos_hora_vistos: z.number().int().nullable(), ultimo_reportado: z.string().nullable(), refrescos_hora_reportados: z.number().int().nullable(), detalle: z.string().nullable() })) })), ...RESP_404, ...RESP_422, ...RESP_429 } };
+  async handle(c: AppContext) {
+    const d = await datoPorId(c, slugRuta(c.req.param("sistema"), "sistema"), slugRuta(c.req.param("dato"), "dato"));
+    const limit = Math.min(500, Math.max(1, Number(c.req.query("limit") ?? 50) || 50));
+    const comprobaciones = await filas<{ instante: string; resultado: "coincide" | "no-coincide" | "sin-respuesta"; ultimo_refresco_visto: string | null; refrescos_hora_vistos: number | null; ultimo_reportado: string | null; refrescos_hora_reportados: number | null; detalle: string | null }>(c.env.DB_DPM, "SELECT instante, resultado, ultimo_refresco_visto, refrescos_hora_vistos, ultimo_reportado, refrescos_hora_reportados, detalle FROM comprobaciones WHERE sistema = ? AND dato = ? ORDER BY instante DESC LIMIT ?", [d.sistema, d.dato, limit]);
+    return { sistema: d.sistema, dato: d.dato, url_comprobacion: d.url_comprobacion ?? null, comprobaciones };
   }
 }
 
@@ -314,11 +328,11 @@ export class DpmSistemaLlave extends OpenAPIRoute {
   }
 }
 export class DpmEvaluar extends OpenAPIRoute {
-  schema = { tags: TAG, operationId: "dpm_evaluar", summary: "Correr ahora la evaluación de clases y estados (admin)", security: SEGURIDAD, description: "La misma evaluación que corre el disparador programado cada minuto (clases al cierre de T = ahora − 5 min) y cada hora (estados). Sirve para operar y para verificar; no cambia las reglas.", responses: { ...ok("Resultado de la evaluación.", z.object({ clases: z.object({ instante_evaluado: z.string(), evaluados: z.number().int(), cambios: z.number().int() }), estados: z.object({ sistemas: z.number().int(), cambios: z.number().int() }) })), ...RESP_401, ...RESP_403, ...RESP_429 } };
+  schema = { tags: TAG, operationId: "dpm_evaluar", summary: "Correr ahora la evaluación de clases y estados (admin)", security: SEGURIDAD, description: "La misma evaluación que corre el disparador programado cada minuto (clases al cierre de T = ahora − 5 min) y cada hora (estados). Sirve para operar y para verificar; no cambia las reglas.", responses: { ...ok("Resultado de la evaluación.", z.object({ comprobacion: z.object({ comprobados: z.number().int(), coinciden: z.number().int() }), clases: z.object({ instante_evaluado: z.string(), evaluados: z.number().int(), cambios: z.number().int() }), estados: z.object({ sistemas: z.number().int(), cambios: z.number().int() }) })), ...RESP_401, ...RESP_403, ...RESP_429 } };
   async handle(c: AppContext) {
     await requiereAdmin(c);
     const ahora = new Date();
-    return { clases: await evaluarClases(c.env, ahora), estados: await evaluarEstados(c.env, ahora) };
+    return { comprobacion: await comprobarCaraPublica(c.env, ahora), clases: await evaluarClases(c.env, ahora), estados: await evaluarEstados(c.env, ahora) };
   }
 }
 export { cicloPulso };

@@ -2,9 +2,9 @@
 // Corre una vez por minuto desde el disparador programado del worker y a demanda desde /dpm/v1/admin/evaluar.
 import type { Env } from "../index";
 import { fila, filas } from "../lib/db";
-import { type Clase, DIAS_PARA_VERIFICADA, GRACIA_MS, VENTANA_MS, clasePorIntervalo, fechaMx, iso, menosFina, pisoMinuto, rangoUtcDeFechaMx, sumarDias } from "./comun";
+import { type Clase, COMPROBACION_CADA_MIN, COMPROBACION_FALLAS, COMPROBACION_PLAZO_MS, COMPROBACION_TOLERANCIA_MS, DIAS_PARA_VERIFICADA, GRACIA_MS, VENTANA_MS, clasePorIntervalo, fechaMx, iso, menosFina, pisoMinuto, rangoUtcDeFechaMx, sumarDias } from "./comun";
 
-type DatoFila = { sistema: string; dato: string; reloj_fuente_ms: number | null; fuente_tipo: "calendario" | "evento"; latencia_fuente_ms: number | null; via: "consulta" | "entrega"; nombre: string; fuente: string; modo: string; ultima_verificacion: string | null; clase: Clase };
+type DatoFila = { sistema: string; dato: string; reloj_fuente_ms: number | null; fuente_tipo: "calendario" | "evento"; latencia_fuente_ms: number | null; via: "consulta" | "entrega"; url_comprobacion: string | null; nombre: string; fuente: string; modo: string; ultima_verificacion: string | null; clase: Clase };
 type Resumen = { primero: string; ultimo: string; intervalo_max_ms: number; eventos: number | null; latencia_fuente_max_ms: number | null; entregas: number | null; latencia_entrega_max_ms: number | null };
 
 /**
@@ -16,7 +16,7 @@ export async function evaluarClases(env: Env, ahora: Date): Promise<{ instante_e
   const T = new Date(pisoMinuto(ahora).getTime() - GRACIA_MS);
   const S = new Date(T.getTime() - VENTANA_MS);
   const tIso = iso(T), sIso = iso(S), ahoraIso = iso(ahora);
-  const datos = await filas<DatoFila>(env.DB_DPM, "SELECT sistema, dato, reloj_fuente_ms, fuente_tipo, latencia_fuente_ms, via, nombre, fuente, modo, ultima_verificacion, clase FROM datos ORDER BY sistema, dato");
+  const datos = await filas<DatoFila>(env.DB_DPM, "SELECT sistema, dato, reloj_fuente_ms, fuente_tipo, latencia_fuente_ms, via, url_comprobacion, nombre, fuente, modo, ultima_verificacion, clase FROM datos ORDER BY sistema, dato");
   const sentencias: D1PreparedStatement[] = [];
   let cambios = 0;
   const COLS = "primero, ultimo, intervalo_max_ms, eventos, latencia_fuente_max_ms, entregas, latencia_entrega_max_ms";
@@ -63,6 +63,14 @@ export async function evaluarClases(env: Env, ahora: Date): Promise<{ instante_e
         nueva = menosFina(nueva, clasePorIntervalo(d.reloj_fuente_ms));
       }
     }
+    // §7 bis (0.4): sin dirección de comprobación no hay clase; tres comprobaciones seguidas fallidas tampoco.
+    if (nueva !== "sin-ventana" && nueva !== "fuera-de-clase") {
+      if (!d.url_comprobacion) nueva = "fuera-de-clase";
+      else {
+        const ultimas = await filas<{ resultado: string }>(env.DB_DPM, "SELECT resultado FROM comprobaciones WHERE sistema = ? AND dato = ? ORDER BY instante DESC LIMIT ?", [d.sistema, d.dato, COMPROBACION_FALLAS]);
+        if (ultimas.length >= COMPROBACION_FALLAS && ultimas.every((u) => u.resultado !== "coincide")) nueva = "fuera-de-clase";
+      }
+    }
     if (nueva !== d.clase) {
       cambios++;
       sentencias.push(env.DB_DPM.prepare("INSERT OR REPLACE INTO clases (sistema, dato, desde, clase, w_ms) VALUES (?, ?, ?, ?, ?)").bind(d.sistema, d.dato, tIso, nueva, w));
@@ -101,9 +109,57 @@ export async function evaluarEstados(env: Env, ahora: Date): Promise<{ sistemas:
   return { sistemas: sistemas.length, cambios };
 }
 
-/** Ciclo del disparador programado: clases cada minuto; estados una vez por hora (minuto 5). */
+type Vista = { ultimo_refresco?: unknown; refrescos_ultima_hora?: unknown };
+/**
+ * §7 bis comprobación de cara pública: cada diez minutos el pulso consulta por su cuenta la dirección pública de cada dato,
+ * guarda lo que vio y lo compara con lo reportado (último refresco a ±5 min; refrescos de la última hora a ±20 %, con margen
+ * absoluto de dos). Vía de entrega: última entrega y entregas de la hora.
+ */
+export async function comprobarCaraPublica(env: Env, ahora: Date, fetchImpl: typeof fetch = fetch): Promise<{ comprobados: number; coinciden: number }> {
+  const datos = await filas<{ sistema: string; dato: string; via: "consulta" | "entrega"; url_comprobacion: string }>(env.DB_DPM, "SELECT sistema, dato, via, url_comprobacion FROM datos WHERE url_comprobacion IS NOT NULL");
+  const hace1h = iso(ahora.getTime() - 60 * 60_000); const ahoraIso = iso(ahora);
+  const sentencias: D1PreparedStatement[] = []; let coinciden = 0;
+  for (const d of datos) {
+    const col = d.via === "entrega" ? "entregas" : "refrescos";
+    const rep = await fila<{ ultimo: string | null; n: number | null }>(env.DB_DPM, `SELECT MAX(ultimo) AS ultimo, SUM(COALESCE(${col}, 0)) AS n FROM resumenes WHERE sistema = ? AND dato = ? AND minuto >= ?`, [d.sistema, d.dato, hace1h]);
+    const ultimoRep = (await fila<{ u: string | null }>(env.DB_DPM, "SELECT MAX(ultimo) AS u FROM resumenes WHERE sistema = ? AND dato = ?", [d.sistema, d.dato]))?.u ?? null;
+    const nRep = rep?.n ?? 0;
+    let resultado: "coincide" | "no-coincide" | "sin-respuesta" = "sin-respuesta"; let detalle = ""; let visto: string | null = null; let nVisto: number | null = null;
+    try {
+      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), COMPROBACION_PLAZO_MS);
+      const r = await fetchImpl(d.url_comprobacion, { signal: ctl.signal, headers: { accept: "application/json", "user-agent": "pulso-dpm/0.4 (+https://datosmexico.org/dpm)" } }).finally(() => clearTimeout(t));
+      if (!r.ok) detalle = `HTTP ${r.status}`;
+      else {
+        const j = (await r.json()) as Vista;
+        const u = typeof j.ultimo_refresco === "string" && Number.isFinite(Date.parse(j.ultimo_refresco)) ? j.ultimo_refresco : null;
+        const n = typeof j.refrescos_ultima_hora === "number" && Number.isFinite(j.refrescos_ultima_hora) ? Math.round(j.refrescos_ultima_hora) : null;
+        if (u === null || n === null) detalle = "respuesta sin ultimo_refresco o refrescos_ultima_hora válidos";
+        else {
+          visto = iso(Date.parse(u)); nVisto = n;
+          if (ultimoRep === null) { resultado = "no-coincide"; detalle = "el sistema no ha reportado ningún refresco"; }
+          else {
+            const dMs = Math.abs(Date.parse(visto) - Date.parse(ultimoRep));
+            const margen = Math.max(2, Math.ceil(0.2 * Math.max(nVisto, nRep)));
+            const okUltimo = dMs <= COMPROBACION_TOLERANCIA_MS, okN = Math.abs(nVisto - nRep) <= margen;
+            resultado = okUltimo && okN ? "coincide" : "no-coincide";
+            detalle = `último: visto ${visto} vs reportado ${ultimoRep} (${Math.round(dMs / 1000)} s); última hora: vistos ${nVisto} vs reportados ${nRep} (margen ${margen})`;
+          }
+        }
+      }
+    } catch (e) { detalle = String(e).slice(0, 160); }
+    if (resultado === "coincide") coinciden++;
+    sentencias.push(env.DB_DPM.prepare("INSERT OR REPLACE INTO comprobaciones (sistema, dato, instante, resultado, ultimo_refresco_visto, refrescos_hora_vistos, ultimo_reportado, refrescos_hora_reportados, detalle) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(d.sistema, d.dato, ahoraIso, resultado, visto, nVisto, ultimoRep, nRep, detalle));
+  }
+  // Historial acotado: 90 días.
+  sentencias.push(env.DB_DPM.prepare("DELETE FROM comprobaciones WHERE instante < ?").bind(iso(ahora.getTime() - 90 * 86400_000)));
+  if (sentencias.length) await env.DB_DPM.batch(sentencias);
+  return { comprobados: datos.length, coinciden };
+}
+
+/** Ciclo del disparador programado: comprobación cada diez minutos (antes de las clases), clases cada minuto, estados una vez por hora (minuto 5). */
 export async function cicloPulso(env: Env, ahora: Date) {
+  const comprobacion = ahora.getUTCMinutes() % COMPROBACION_CADA_MIN === 0 ? await comprobarCaraPublica(env, ahora).catch((e) => ({ error: String(e).slice(0, 160) })) : null;
   const clases = await evaluarClases(env, ahora);
   const estados = ahora.getUTCMinutes() === 5 ? await evaluarEstados(env, ahora) : null;
-  return { clases, estados };
+  return { comprobacion, clases, estados };
 }
