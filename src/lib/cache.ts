@@ -4,7 +4,7 @@ const PREFIJOS_NO_STORE = ["/api/v1/auth", "/api/v1/personas", "/api/v1/nombrami
 function valor(path: string, metodo: string): string | null {
   if (PREFIJOS_NO_STORE.some((p) => path.startsWith(p))) return "no-store";
   // Pulso DPM (§9): lecturas públicas con caché de 60 s; los reportes y la administración nunca se guardan.
-  if (path.startsWith("/api/v1/clima")) return "public, max-age=60";
+  if (path.startsWith("/api/v1/clima") || path.startsWith("/api/v1/sismos")) return "public, max-age=60";
   if (path.startsWith("/dpm/v1")) return metodo === "GET" && !path.startsWith("/dpm/v1/admin") ? "public, max-age=60" : "no-store";
   // el catálogo y las fichas de los cubos cambian con cada despliegue: caché corta para que el explorador vea los cubos nuevos pronto
   if (path === "/api/v1/cubos" || /^\/api\/v1\/cubos\/[^/]+$/.test(path)) return "public, max-age=300";

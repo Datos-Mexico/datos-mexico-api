@@ -1733,3 +1733,31 @@ cron simulado porque ahora el disparador refresca el clima antes de evaluar y el
 **Transición en producción.** Al desplegar, los siete datos de ReparaCDMX quedan fuera de clase hasta que declaren su dirección
 de comprobación (en curso: endpoint público en `reparacdmx-app` y `url_comprobacion` en el catálogo que manda su webhook). El clima
 la trae desde su siguiente redeclaración (cada hora o ante 404).
+
+## 2026-10-31 — Sonda de sismos del SSN: medir si México tiene un dato público que llegue en segundos
+
+**Pregunta.** De la lista de mejoras del protocolo: ¿existe una fuente pública mexicana con cadencia de minutos o segundos que el
+observatorio pueda custodiar? Sondeo rápido de candidatos: Open-Meteo publica cada 15 minutos (medido, `current.interval = 900`);
+el canal RSS de últimos sismos del SSN (UNAM) lista cada sismo con su hora de origen pero no dice cuándo lo publicó; la página de
+demanda real del CENACE es HTML sin cadencia declarada; SINAICA es horaria por naturaleza; Banxico (FIX) es diaria. La única forma
+honesta de responder por el SSN es medir: leer el canal cada minuto y anotar, por cada sismo nuevo, cuándo lo vio el observatorio.
+
+**Qué se hizo** (`src/sismos/`). `sonda.ts`: lectura por minuto desde el disparador programado (en paralelo con el clima, antes de
+evaluar el pulso), análisis del RSS sin librerías (título «M, lugar»; descripción con Fecha en hora de México, Lat/Lon,
+Profundidad), clave = origen UTC + lat + lon, guardado de cada sismo nuevo con `visto_en` y `latencia_s` en `sismos_ssn`, bitácora
+de lecturas en `sismos_lecturas` (30 días). Reporte al pulso como el dato `datos-mexico/sismos-ssn`: fuente por evento con
+latencia declarada `null` hasta tener una semana de medida (por eso queda fuera de clase, y así se publica), vía de consulta
+(una lectura por minuto), custodiado, dirección de comprobación propia; cada minuto un resumen con `refrescos` 1 y, si hubo sismos
+nuevos, `eventos` y `latencia_fuente_max_ms` medidos. `endpoints.ts`: `GET /api/v1/sismos/recientes` con los sismos y la mediana,
+el p90 y el máximo de latencia **solo de los sismos ocurridos después de la primera lectura** (los que ya estaban en el canal traen
+latencia inflada), y `GET /api/v1/sismos/comprobacion`. Dataset `sismos` en el catálogo; los datasets `clima` y `sismos` comparten
+la D1 plataforma y cada uno lista solo sus tablas.
+
+**Comprobación (0.4), caso que faltaba.** La primera ronda real de comprobaciones (23:50 UTC) dio «coincide» en conversación,
+respuesta al cliente, ofertas y clima, y «sin respuesta» en la bandeja de ReparaCDMX porque su cara pública devolvía
+`ultimo_refresco: null` (nunca ha tenido refrescos) y el pulso lo tomaba por respuesta inválida. Ahora: cara pública sin refrescos
+(`null` y 0) y sistema sin reportes → «coincide»; cara pública sin refrescos y sistema con reportes → «no coincide» con el detalle.
+Batería 0.4 ampliada con el caso.
+
+**Lo que dirá la medida.** En una semana `/api/v1/sismos/recientes` tendrá la latencia real de publicación del SSN. Si la mediana
+es de minutos, el dato es por evento con latencia de minutos y seguirá fuera de clase; el valor del hallazgo es decirlo con número.

@@ -41,6 +41,8 @@ import { UnamAnuarioAgregado, UnamAnuarioCampos, UnamAnuarioCarreras, UnamAnuari
 import { CuboDatos, CuboFicha, CuboMiembros, CubosCatalogo } from "./cubos/endpoints";
 import { DpmDato, DpmDatoComprobaciones, DpmDatoDeclarar, DpmDatoHistorial, DpmEstado, DpmEvaluar, DpmIngestas, DpmInsignia, DpmResumenes, DpmSistema, DpmSistemaAlta, DpmSistemaLlave, DpmUsuariosLectura, DpmUsuariosReporte, cicloPulso } from "./dpm/endpoints";
 import { ClimaActual, ClimaComprobacion } from "./clima/endpoints";
+import { SismosComprobacion, SismosRecientes } from "./sismos/endpoints";
+import { leerSismos } from "./sismos/sonda";
 import { refrescarClima, CLIMA_CADA_MIN } from "./clima/refresco";
 import { ErrorHttp, respuestaError } from "./lib/errores";
 import { limitarPeticiones } from "./lib/limites";
@@ -137,6 +139,7 @@ const openapi = fromHono(app, {
       { name: "cubos", description: "Cubos del explorador del observatorio (datosmexico.org/observatorio): una capa uniforme de medidas y dimensiones sobre las bases del catálogo, con consulta agregada en JSON o CSV y una URL que reproduce cada tabla." },
       { name: "catalogo", description: "Qué bases tenemos, hasta cuándo llegan, con qué se verificaron y su esquema. Lo que no está aquí, no lo tenemos." },
       { name: "clima", description: "Clima actual de las 32 capitales estatales, custodiado por el observatorio desde Open-Meteo (fuente de 15 minutos; refresco cada 5) y reportado al pulso del Protocolo DPM como el dato datos-mexico/clima-capitales." },
+      { name: "sismos", description: "Sismos recientes del Servicio Sismológico Nacional (UNAM), leídos del canal RSS una vez por minuto con la latencia medida entre el origen y su publicación: la sonda del Protocolo DPM para saber si México tiene un dato público que llegue en segundos." },
       { name: "dpm", description: "El pulso del Protocolo DPM · Datos Por Minuto (github.com/Datos-Mexico/datos-mexico-dpm): los sistemas adheridos reportan resúmenes por minuto, ingestas y usuarios por día; el pulso calcula por reloj la clase de cada dato (DPM, DPS, DPMS o fuera de clase), el caudal y los usuarios DPM diarios, y sirve la insignia viva. Ninguna cifra del protocolo se enuncia en público si no la produjo el pulso." },
       { name: "erratas", description: "Registro público de posibles errores en datos oficiales: quién lo reportó, qué se observó, qué se propone, revisión y edición en que se corrigió. El dato publicado nunca cambia por esta vía." },
       { name: "auth", description: "Autenticación OAuth2 (password flow → JWT). Las cuentas las provisiona el observatorio; el registro público está deshabilitado." },
@@ -343,6 +346,8 @@ openapi.get("/api/v1/censo2020/indicadores/:columna", CensoIndicador);
 // Clima custodiado (dato del observatorio bajo el Protocolo DPM)
 openapi.get("/api/v1/clima/actual", ClimaActual);
 openapi.get("/api/v1/clima/comprobacion", ClimaComprobacion);
+openapi.get("/api/v1/sismos/recientes", SismosRecientes);
+openapi.get("/api/v1/sismos/comprobacion", SismosComprobacion);
 
 // Pulso del Protocolo DPM (ruta propia /dpm/v1, contrato en datos-mexico-dpm/PULSO.md)
 openapi.get("/dpm/v1/estado", DpmEstado);
@@ -428,6 +433,8 @@ export default {
     const ahora = new Date(ev.scheduledTime);
     // Clima custodiado: cada 5 minutos, antes de evaluar el pulso, para que el refresco del minuto entre puntual.
     const clima = ahora.getUTCMinutes() % CLIMA_CADA_MIN === 0 ? refrescarClima(env, ahora).then((r) => console.log("clima", JSON.stringify(r))) : Promise.resolve();
-    ctx.waitUntil(clima.catch((e) => console.error("clima", e)).then(() => cicloPulso(env, ahora)).catch((e) => console.error("pulso DPM", e)));
+    // Sonda de sismos del SSN: cada minuto, en paralelo con el clima; mide la latencia de publicación del SSN.
+    const sismos = leerSismos(env, ahora).then((r) => console.log("sismos", JSON.stringify(r)));
+    ctx.waitUntil(Promise.allSettled([clima.catch((e) => console.error("clima", e)), sismos.catch((e) => console.error("sismos", e))]).then(() => cicloPulso(env, ahora)).catch((e) => console.error("pulso DPM", e)));
   },
 };

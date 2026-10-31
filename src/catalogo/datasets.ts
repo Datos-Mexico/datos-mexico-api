@@ -13,11 +13,19 @@ export type DatasetDef = {
 
 export const DATASETS: DatasetDef[] = [
   {
+    clave: "sismos", nombre: "Sismos recientes del Servicio Sismológico Nacional", fuente: "SSN, Instituto de Geofísica, UNAM (canal RSS de últimos sismos)", fuente_url: "http://www.ssn.unam.mx/", licencia: "Datos del SSN; consultar sus términos",
+    descripcion: "Cada sismo que el observatorio ha visto en el canal de últimos sismos del SSN, leído una vez por minuto, con el instante de origen según el SSN, el primer instante en que el observatorio lo vio y la latencia entre ambos. Es la sonda del Protocolo DPM: mide, en lugar de suponer, cuánto tarda en publicarse un dato público mexicano por evento.",
+    binding: "DB_PLATAFORMA", prefijo_api: "/api/v1/sismos", periodicidad: "por evento; lectura cada minuto",
+    sql_corte: "SELECT MAX(origen_utc) AS corte FROM sismos_ssn", unidad_corte: "origen del sismo más reciente visto",
+    tablas_excluidas: /^(?!sismos_)/,
+    notas: ["Los sismos que ya estaban en el canal al arrancar la sonda (31-oct-2026) traen latencia inflada y no cuentan en las estadísticas de latencia.", "Ficha viva en el pulso: https://api.datosmexico.org/dpm/v1/datos/datos-mexico/sismos-ssn."],
+  },
+  {
     clave: "clima", nombre: "Clima actual de las 32 capitales estatales", fuente: "Open-Meteo", fuente_url: "https://open-meteo.com/", licencia: "CC BY 4.0 (Open-Meteo)",
     descripcion: "Temperatura, humedad, viento y código de tiempo de cada capital estatal, con el instante de la observación según la fuente. La fuente publica cada 15 minutos; el observatorio refresca cada 5 en un solo pedido y verifica cada respuesta (32 de 32, observación fechada en la última hora, coordenadas que coinciden). Es el dato datos-mexico/clima-capitales del Protocolo DPM: cada refresco se reporta al pulso y queda fuera de clase por la cota de la fuente.",
     binding: "DB_PLATAFORMA", prefijo_api: "/api/v1/clima", periodicidad: "cada 15 minutos en la fuente; refresco cada 5",
     sql_corte: "SELECT MAX(tiempo_fuente) AS corte FROM clima_actual", unidad_corte: "instante de la observación más reciente según la fuente",
-    tablas_excluidas: /^(users|erratas|demo_curso_bd|_cf)/,
+    tablas_excluidas: /^(?!clima_)/,
     notas: ["Solo se conserva el estado actual (32 filas) y la bitácora de refrescos de los últimos 30 días; no es una serie histórica.", "Ficha viva en el pulso: https://api.datosmexico.org/dpm/v1/datos/datos-mexico/clima-capitales."],
   },
   {

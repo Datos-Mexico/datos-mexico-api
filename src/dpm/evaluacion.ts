@@ -133,8 +133,14 @@ export async function comprobarCaraPublica(env: Env, ahora: Date, fetchImpl: typ
         const j = (await r.json()) as Vista;
         const u = typeof j.ultimo_refresco === "string" && Number.isFinite(Date.parse(j.ultimo_refresco)) ? j.ultimo_refresco : null;
         const n = typeof j.refrescos_ultima_hora === "number" && Number.isFinite(j.refrescos_ultima_hora) ? Math.round(j.refrescos_ultima_hora) : null;
-        if (u === null || n === null) detalle = "respuesta sin ultimo_refresco o refrescos_ultima_hora válidos";
-        else {
+        const sinRefrescosPublicados = j.ultimo_refresco === null && n === 0;
+        if (n === null || (u === null && !sinRefrescosPublicados)) detalle = "respuesta sin ultimo_refresco o refrescos_ultima_hora válidos";
+        else if (u === null) {
+          // La cara pública dice que nunca ha habido refrescos: coincide si el sistema tampoco reportó ninguno.
+          nVisto = 0;
+          if (ultimoRep === null && nRep === 0) { resultado = "coincide"; detalle = "sin refrescos en la cara pública ni en lo reportado"; }
+          else { resultado = "no-coincide"; detalle = `la cara pública no registra refrescos pero el sistema reportó ${nRep} en la última hora (último ${ultimoRep})`; }
+        } else {
           visto = iso(Date.parse(u)); nVisto = n;
           if (ultimoRep === null) { resultado = "no-coincide"; detalle = "el sistema no ha reportado ningún refresco"; }
           else {
