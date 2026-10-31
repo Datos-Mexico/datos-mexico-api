@@ -120,7 +120,8 @@ El producto del Datatón consume archivos publicados y muestra la API nueva
 con Swagger como origen. No depende de que todo esté migrado.
 - F17 Pulso del Protocolo DPM (decisión del CEO 31-oct-2026; contrato público en
       github.com/Datos-Mexico/datos-mexico-dpm, PULSO.md 0.2.0): rutas /dpm/v1/*, base D1
-      `datosmexico-api-dpm`, disparador programado cada minuto, insignia viva. CÓDIGO LISTO en la rama
-      dpm/pulso con batería local 68/68; base remota con esquema y los cuatro sistemas sembrados sin
-      llave. ESPERA EL GO DEL CEO para `wrangler deploy`. Después: emitir llaves, primer sistema que
-      reporta (ReparaCDMX), página /dpm en el sitio, insignias en los pies, protocolo 0.3 (fuentes por evento).
+      `datosmexico-api-dpm`, disparador programado cada minuto, insignia viva. EN PRODUCCIÓN 2026-10-31
+      (PRs #1 y #2, versión 7a7665a3, cron activo, batería local 68/68, verificación en producción en la
+      bitácora); cuatro llaves emitidas en data/.dpm-llaves.env (sin entregar). Pendiente: entregar la llave a
+      ReparaCDMX e implementar su reporte, página /dpm en el sitio, insignias en los pies, protocolo 0.3
+      (cota de la fuente para fuentes por evento).

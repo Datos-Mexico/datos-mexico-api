@@ -1612,3 +1612,40 @@ con llave de un solo uso, 409, rotación invalida la anterior, evaluar), OpenAPI
 **Pendiente.** Go del CEO para `wrangler deploy` (primer despliegue con cron). Después: emitir llaves con `POST /dpm/v1/sistemas/{s}/llave`
 (JWT admin), primer sistema que reporta (ReparaCDMX: Worker del webhook y cron diario de la app), página /dpm en el sitio, insignias en
 los tres pies, protocolo 0.3 con la cota de la fuente para fuentes por evento.
+
+## 2026-10-31 — F17 en producción: el pulso del Protocolo DPM
+
+**Go del CEO** («go, despliega validando con rigor»). Antes de integrar: diff sin firmas de IA, `tsc --noEmit` limpio, `wrangler
+deploy --dry-run` con los diecisiete bindings y el binding nuevo `DB_DPM`; línea base de producción capturada (/health,
+catálogo, CONSAR, cubos, INEGI, erratas, 195 rutas en OpenAPI, /dpm/v1/estado en 404).
+
+**Despliegues.** PR #1 integrado a `main` (`a6b3777`) y desplegado a las 20:56 UTC, versión `571adcbc-7abd-4e69-ae40-184d5104c50e`,
+con `schedule: * * * * *`. Verificación: los cinco endpoints de la línea base responden 200 con el mismo cuerpo byte a byte (en el
+catálogo solo cambia el campo `generado`); OpenAPI pasa de 195 a 206 rutas (11 de `/dpm`) con el esquema `LlaveDPM`; `/dpm/v1/estado`
+200 con `Cache-Control: public, max-age=60`, cuatro sistemas en declarada y todas las cifras en `null`; insignia SVG de
+`reparacdmx` con «adhesión declarada»; 404 en insignia y dato inexistentes; 401 en `admin/evaluar` sin JWT. **Hallazgo:**
+`POST /dpm/v1/resumenes` sin llave y con cuerpo inválido respondía 422, es decir, validaba antes de exigir la llave. Corregido en el
+PR #2 (`40fcd58`: el campo `sistema` se lee primero, se exige la llave y solo entonces se valida el resto; `PROTOCOLO_VERSION`
+0.2.1), probado en local (401/401/422/200/413) y desplegado como versión `7a7665a3-ff8e-4d80-a22d-01c3bdfad970`; en producción:
+401 sin llave, 401 con llave falsa, 422 con llave real y cuerpo inválido; línea base intacta.
+
+**El cron.** El esquema quedó registrado a las 20:55:59 UTC (leído por la API de Cloudflare), pero no disparó durante unos once
+minutos: dos escuchas con `wrangler tail` (150 s y 80 s) no vieron eventos programados y el dato declarado seguía sin evaluar.
+Es propagación del Cron Trigger, no defecto: desde las 21:07:14 UTC dispara cada minuto con un desfase fijo de 14.810 s dentro del
+minuto (`evaluado_en` 21:07:14.810, 21:08:14.810, …) y `instante_evaluado` avanza un minuto por vez con T = piso(ahora) − 5 min.
+Siguió disparando tras el segundo despliegue (21:10, 21:11, 21:12). Una evaluación a demanda con la cuenta administradora
+`observatorio` a las 21:06:38 confirmó el camino de evaluación antes de que el cron arrancara.
+
+**Llaves y catálogo.** Se emitieron las cuatro llaves de reporte (una por sistema) escribiendo solo su SHA-256 en
+`datosmexico-api-dpm`; las llaves viven en `data/.dpm-llaves.env` (no versionado, permisos 600) y no se han entregado a ningún
+sistema todavía. Prueba de autenticación en producción con la llave de ReparaCDMX: dato no declarado → 404 (llave aceptada);
+llave falsa → 401. Primer dato declarado en el catálogo del pulso: `datos-mexico/clima-capitales` (Open-Meteo, servido,
+`reloj_fuente_ms` null hasta medir la cadencia de la fuente, por lo que queda fuera de clase por construcción), tal como lo dice su
+ficha en el registro. Clase vigente: sin ventana, porque nadie reporta resúmenes aún.
+
+**Quirks de operación.** `wrangler tail --format json` imprime objetos JSON con sangría, no una línea por evento. macOS no trae
+`timeout`: `perl -e 'alarm N; exec @ARGV'` lo sustituye. En zsh una variable con varios flags de curl no se separa en palabras.
+
+**Estado.** Pulso en producción, protocolo 0.2.1, registro al día (`datos-mexico-dpm` PRs #3 y #4). Cero sistemas verificados,
+cero cifras públicas, por regla. Siguiente: entregar su llave a ReparaCDMX e implementar ahí el resumen por minuto y el reporte
+diario de usuarios; página /dpm en el sitio; insignias en los pies; protocolo 0.3 (cota de la fuente para fuentes por evento).
