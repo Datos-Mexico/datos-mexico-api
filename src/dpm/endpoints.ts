@@ -174,7 +174,7 @@ const Declaracion = z.object({ nombre: z.string().min(1).max(200), fuente: z.str
 export class DpmDatoDeclarar extends OpenAPIRoute {
   schema = {
     tags: TAG, operationId: "dpm_dato_declarar", summary: "Declarar o actualizar un dato en el catálogo (llave del sistema)", security: LLAVE,
-    description: "§3. `fuente_tipo` `calendario` (por omisión): `reloj_fuente_ms` es la cota, el periodo con el que la fuente publica; `null` deja al dato fuera de clase. `fuente_tipo` `evento`: `latencia_fuente_ms` es la latencia de entrega declarada del evento al sistema, cota cuando la ventana no tiene eventos; el pulso la eleva si observa una mayor; `null` deja al dato fuera de clase. `via` `consulta` (por omisión) o `entrega` (protocolo 0.3 §6). `url_comprobacion` (0.4 §8 bis): dirección pública https que responde `{ultimo_refresco, refrescos_ultima_hora}`; sin ella el dato no puede estar en clase. `ultima_verificacion` es el reloj de la verificación; sin él, un dato custodiado no cuenta en el caudal. Cada versión queda en el historial del dato.",
+    description: "§3. `fuente_tipo` `calendario` (por omisión): `reloj_fuente_ms` es la cota, el periodo con el que la fuente publica; `null` deja al dato fuera de clase. `fuente_tipo` `evento`: `latencia_fuente_ms` es la latencia de entrega declarada del evento al sistema, cota cuando la ventana no tiene eventos; el pulso la eleva si observa una mayor y una redeclaración no puede bajarla por debajo de la peor observada en los últimos siete días; `null` deja al dato fuera de clase. `via` `consulta` (por omisión) o `entrega` (protocolo 0.3 §6). `url_comprobacion` (0.4 §8 bis): dirección pública https que responde `{ultimo_refresco, refrescos_ultima_hora}`; sin ella el dato no puede estar en clase. `ultima_verificacion` es el reloj de la verificación; sin él, un dato custodiado no cuenta en el caudal. Cada versión queda en el historial del dato.",
     request: { params: z.object({ sistema: z.string(), dato: z.string() }), body: contentJson(Declaracion) },
     responses: { ...ok("Dato declarado.", DatoPublico), ...RESP_401_LLAVE, ...RESP_404, ...RESP_422, ...RESP_429 },
   };
@@ -185,11 +185,19 @@ export class DpmDatoDeclarar extends OpenAPIRoute {
     const verificacion = b.ultima_verificacion == null ? null : iso(parseInstante(b.ultima_verificacion, ["body", "ultima_verificacion"]));
     const fuenteTipo = b.fuente_tipo ?? "calendario", via = b.via ?? "consulta";
     const reloj = fuenteTipo === "calendario" ? (b.reloj_fuente_ms ?? null) : null;
-    const latencia = fuenteTipo === "evento" ? (b.latencia_fuente_ms ?? null) : null;
+    let latencia = fuenteTipo === "evento" ? (b.latencia_fuente_ms ?? null) : null;
+    let nota: string | null = null;
+    // 0.4.1: una redeclaración no puede bajar la latencia de la fuente por debajo de la peor observada en los últimos siete días.
+    // Si no, un catálogo que se redeclara a diario desharía la elevación que hizo el pulso (§7.5).
+    if (fuenteTipo === "evento" && latencia !== null) {
+      const hace7d = iso(Date.now() - 7 * 86400_000);
+      const peor = (await fila<{ m: number | null }>(c.env.DB_DPM, "SELECT MAX(latencia_fuente_max_ms) AS m FROM resumenes WHERE sistema = ? AND dato = ? AND puntual = 1 AND minuto >= ? AND eventos > 0", [sistema, dato, hace7d]))?.m ?? null;
+      if (peor !== null && peor > latencia) { nota = `latencia declarada ${latencia} ms elevada a ${peor} ms: la peor observada en los últimos siete días`; latencia = peor; }
+    }
     const ahora = iso(new Date());
     await c.env.DB_DPM.batch([
       c.env.DB_DPM.prepare("INSERT INTO datos (sistema, dato, nombre, fuente, reloj_fuente_ms, fuente_tipo, latencia_fuente_ms, via, url_comprobacion, modo, ultima_verificacion, declarado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (sistema, dato) DO UPDATE SET nombre = excluded.nombre, fuente = excluded.fuente, reloj_fuente_ms = excluded.reloj_fuente_ms, fuente_tipo = excluded.fuente_tipo, latencia_fuente_ms = excluded.latencia_fuente_ms, via = excluded.via, url_comprobacion = excluded.url_comprobacion, modo = excluded.modo, ultima_verificacion = excluded.ultima_verificacion").bind(sistema, dato, b.nombre, b.fuente, reloj, fuenteTipo, latencia, via, b.url_comprobacion ?? null, b.modo, verificacion, ahora),
-      c.env.DB_DPM.prepare("INSERT OR REPLACE INTO datos_historial (sistema, dato, desde, nombre, fuente, reloj_fuente_ms, fuente_tipo, latencia_fuente_ms, via, url_comprobacion, modo, ultima_verificacion, nota) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)").bind(sistema, dato, ahora, b.nombre, b.fuente, reloj, fuenteTipo, latencia, via, b.url_comprobacion ?? null, b.modo, verificacion),
+      c.env.DB_DPM.prepare("INSERT OR REPLACE INTO datos_historial (sistema, dato, desde, nombre, fuente, reloj_fuente_ms, fuente_tipo, latencia_fuente_ms, via, url_comprobacion, modo, ultima_verificacion, nota) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(sistema, dato, ahora, b.nombre, b.fuente, reloj, fuenteTipo, latencia, via, b.url_comprobacion ?? null, b.modo, verificacion, nota),
     ]);
     const d = await datoPorId(c, sistema, dato); return datoPublico(d, await ultimaComprobacion(c, d.sistema, d.dato));
   }
