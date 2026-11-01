@@ -28,7 +28,7 @@ const DatoPublico = z.object({ sistema: z.string(), dato: z.string(), nombre: z.
 type UltimaComprobacion = { instante: string; resultado: "coincide" | "no-coincide" | "sin-respuesta"; detalle: string | null };
 async function ultimaComprobacion(c: AppContext, sistema: string, dato: string): Promise<UltimaComprobacion | null> { return fila<UltimaComprobacion>(c.env.DB_DPM, "SELECT instante, resultado, detalle FROM comprobaciones WHERE sistema = ? AND dato = ? ORDER BY instante DESC LIMIT 1", [sistema, dato]); }
 const datoPublico = (d: DatoFila, ultima: UltimaComprobacion | null = null) => ({ sistema: d.sistema, dato: d.dato, nombre: d.nombre, fuente: d.fuente, fuente_tipo: d.fuente_tipo ?? "calendario", via: d.via ?? "consulta", modo: d.modo, comprobacion: { url: d.url_comprobacion ?? null, ultima }, relojes: { fuente_ms: (d.fuente_tipo ?? "calendario") === "evento" ? d.latencia_fuente_ms : d.reloj_fuente_ms, refresco_peor_intervalo_ms: d.w_ms, verificacion: d.ultima_verificacion }, clase: d.clase, clase_desde: d.clase_desde, instante_evaluado: d.instante_evaluado, evaluado_en: d.evaluado_en, declarado_en: d.declarado_en });
-const SistemaPublico = z.object({ sistema: z.string(), nombre: z.string(), operador: z.string(), url: z.string().nullable(), estado: z.enum(ESTADOS), adhesion_declarada: z.string(), estado_desde: z.string().nullable(), datos: z.array(DatoPublico) });
+const SistemaPublico = z.object({ sistema: z.string(), nombre: z.string(), operador: z.string(), url: z.string().nullable(), estado: z.enum(ESTADOS), adhesion_declarada: z.string(), estado_desde: z.string().nullable(), ultimo_reporte: z.string().nullable().describe("Instante en que el pulso recibió el último resumen por minuto de este sistema."), dias_reportados_7: z.number().int().describe("Días civiles (America/Mexico_City) de los últimos siete completos con al menos un resumen puntual; con siete pasa a verificada."), datos: z.array(DatoPublico) });
 /** §2 antes que nada: lee `sistema` del cuerpo, exige la llave y solo entonces se valida el resto del cuerpo. */
 async function cuerpoConLlave(c: AppContext): Promise<unknown> {
   const cuerpo = await c.req.json().catch(() => ({}));
@@ -47,7 +47,12 @@ async function estadoDesde(c: AppContext, sistema: string): Promise<string | nul
   return (await fila<{ desde: string }>(c.env.DB_DPM, "SELECT desde FROM estados WHERE sistema = ? ORDER BY desde DESC LIMIT 1", [sistema]))?.desde ?? null;
 }
 async function datosPublicos(c: AppContext, sistema: string) { const out = []; for (const d of await datosDe(c, sistema)) out.push(datoPublico(d, await ultimaComprobacion(c, d.sistema, d.dato))); return out; }
-const sistemaPublico = async (c: AppContext, s: Sistema) => ({ sistema: s.sistema, nombre: s.nombre, operador: s.operador, url: s.url, estado: s.estado, adhesion_declarada: s.adhesion_declarada, estado_desde: await estadoDesde(c, s.sistema), datos: await datosPublicos(c, s.sistema) });
+async function diasReportados7(c: AppContext, sistema: string): Promise<number> {
+  const hoy = fechaMx(new Date()); const desde = rangoUtcDeFechaMx(sumarDias(hoy, -7)).inicio; const hasta = rangoUtcDeFechaMx(sumarDias(hoy, -1)).fin;
+  const horas = await filas<{ h: string }>(c.env.DB_DPM, "SELECT DISTINCT substr(minuto, 1, 13) AS h FROM resumenes WHERE sistema = ? AND puntual = 1 AND minuto >= ? AND minuto < ?", [sistema, iso(desde), iso(hasta)]);
+  return new Set(horas.map((r) => fechaMx(Date.parse(r.h + ":00:00.000Z")))).size;
+}
+const sistemaPublico = async (c: AppContext, s: Sistema) => ({ sistema: s.sistema, nombre: s.nombre, operador: s.operador, url: s.url, estado: s.estado, adhesion_declarada: s.adhesion_declarada, estado_desde: await estadoDesde(c, s.sistema), ultimo_reporte: (await fila<{ t: string | null }>(c.env.DB_DPM, "SELECT MAX(recibido) AS t FROM resumenes WHERE sistema = ?", [s.sistema]))?.t ?? null, dias_reportados_7: await diasReportados7(c, s.sistema), datos: await datosPublicos(c, s.sistema) });
 
 /** ¿Tuvo el dato alguna clase DPM/DPS/DPMS en algún instante de [inicio, fin)? Se lee del historial de clases. */
 async function enClaseDurante(c: AppContext, sistema: string, dato: string, inicio: string, fin: string): Promise<boolean> {
