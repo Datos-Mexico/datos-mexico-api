@@ -1761,3 +1761,56 @@ Batería 0.4 ampliada con el caso.
 
 **Lo que dirá la medida.** En una semana `/api/v1/sismos/recientes` tendrá la latencia real de publicación del SSN. Si la mediana
 es de minutos, el dato es por evento con latencia de minutos y seguirá fuera de clase; el valor del hallazgo es decirlo con número.
+
+## 2026-11-09 — Clima oficial: la medición del SMN al frente, el aeropuerto de testigo, el modelo como pronóstico y la entrega en vivo
+
+**Plan del CEO (9-nov).** El clima de las 32 capitales como el dato meteorológico público mejor sustentado de México, a costo
+cero: tres fuentes con papeles distintos (medición oficial, testigo independiente, modelo), el error del modelo como indicador
+propio y dos datos DPM que no se mezclan: la medición (ajena, fuera de clase por su fuente) y la entrega en vivo (nuestra).
+
+**Paso 1 · medido antes de construir.** (a) Las estaciones automáticas (EMAs) de CONAGUA, que publicaban cada 10 minutos, no
+publican: `ConsultaCapas.php` marca 730 de 730 en `emaError`; `GetInfoEMAS_v2`, `GetTablaVariables_v3` y los reportes de 24 h,
+semana y 90 días vienen vacíos (curl y navegador, mismo resultado). (b) Lo oficial vivo es la red sinóptica del SMN en WIS2 de
+la OMM (`origin|cache/a/wis2/mx-smn/data/core/weather/surface-based-observations/synop`): BUFR 301150 + 307096 de ~66
+observatorios, publicados en un lote a H+11 min (17:11:02 y 18:11:04 UTC); el nodo del SMN no responde desde fuera, pero los
+cachés globales los sirven por HTTP en dirección determinista ≥ 24 h (NOAA en S3, DWD; `Last-Modified` = llegada al caché). Los
+brokers de Météo-France, CMA e INMET aceptan MQTT por WSS. (c) 31 capitales con observatorio a ≤ 8 km (coordenadas de
+OSCAR/Surface; las de NOAA ISD apuntan a aeropuertos y están mal); Culiacán 20 km, Mexicali 34 km (Ejido Nuevo León). (d) METAR
+vía aviationweather.gov: mediana 16.5 min de la observación a NOAA; Chilpancingo y Xalapa sin aeropuerto útil (85-94 km, >1,200 m
+de desnivel). **Decisión del CEO:** medición = sinóptica horaria del SMN + sonda diaria de EMAs (si vuelven, migrar a 10 min).
+
+**Qué se hizo** (`src/clima/`). `bufr.ts` + `bufr-tablas.ts`: decodificador BUFR edición 4 propio (subconjunto de tablas B/D de
+la OMM v46 generado por `scripts/clima/generar_tablas_bufr.py`); validado contra ecCodes con `scripts/clima/validar_bufr.py`:
+72 mensajes, 15,602 valores, 0 diferencias. `estaciones.ts` (generado por `scripts/clima/generar_estaciones.py`): capital ↔
+observatorio OMM ↔ clave climatológica del SMN ↔ aeropuerto testigo, con los récords mensuales de máxima y mínima de cada
+observatorio (archivo «Valores extremos» de la Base de Datos Climatológica Nacional, que trae la clave OMM). `sinoptica.ts`:
+desde el minuto 8, un centinela por minuto hasta que aparece el lote; luego las faltantes de una vez; repasos a :20/:30/:45, a
+H+1 (:05, :20) y H+2 (:35); al minuto 50, relleno de H−23…H−3 (tope 96 archivos por vuelta, la más vieja primero). Cada lectura:
+identidad (estación y hora pedidas), SHA-256, mensaje original en base64, `verificacion.ts` (récord del mes, rocío > T, humedad
+contra Magnus ±8, rangos físicos, salto 8 °C + 2 °C/h y 6 hPa/h, lectura repetida, testigo con gradiente 6.5 °C/km y tolerancia
+4 °C sobre la mediana del par en 30 días —6 °C sin historia—), error del modelo contra el pronóstico congelado de esa hora,
+lote por hora (recibidas, faltan, marcadas). `aeropuerto.ts`: METAR cada 5 min (minuto ≡ 2), 26 h al arrancar. `refresco.ts`:
+Open-Meteo pasa a llamarse pronóstico, se pide en el punto de cada observatorio y congela la hora siguiente. `envivo.ts`: Durable
+Object `ClimaEnVivo` (SQLite, WebSockets en hibernación): estado al conectar, difusión de cada lectura, confirmación del
+navegador con visibilidad; latencia = confirmación − lectura guardada, con reloj del servidor; solo páginas visibles cuentan.
+`pulso.ts`: `clima-estaciones` (calendario 3,600,000 ms, consulta, custodiado) y `clima-entrega` (evento, latencia de la fuente
+0, vía entrega), un resumen por minuto. `emas.ts`: sonda diaria (18:03 UTC). Endpoints: `/api/v1/clima/{estaciones, medicion,
+capitales/{clave}, capitales/{clave}/mensaje-original, error-modelo, lotes, sonda-emas, entrega, comprobacion/estaciones,
+comprobacion/entrega}` y el WebSocket `/api/v1/clima/en-vivo` (solo orígenes del observatorio y localhost). Esquema aditivo
+`src/clima/schema_2.sql`.
+
+**Hallazgo de calidad en la fuente.** Tacubaya (76680) repite temperatura, rocío y humedad entre 17 y 18 UTC (19.8 °C, 12.3 °C,
+62 %) mientras la presión y el viento cambian y el aeropuerto sube 4 °C; también 04-06 UTC. Se agregó la marca
+«igual-a-la-hora-anterior»: no borra, deja ver.
+
+**Pruebas locales** (wrangler dev + cron real): lote de las 18 UTC detectado a las 18:12 (29/32; Mexicali, Morelia y Monterrey
+llegan tarde y entran en los repasos); 17 UTC rellenado 31/32; testigo, error del modelo (caso controlado +1.5 °C, humedad −12,
+viento −0.7) y entrega en vivo de extremo a extremo (página visible confirmó en 11 ms; oculta contada aparte; origen ajeno → 403);
+reporte al pulso local 200. Auditoría `scripts/clima/auditar.py` contra la API local: 62/62 mediciones con huella correcta,
+bytes idénticos a los del otro caché de la OMM, valores iguales a ecCodes y marcas recalculadas iguales.
+
+**Costo.** Lecturas externas ~1,300/día (sinóptica ~50/h con centinela y repasos; METAR y modelo 288/día cada uno; EMAs 2/día).
+D1: ~70 mil filas/mes. Objeto durable: hiberna entre eventos; se despierta cada minuto para el reporte al pulso. Sin IA.
+
+**Para publicar (con go):** `wrangler d1 execute datosmexico-api-plataforma --remote --file src/clima/schema_2.sql` → deploy
+(crea el objeto durable por la migración `clima-en-vivo-v1`) → verificar endpoints, cron y declaración en el pulso.

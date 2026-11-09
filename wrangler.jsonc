@@ -18,6 +18,8 @@
     { "name": "RL_120", "namespace_id": "5120", "simple": { "limit": 120, "period": 60 } },
     { "name": "RL_600", "namespace_id": "5600", "simple": { "limit": 600, "period": 60 } }
   ],
+  "durable_objects": { "bindings": [ { "name": "CLIMA_EN_VIVO", "class_name": "ClimaEnVivo" } ] },
+  "migrations": [ { "tag": "clima-en-vivo-v1", "new_sqlite_classes": ["ClimaEnVivo"] } ],
   "r2_buckets": [ { "binding": "DATOS", "bucket_name": "datosmexico-datos" } ],
   "d1_databases": [
     { "binding": "DB_CONSAR", "database_name": "datosmexico-api-consar", "database_id": "7a13a6f9-ab5a-4f9d-8339-65753f7b9f91" },
