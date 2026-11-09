@@ -9,7 +9,7 @@ import { ESTACIONES } from "./estaciones";
 import { SINOPTICA_FUENTE, SINOPTICA_RELOJ_MS } from "./sinoptica";
 import { AEROPUERTO_FUENTE } from "./aeropuerto";
 import { cifrasEntrega } from "./envivo";
-import { PREFIJO_MALLA, VARIABLES } from "./malla";
+import { MALLAS, PREFIJO_MALLA, VARIABLES } from "./malla";
 import { TESTIGO_MIN_COTEJOS, TESTIGO_TOLERANCIA_C, TESTIGO_TOLERANCIA_INICIAL_C } from "./verificacion";
 
 const TAG = ["clima"];
@@ -219,14 +219,17 @@ export class ClimaComprobacion extends OpenAPIRoute {
 }
 
 /** Manifiesto de la malla de pronóstico del mapa animado: qué corrida está vigente y cómo leer cada archivo. */
+const MallaClave = z.enum(Object.keys(MALLAS) as [string, ...string[]]);
 export class ClimaMalla extends OpenAPIRoute {
   schema = {
     tags: TAG, operationId: "clima_malla", summary: "Malla de pronóstico para el mapa animado: lluvia, temperatura, viento y nubes, 54 horas",
-    description: "Manifiesto de la corrida vigente del modelo GFS de la NOAA (0.25°) recortada a México y sus mares (4° a 36° N, 122° a 82° O; 161 × 129 puntos), hora por hora de la 1 a la 54. Cada variable es un archivo binario comprimido con un byte por punto y por hora; la codificación de cada uno está en el manifiesto. Es pronóstico de modelo, no medición.",
+    description: "Manifiesto de la corrida vigente del modelo GFS de la NOAA. `mexico`: 0.25°, recortada a México y sus mares (4° a 36° N, 122° a 82° O; 161 × 129 puntos), hora por hora de la 1 a la 54. `mundo`: 1°, el planeta entero (360 × 181 puntos), cada 3 horas de la 3 a la 54. Cada variable es un archivo binario comprimido con un byte por punto y por paso; la codificación de cada uno está en el manifiesto. Es pronóstico de modelo, no medición.",
+    request: { params: z.object({ malla: MallaClave }) },
     responses: { ...ok("Manifiesto.", libre), "404": { description: "Aún no hay una corrida completa.", ...contentJson(z.object({ detail: z.string() })) }, ...RESP_429 },
   };
   async handle(c: AppContext) {
-    const o = await c.env.DATOS.get(`${PREFIJO_MALLA}/actual.json`);
+    const d = await this.getValidatedData<typeof this.schema>();
+    const o = await c.env.DATOS.get(`${PREFIJO_MALLA}/${d.params.malla}/actual.json`);
     if (!o) throw new ErrorHttp(404, "Aún no hay una corrida completa del pronóstico");
     return JSON.parse(await o.text()) as Record<string, unknown>;
   }
@@ -234,12 +237,12 @@ export class ClimaMalla extends OpenAPIRoute {
 export class ClimaMallaArchivo extends OpenAPIRoute {
   schema = {
     tags: TAG, operationId: "clima_malla_archivo", summary: "Archivo binario de una variable de la malla de pronóstico",
-    request: { params: z.object({ corrida: z.string().regex(/^\d{10}$/), variable: z.enum(Object.keys(VARIABLES) as [string, ...string[]]) }) },
-    responses: { "200": { description: "Bytes comprimidos (gzip): 54 horas × capas × 161 × 129." }, "404": { description: "No existe.", ...contentJson(z.object({ detail: z.string() })) }, ...RESP_429 },
+    request: { params: z.object({ malla: MallaClave, corrida: z.string().regex(/^\d{10}$/), variable: z.enum(Object.keys(VARIABLES) as [string, ...string[]]) }) },
+    responses: { "200": { description: "Bytes comprimidos (gzip): pasos × capas × puntos de la malla." }, "404": { description: "No existe.", ...contentJson(z.object({ detail: z.string() })) }, ...RESP_429 },
   };
   async handle(c: AppContext) {
     const d = await this.getValidatedData<typeof this.schema>();
-    const o = await c.env.DATOS.get(`${PREFIJO_MALLA}/${d.params.corrida}/${d.params.variable}.bin.gz`);
+    const o = await c.env.DATOS.get(`${PREFIJO_MALLA}/${d.params.malla}/${d.params.corrida}/${d.params.variable}.bin.gz`);
     if (!o) throw new ErrorHttp(404, "No existe ese archivo de la malla");
     // El archivo ya está comprimido: se entrega tal cual, sin volver a comprimir.
     return new Response(o.body, { encodeBody: "manual", headers: { "content-type": "application/octet-stream", "content-encoding": "gzip", "content-length": String(o.size) } });

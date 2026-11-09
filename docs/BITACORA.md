@@ -1841,5 +1841,14 @@ Cotejo contra los valores originales (horas 1, 6, 24, 54, todos los puntos): tem
 
 **Costo.** 216 pedidos al día a la NOAA, ~10 MB en R2, ~60 escrituras R2 por corrida. Cero dinero.
 
+**El mundo (pedido del CEO: «datos vistosos de todo el mundo»).** Segunda malla `mundo`: GFS 1°, planeta entero (360 × 181),
+cada 3 horas de la 3 a la 54 (18 pasos, 3 por minuto); el filtro de NOMADS reempaqueta en simple si se le pide recortar al planeta
+entero. Las dos mallas comparten proceso (`MALLAS` en `malla.ts`), tabla `clima_malla (malla, corrida)` y prefijo
+`clima/malla/<malla>/`; endpoints `/api/v1/clima/malla/{malla}` y `/api/v1/clima/malla/{malla}/{corrida}/{variable}`. Candado por
+corrida (`bloqueo_hasta`, 3 min) porque dos vueltas encimadas armaban dos veces y la segunda no hallaba las horas ya limpiadas
+(visto en local). La temperatura pasó a `°C = c / 2.2 − 60` (−60 a +55.9): con `c / 3 − 40` la Antártida (hasta −51 °C) se
+recortaba en 1,232 puntos. Verificado: mundo, hora 3, los 65,160 puntos: temperatura ±0.23 °C, viento ±0.25 m/s; CDMX, Madrid,
+Tokio y Sídney iguales a la NOAA. Tamaños: lluvia 275 KB, temperatura 619 KB, viento 1.2 MB, nubes 638 KB.
+
 **Para publicar (con go):** `wrangler d1 execute datosmexico-api-plataforma --remote --file src/clima/schema_3.sql` → deploy →
-esperar la primera corrida (≤ 10 min para hallarla, ~9 min para bajarla) → verificar el manifiesto y los cuatro archivos.
+esperar la primera corrida de cada malla (≤ 10 min para hallarla, ~9 min para bajarla) → verificar manifiestos y archivos.
