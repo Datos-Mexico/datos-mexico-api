@@ -1818,3 +1818,28 @@ D1: ~70 mil filas/mes. Objeto durable: hiberna entre eventos; se despierta cada 
 
 **Para publicar (con go):** `wrangler d1 execute datosmexico-api-plataforma --remote --file src/clima/schema_2.sql` → deploy
 (crea el objeto durable por la migración `clima-en-vivo-v1`) → verificar endpoints, cron y declaración en el pulso.
+
+## 2026-11-09 — Clima: la malla de pronóstico para el mapa en movimiento
+
+**Pedido del CEO.** «Poco emocionante»: un mapa como el de la app del tiempo del iPhone (lluvia animada con línea de tiempo,
+de la ciudad al planeta). Fuentes gratuitas comprobadas: pronóstico GFS de la NOAA (NOMADS, hora por hora), nubes reales del
+satélite GOES‑East (NASA GIBS, mosaicos con hora, CORS abierto), mapa base OpenFreeMap. México no publica radar abierto: la
+lluvia del mapa es pronóstico y así se dice.
+
+**Qué se hizo.** `src/clima/grib.ts`: lector GRIB2 propio (malla latitud‑longitud, empaque simple, que es lo que entrega el
+filtro de NOMADS al recortar); validado contra ecCodes con `scripts/clima/validar_grib.py`: 4 archivos, 32 campos, 664,608
+valores, 0 diferencias. `src/clima/malla.ts`: cada 10 minutos busca una corrida nueva (00/06/12/18 UTC; HEAD del `.idx` de la
+hora 54); al hallarla pide seis horas por minuto (54 pedidos por corrida) con lluvia, temperatura a 2 m, viento a 10 m y nubes,
+recorte 4–36° N, 122–82° O (161 × 129 puntos a 0.25°); un byte por punto y variable (lluvia √ escalada, temperatura a ⅓ °C,
+viento a 0.5 m/s, nubes a 0.4 %); con las 54 horas arma un archivo comprimido por variable en R2 (`clima/malla/<corrida>/`) y
+el manifiesto `clima/malla/actual.json`; conserva la corrida previa y borra lo demás. Endpoints `/api/v1/clima/malla` y
+`/api/v1/clima/malla/{corrida}/{variable}` (caché inmutable de 7 días). Corre en su propia tarea de fondo para no atrasar el pulso.
+
+**Pruebas locales.** Corrida 2026110912 completa en 9 vueltas: lluvia 202 KB, temperatura 447 KB, viento 820 KB, nubes 686 KB.
+Cotejo contra los valores originales (horas 1, 6, 24, 54, todos los puntos): temperatura ±0.17 °C, viento ±0.25 m/s, nubes
+±0.2 %, lluvia dentro del escalón de codificación. CDMX 18 UTC: modelo 20.0 °C contra 19.8 °C medidos.
+
+**Costo.** 216 pedidos al día a la NOAA, ~10 MB en R2, ~60 escrituras R2 por corrida. Cero dinero.
+
+**Para publicar (con go):** `wrangler d1 execute datosmexico-api-plataforma --remote --file src/clima/schema_3.sql` → deploy →
+esperar la primera corrida (≤ 10 min para hallarla, ~9 min para bajarla) → verificar el manifiesto y los cuatro archivos.
