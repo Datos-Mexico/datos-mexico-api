@@ -17,6 +17,7 @@ function valor(path: string, metodo: string): string | null {
 }
 export const cacheControl: MiddlewareHandler = async (c, next) => {
   await next();
+  if (c.res.status === 101) return; // WebSocket (entrega en vivo): la respuesta de cambio de protocolo no lleva caché
   const v = valor(new URL(c.req.url).pathname, c.req.method);
   if (!v) return;
   c.res.headers.set("Cache-Control", v);

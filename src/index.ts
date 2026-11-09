@@ -40,7 +40,12 @@ import { AnuiesAgregado, AnuiesCiclos, AnuiesColumnas, AnuiesDescarga, AnuiesEda
 import { UnamAnuarioAgregado, UnamAnuarioCampos, UnamAnuarioCarreras, UnamAnuarioEdades, UnamAnuarioNiveles, UnamAnuarioPlanteles, UnamAnuarioProcedencia, UnamAnuarioSerie, UnamConcursoArchivos, UnamConcursoDistribucion, UnamConcursoEncabezados, UnamConcursoTabla, UnamConcursoUniverso, UnamDescarga, UnamResumen } from "./unam/endpoints";
 import { CuboDatos, CuboFicha, CuboMiembros, CubosCatalogo } from "./cubos/endpoints";
 import { DpmDato, DpmDatoComprobaciones, DpmDatoDeclarar, DpmDatoHistorial, DpmEstado, DpmEvaluar, DpmIngestas, DpmInsignia, DpmResumenes, DpmSistema, DpmSistemaAlta, DpmSistemaLlave, DpmUsuariosLectura, DpmUsuariosReporte, cicloPulso } from "./dpm/endpoints";
-import { ClimaActual, ClimaComprobacion } from "./clima/endpoints";
+import { ClimaActual, ClimaCapital, ClimaComprobacion, ClimaComprobacionEntrega, ClimaComprobacionEstaciones, ClimaEntrega, ClimaErrorModelo, ClimaEstaciones, ClimaLotes, ClimaMedicion, ClimaMensajeOriginal, ClimaSondaEmas } from "./clima/endpoints";
+import { custodiarSinoptica } from "./clima/sinoptica";
+import { custodiarAeropuertos } from "./clima/aeropuerto";
+import { sondearEmas } from "./clima/emas";
+import { reportarClimaOficial } from "./clima/pulso";
+import { ClimaEnVivo, conectarEnVivo } from "./clima/envivo";
 import { SismosComprobacion, SismosRecientes } from "./sismos/endpoints";
 import { leerSismos } from "./sismos/sonda";
 import { refrescarClima, CLIMA_CADA_MIN } from "./clima/refresco";
@@ -69,6 +74,8 @@ export type Env = {
   /** Protocolo DPM: llave con la que el observatorio reporta su propio dato (clima) al pulso. */
   DPM_LLAVE_DATOS_MEXICO?: string;
   DPM_PULSO_URL?: string;
+  /** Entrega en vivo del clima (Durable Object con WebSockets en hibernación). */
+  CLIMA_EN_VIVO: DurableObjectNamespace<ClimaEnVivo>;
   DATOS: R2Bucket;
   RL_5: RateLimit;
   RL_10: RateLimit;
@@ -346,6 +353,27 @@ openapi.get("/api/v1/censo2020/indicadores/:columna", CensoIndicador);
 // Clima custodiado (dato del observatorio bajo el Protocolo DPM)
 openapi.get("/api/v1/clima/actual", ClimaActual);
 openapi.get("/api/v1/clima/comprobacion", ClimaComprobacion);
+openapi.get("/api/v1/clima/estaciones", ClimaEstaciones);
+openapi.get("/api/v1/clima/medicion", ClimaMedicion);
+openapi.get("/api/v1/clima/capitales/:clave", ClimaCapital);
+openapi.get("/api/v1/clima/capitales/:clave/mensaje-original", ClimaMensajeOriginal);
+openapi.get("/api/v1/clima/error-modelo", ClimaErrorModelo);
+openapi.get("/api/v1/clima/lotes", ClimaLotes);
+openapi.get("/api/v1/clima/sonda-emas", ClimaSondaEmas);
+openapi.get("/api/v1/clima/entrega", ClimaEntrega);
+openapi.get("/api/v1/clima/comprobacion/estaciones", ClimaComprobacionEstaciones);
+openapi.get("/api/v1/clima/comprobacion/entrega", ClimaComprobacionEntrega);
+// Entrega en vivo: WebSocket hacia el objeto durable. Solo desde las páginas del observatorio (y desarrollo local): las
+// confirmaciones de los navegadores son la medida de la latencia, no se aceptan de cualquier origen.
+app.get("/api/v1/clima/en-vivo", async (c) => {
+  if (c.req.header("upgrade")?.toLowerCase() !== "websocket") return respuestaError(426, "Se espera una conexión WebSocket");
+  const origen = c.req.header("origin") ?? "";
+  let host = "";
+  try { host = new URL(origen).hostname; } catch { /* sin origen */ }
+  const permitido = host === "datosmexico.org" || host.endsWith(".datosmexico.org") || host.endsWith(".workers.dev") || host === "localhost" || host === "127.0.0.1";
+  if (!permitido) return respuestaError(403, "Origen no permitido para la entrega en vivo");
+  return conectarEnVivo(c.env, c.req.raw);
+});
 openapi.get("/api/v1/sismos/recientes", SismosRecientes);
 openapi.get("/api/v1/sismos/comprobacion", SismosComprobacion);
 
@@ -426,6 +454,9 @@ app.onError(async (err, c) => {
   return respuestaError(500, "Internal Server Error");
 });
 
+// El objeto durable de la entrega en vivo del clima se exporta desde el módulo principal (wrangler.jsonc → durable_objects).
+export { ClimaEnVivo };
+
 // El worker atiende HTTP y, cada minuto, el pulso del Protocolo DPM (wrangler.jsonc → triggers.crons).
 export default {
   fetch: app.fetch,
@@ -435,6 +466,12 @@ export default {
     const clima = ahora.getUTCMinutes() % CLIMA_CADA_MIN === 0 ? refrescarClima(env, ahora).then((r) => console.log("clima", JSON.stringify(r))) : Promise.resolve();
     // Sonda de sismos del SSN: cada minuto, en paralelo con el clima; mide la latencia de publicación del SSN.
     const sismos = leerSismos(env, ahora).then((r) => console.log("sismos", JSON.stringify(r)));
-    ctx.waitUntil(Promise.allSettled([clima.catch((e) => console.error("clima", e)), sismos.catch((e) => console.error("sismos", e))]).then(() => cicloPulso(env, ahora)).catch((e) => console.error("pulso DPM", e)));
+    // Clima oficial: la medición del SMN (cada minuto decide si consulta), el testigo METAR cada 5 minutos (desfasado del
+    // pronóstico), la sonda de EMAs una vez al día y el reporte al pulso de la medición y de la entrega en vivo.
+    const m = ahora.getUTCMinutes();
+    const oficial = custodiarSinoptica(env, ahora).then(async (r) => { if (r.consultas) console.log("clima oficial", JSON.stringify(r)); const p = await reportarClimaOficial(env, ahora, r); if (p !== "nada que reportar") console.log("clima oficial pulso", p); });
+    const aeropuertos = m % 5 === 2 ? custodiarAeropuertos(env, ahora).then((r) => console.log("clima aeropuertos", JSON.stringify(r))) : Promise.resolve();
+    const emas = ahora.getUTCHours() === 18 && m === 3 ? sondearEmas(env, ahora).then((r) => console.log("clima sonda EMAs", JSON.stringify(r))) : Promise.resolve();
+    ctx.waitUntil(Promise.allSettled([clima.catch((e) => console.error("clima", e)), sismos.catch((e) => console.error("sismos", e)), oficial.catch((e) => console.error("clima oficial", e)), aeropuertos.catch((e) => console.error("clima aeropuertos", e)), emas.catch((e) => console.error("clima EMAs", e))]).then(() => cicloPulso(env, ahora)).catch((e) => console.error("pulso DPM", e)));
   },
 };
