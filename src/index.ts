@@ -40,6 +40,8 @@ import { AnuiesAgregado, AnuiesCiclos, AnuiesColumnas, AnuiesDescarga, AnuiesEda
 import { UnamAnuarioAgregado, UnamAnuarioCampos, UnamAnuarioCarreras, UnamAnuarioEdades, UnamAnuarioNiveles, UnamAnuarioPlanteles, UnamAnuarioProcedencia, UnamAnuarioSerie, UnamConcursoArchivos, UnamConcursoDistribucion, UnamConcursoEncabezados, UnamConcursoTabla, UnamConcursoUniverso, UnamDescarga, UnamResumen } from "./unam/endpoints";
 import { CuboDatos, CuboFicha, CuboMiembros, CubosCatalogo } from "./cubos/endpoints";
 import { DpmDato, DpmDatoComprobaciones, DpmDatoDeclarar, DpmDatoHistorial, DpmEstado, DpmEvaluar, DpmIngestas, DpmInsignia, DpmResumenes, DpmSistema, DpmSistemaAlta, DpmSistemaLlave, DpmUsuariosLectura, DpmUsuariosReporte, cicloPulso } from "./dpm/endpoints";
+import { ClimaMalla, ClimaMallaArchivo } from "./clima/endpoints";
+import { actualizarMallas } from "./clima/malla";
 import { ClimaActual, ClimaCapital, ClimaComprobacion, ClimaComprobacionEntrega, ClimaComprobacionEstaciones, ClimaEntrega, ClimaErrorModelo, ClimaEstaciones, ClimaLotes, ClimaMedicion, ClimaMensajeOriginal, ClimaSondaEmas } from "./clima/endpoints";
 import { custodiarSinoptica } from "./clima/sinoptica";
 import { custodiarAeropuertos } from "./clima/aeropuerto";
@@ -363,6 +365,8 @@ openapi.get("/api/v1/clima/sonda-emas", ClimaSondaEmas);
 openapi.get("/api/v1/clima/entrega", ClimaEntrega);
 openapi.get("/api/v1/clima/comprobacion/estaciones", ClimaComprobacionEstaciones);
 openapi.get("/api/v1/clima/comprobacion/entrega", ClimaComprobacionEntrega);
+openapi.get("/api/v1/clima/malla/:malla", ClimaMalla);
+openapi.get("/api/v1/clima/malla/:malla/:corrida/:variable", ClimaMallaArchivo);
 // Entrega en vivo: WebSocket hacia el objeto durable. Solo desde las páginas del observatorio (y desarrollo local): las
 // confirmaciones de los navegadores son la medida de la latencia, no se aceptan de cualquier origen.
 app.get("/api/v1/clima/en-vivo", async (c) => {
@@ -472,6 +476,10 @@ export default {
     const oficial = custodiarSinoptica(env, ahora).then(async (r) => { if (r.consultas) console.log("clima oficial", JSON.stringify(r)); const p = await reportarClimaOficial(env, ahora, r); if (p !== "nada que reportar") console.log("clima oficial pulso", p); });
     const aeropuertos = m % 5 === 2 ? custodiarAeropuertos(env, ahora).then((r) => console.log("clima aeropuertos", JSON.stringify(r))) : Promise.resolve();
     const emas = ahora.getUTCHours() === 18 && m === 3 ? sondearEmas(env, ahora).then((r) => console.log("clima sonda EMAs", JSON.stringify(r))) : Promise.resolve();
+    // Mallas de pronóstico del mapa animado (GFS de la NOAA, México y mundo): unas horas por minuto mientras haya corrida nueva.
+    const malla = actualizarMallas(env, ahora).then((r) => { if (r !== "nada") console.log("clima malla", r); });
     ctx.waitUntil(Promise.allSettled([clima.catch((e) => console.error("clima", e)), sismos.catch((e) => console.error("sismos", e)), oficial.catch((e) => console.error("clima oficial", e)), aeropuertos.catch((e) => console.error("clima aeropuertos", e)), emas.catch((e) => console.error("clima EMAs", e))]).then(() => cicloPulso(env, ahora)).catch((e) => console.error("pulso DPM", e)));
+    // La malla va aparte: sus pedidos a la NOAA tardan segundos y no deben atrasar la evaluación del pulso.
+    ctx.waitUntil(malla.catch((e) => console.error("clima malla", e)));
   },
 };

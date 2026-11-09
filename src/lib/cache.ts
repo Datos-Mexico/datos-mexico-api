@@ -3,6 +3,8 @@ import type { MiddlewareHandler } from "hono";
 const PREFIJOS_NO_STORE = ["/api/v1/auth", "/api/v1/personas", "/api/v1/nombramientos", "/api/v1/ingest", "/api/v1/admin", "/api/v1/demo"];
 function valor(path: string, metodo: string): string | null {
   if (PREFIJOS_NO_STORE.some((p) => path.startsWith(p))) return "no-store";
+  // Archivos de una corrida de la malla del clima: no cambian nunca (la corrida nueva tiene otra dirección).
+  if (/^\/api\/v1\/clima\/malla\/[a-z]+\/\d{10}\/[a-z]+$/.test(path)) return "public, max-age=604800, immutable";
   // Pulso DPM (§9): lecturas públicas con caché de 60 s; los reportes y la administración nunca se guardan.
   if (path.startsWith("/api/v1/clima") || path.startsWith("/api/v1/sismos")) return "public, max-age=60";
   if (path.startsWith("/dpm/v1")) return metodo === "GET" && !path.startsWith("/dpm/v1/admin") ? "public, max-age=60" : "no-store";
