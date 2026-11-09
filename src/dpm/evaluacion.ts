@@ -138,7 +138,8 @@ export async function comprobarCaraPublica(env: Env, ahora: Date, fetchImpl: typ
         else if (u === null) {
           // La cara pública dice que nunca ha habido refrescos: coincide si el sistema tampoco reportó ninguno.
           nVisto = 0;
-          if (ultimoRep === null && nRep === 0) { resultado = "coincide"; detalle = "sin refrescos en la cara pública ni en lo reportado"; }
+          // La cara pública puede olvidar refrescos viejos (su retención); lo que debe coincidir es la última hora.
+          if (nRep === 0) { resultado = "coincide"; detalle = ultimoRep === null ? "sin refrescos en la cara pública ni en lo reportado" : `sin refrescos en la última hora en ambos lados (el último reportado, ${ultimoRep}, ya salió de la retención de la cara pública)`; }
           else { resultado = "no-coincide"; detalle = `la cara pública no registra refrescos pero el sistema reportó ${nRep} en la última hora (último ${ultimoRep})`; }
         } else {
           visto = iso(Date.parse(u)); nVisto = n;
