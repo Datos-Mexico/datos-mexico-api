@@ -1,5 +1,6 @@
 // Medición oficial: la observación sinóptica horaria del observatorio del SMN de cada capital. El SMN la publica en WIS2, el
-// sistema de información de la OMM, unos once minutos después de la hora (medido el 2026-11-09); los cachés globales de la OMM
+// sistema de información de la OMM en dos lotes, a H+11 y a H+27 (medido el 2026-11-09 con el Last-Modified de 24 h del caché:
+// mediana 11.2 min, segundo lote 27.1-27.2 min; Monterrey y Mexicali suelen ir en el segundo); los cachés globales de la OMM
 // la sirven por HTTP en una dirección determinista durante 24 horas. Desde el minuto 8 de cada hora el observatorio pregunta
 // por la hora en curso hasta tener las 32; lo que llega se decodifica (BUFR), se verifica, se guarda con su archivo original
 // y se empuja a las páginas abiertas. Lo que no llega se dice: el lote de cada hora registra cuáles faltan.
@@ -21,6 +22,7 @@ const CACHES = [
   (archivo: string) => `https://wis2.dwd.de/gc_v2/mx-smn/${archivo}`,
 ];
 const PRIMER_MINUTO = 8;
+const REPASOS = [20, 28, 45];
 /** Repaso de historia: al minuto 50, las horas de H−23 a H−3 que falten (los cachés guardan 24 h), con tope por vuelta. */
 const MINUTO_REPASO = 50, REPASO_TOPE = 96, REPASO_MAX = 2;
 
@@ -44,8 +46,9 @@ export function planDeConsultas(ahora: Date, faltantes: (horaMs: number) => Esta
     const f = faltantes(h);
     if (f.length) {
       // Sin nada de la hora todavía: una estación por minuto como centinela (rotando, para que una ausente no bloquee).
-      if (recibidas(h) === 0 && ![20, 30, 45].includes(m)) plan.push({ horaMs: h, estaciones: [f[m % f.length]], centinela: true });
-      else if (recibidas(h) === 0 || [20, 30, 45].includes(m)) plan.push({ horaMs: h, estaciones: f, centinela: false });
+      // Repasos: 20 (rezagos del primer lote), 28 (segundo lote del SMN, a H+27) y 45.
+      if (recibidas(h) === 0 && !REPASOS.includes(m)) plan.push({ horaMs: h, estaciones: [f[m % f.length]], centinela: true });
+      else if (recibidas(h) === 0 || REPASOS.includes(m)) plan.push({ horaMs: h, estaciones: f, centinela: false });
     }
   }
   if (m === 5 || m === 20) { const f = faltantes(h - 3600_000); if (f.length) plan.push({ horaMs: h - 3600_000, estaciones: f, centinela: false }); }

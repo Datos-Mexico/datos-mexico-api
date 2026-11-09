@@ -1784,7 +1784,7 @@ la OMM v46 generado por `scripts/clima/generar_tablas_bufr.py`); validado contra
 72 mensajes, 15,602 valores, 0 diferencias. `estaciones.ts` (generado por `scripts/clima/generar_estaciones.py`): capital ↔
 observatorio OMM ↔ clave climatológica del SMN ↔ aeropuerto testigo, con los récords mensuales de máxima y mínima de cada
 observatorio (archivo «Valores extremos» de la Base de Datos Climatológica Nacional, que trae la clave OMM). `sinoptica.ts`:
-desde el minuto 8, un centinela por minuto hasta que aparece el lote; luego las faltantes de una vez; repasos a :20/:30/:45, a
+desde el minuto 8, un centinela por minuto hasta que aparece el lote; luego las faltantes de una vez; repasos a :20/:28/:45, a
 H+1 (:05, :20) y H+2 (:35); al minuto 50, relleno de H−23…H−3 (tope 96 archivos por vuelta, la más vieja primero). Cada lectura:
 identidad (estación y hora pedidas), SHA-256, mensaje original en base64, `verificacion.ts` (récord del mes, rocío > T, humedad
 contra Magnus ±8, rangos físicos, salto 8 °C + 2 °C/h y 6 hPa/h, lectura repetida, testigo con gradiente 6.5 °C/km y tolerancia
@@ -1808,6 +1808,10 @@ llegan tarde y entran en los repasos); 17 UTC rellenado 31/32; testigo, error de
 viento −0.7) y entrega en vivo de extremo a extremo (página visible confirmó en 11 ms; oculta contada aparte; origen ajeno → 403);
 reporte al pulso local 200. Auditoría `scripts/clima/auditar.py` contra la API local: 62/62 mediciones con huella correcta,
 bytes idénticos a los del otro caché de la OMM, valores iguales a ecCodes y marcas recalculadas iguales.
+
+**Dos lotes por hora.** Con el `Last-Modified` del caché de NOAA en las últimas 23 horas (6 estaciones, 128 archivos): el SMN
+publica a H+11 (mediana 11.2 min) y un segundo lote a H+27 (27.1-27.2 min; Monterrey y Mexicali suelen ir ahí). El repaso del
+minuto 30 pasó al 28 para recoger el segundo lote en cuanto aparece.
 
 **Costo.** Lecturas externas ~1,300/día (sinóptica ~50/h con centinela y repasos; METAR y modelo 288/día cada uno; EMAs 2/día).
 D1: ~70 mil filas/mes. Objeto durable: hiberna entre eventos; se despierta cada minuto para el reporte al pulso. Sin IA.
