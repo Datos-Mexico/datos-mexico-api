@@ -10,6 +10,7 @@ import { SINOPTICA_FUENTE, SINOPTICA_RELOJ_MS } from "./sinoptica";
 import { AEROPUERTO_FUENTE } from "./aeropuerto";
 import { cifrasEntrega } from "./envivo";
 import { MALLAS, PREFIJO_MALLA, VARIABLES } from "./malla";
+import { AVISOS_FUENTE, AVISOS_INDICE, avisosVigentes } from "./avisos";
 import { PREFIJO_SATELITE, REGIONES } from "./satelite";
 import { TESTIGO_MIN_COTEJOS, TESTIGO_TOLERANCIA_C, TESTIGO_TOLERANCIA_INICIAL_C } from "./verificacion";
 
@@ -280,5 +281,43 @@ export class ClimaSateliteCuadro extends OpenAPIRoute {
     const r = new Response(o.body, { headers: { "content-type": "image/jpeg", "content-length": String(o.size), "x-sha256": o.customMetadata?.sha256 ?? "", "cache-control": "public, max-age=604800, immutable" } });
     c.executionCtx.waitUntil(caches.default.put(clave, r.clone()));
     return r;
+  }
+}
+
+/** Avisos oficiales del SMN vigentes (lluvias, ciclones tropicales, frentes fríos), con sus zonas, como GeoJSON. */
+export class ClimaAvisos extends OpenAPIRoute {
+  schema = {
+    tags: TAG, operationId: "clima_avisos", summary: "Avisos oficiales del SMN vigentes, con sus zonas",
+    description: "Avisos del Servicio Meteorológico Nacional tal como los publica en su canal CAP 1.2 (licencia CC BY 4.0), custodiados por el observatorio cada 5 minutos con su mensaje original y su huella SHA-256. Vigente = no ha vencido y ningún mensaje posterior lo actualiza. Las zonas son los polígonos que dibuja el SMN. `ultimo_por_tipo` dice cuándo publicó el SMN el último aviso de cada tipo en ese canal: si un tipo no aparece desde hace días, el canal no lo está trayendo (desde el 19 de octubre de 2026, los de frente frío solo están en el sitio web del SMN).",
+    responses: { ...ok("Avisos vigentes.", libre), ...RESP_429 },
+  };
+  async handle(c: AppContext) {
+    const ahora = Date.now();
+    const [vigentes, consulta] = await Promise.all([avisosVigentes(c.env, ahora), fila<{ instante: string; detalle: string | null }>(c.env.DB_PLATAFORMA, "SELECT instante, detalle FROM clima_consultas WHERE fuente = 'avisos' ORDER BY instante DESC LIMIT 1")]);
+    const det = consulta?.detalle ? (JSON.parse(consulta.detalle) as { ultimo_por_tipo?: Record<string, string> }) : {};
+    return {
+      fuente: AVISOS_FUENTE, indice: AVISOS_INDICE, consultado_en: consulta?.instante ?? null, ultimo_por_tipo: det.ultimo_por_tipo ?? {},
+      vigentes: {
+        type: "FeatureCollection",
+        features: vigentes.map(({ poligonos, ...a }) => ({
+          type: "Feature",
+          properties: { ...a, original: `https://api.datosmexico.org/api/v1/clima/avisos/${a.sha256}` },
+          geometry: { type: "MultiPolygon", coordinates: poligonos.map((anillo) => [anillo]) },
+        })),
+      },
+    };
+  }
+}
+export class ClimaAvisoOriginal extends OpenAPIRoute {
+  schema = {
+    tags: TAG, operationId: "clima_aviso_original", summary: "Mensaje CAP original de un aviso del SMN, tal como se recibió",
+    request: { params: z.object({ sha256: z.string().regex(/^[0-9a-f]{64}$/) }) },
+    responses: { "200": { description: "XML del mensaje CAP 1.2." }, "404": { description: "No existe.", ...contentJson(z.object({ detail: z.string() })) }, ...RESP_429 },
+  };
+  async handle(c: AppContext) {
+    const d = await this.getValidatedData<typeof this.schema>();
+    const r = await fila<{ xml: string }>(c.env.DB_PLATAFORMA, "SELECT xml FROM clima_avisos WHERE sha256 = ? LIMIT 1", [d.params.sha256]);
+    if (!r) throw new ErrorHttp(404, "No hay un aviso con esa huella");
+    return new Response(r.xml, { headers: { "content-type": "application/cap+xml; charset=utf-8", "x-sha256": d.params.sha256 } });
   }
 }
