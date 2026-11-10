@@ -1901,3 +1901,18 @@ fecha del último de cada tipo y el sitio lo dice. Costo: ~288 lecturas del índ
 pocos mensajes al día.
 
 **Para publicar (con go):** `wrangler d1 execute datosmexico-api-plataforma --remote --file src/clima/schema_4.sql` → deploy.
+
+## 2026-11-10 — Clima: el satélite, de la NOAA (y GIBS de respaldo)
+
+**Por qué.** GIBS publica GeoColor de 45 a 75 minutos después de la toma; el CEO pidió acercar el mapa a «ahora». La NOAA (NESDIS)
+sirve `MERGEDGC_Last_24hr`: GOES-Oeste y GOES-Este ya combinados, un cuadro cada 10 minutos durante 24 h, cada uno con su número
+en el catálogo y su hora de toma (`start_time`; el nombre del archivo lleva el FIN de la ventana: «…_1930» es la toma de 19:20).
+
+**Qué.** `src/clima/satelite.ts`: cada vuelta pide el catálogo (30 cuadros más recientes) y, para cada hora que falte, exporta la
+imagen exacta (`exportImage` con `lockRasterIds`) en Web Mercator para México y América; si la NOAA no tiene esa hora o no
+responde, cae a GIBS como antes (solo después de 40 min). Cada cuadro guarda su fuente (`noaa` o `gibs`) y el manifiesto la dice.
+La NOAA agrega ~185 bytes después del cierre del JPEG: se aceptan hasta 1 KB de sobrante y se guarda tal cual.
+
+**Medido (10-nov 19:5x UTC).** Alineación contra GIBS en la misma toma: correlación 0.946 (vecinas a ±10 min: 0.916/0.918),
+desplazamiento ≤ 1 px. En el banco de pruebas: 15 cuadros (12 NOAA, 3 GIBS en huecos de la NOAA), 306–318 KB México y
+455–478 KB América, ~2 s por imagen. Atraso del más nuevo: 25–35 min tras la toma (GIBS: 45–75).
