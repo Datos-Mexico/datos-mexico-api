@@ -1863,3 +1863,19 @@ protocolo: dpm PR #15 (`70f9015`).
 
 **Hallazgo.** Cada corrida se bajaba en una sola vuelta (54 + 18 pedidos a la NOAA en un minuto, bajo su límite de 120) y no a
 seis por minuto como dice arriba: el tope del ciclo se recalculaba con `listas` ya avanzado. Corregido: el tope se fija antes.
+## 2026-11-10 — Clima: el satélite del mapa, guardado por el observatorio
+
+**Por qué.** El mapa pedía el satélite a NASA GIBS en mosaicos PNG: unos 167 por carga (unos 150 KB cada uno, ~25 MB en las tres
+horas), y tardaba más de 5 s en llenar los cuadros; el CEO lo vio «no tan fluido». GIBS no ofrece JPEG en mosaicos, pero su WMS sí
+arma una sola imagen JPEG por región con los dos satélites juntos (GOES-Oeste y GOES-Este), de 3 a 5 s por imagen y sin caché.
+
+**Qué.** `src/clima/satelite.ts`: cada 5 minutos (minuto 1, 6, 11…) se pregunta a GIBS qué horas ya publicó (cada 10 min, con
+huecos) y se piden las que falten de las últimas 3 h, hasta 4 por vuelta, para dos regiones: `mexico` (125°–75° O, 0°–37° N,
+1280 × 1021) y `america` (180°–0°, 75° S–75° N, 1280 × 1652). Se exige JPEG completo (FFD8…FFD9) y de más de 40 KB (una imagen sin
+datos pesa ~8 KB). Si el del oeste aún no publica esa hora, se espera hasta 45 min; después sale solo con el del este. Se guarda en
+R2 con su SHA-256 y 26 h de vida; el manifiesto sale de lo que hay en R2 (dos vueltas a la vez no pierden cuadros).
+Endpoints: `GET /api/v1/clima/satelite` (manifiesto) y `GET /api/v1/clima/satelite/{region}/{AAAAMMDDHHMM}` (JPEG, caché permanente).
+
+**Medido (prueba local contra GIBS, 10-nov 00:4x UTC).** 13 cuadros (21:40–23:50 UTC; faltan 23:30 y 00:00 del este en GIBS) en 4
+vueltas de 10–12 s; México 233–335 KB, América 244–352 KB. En el navegador: 7 cuadros (uno cada 20 min) en menos de 1 s, el mapa
+arranca a 1 s, cero mosaicos a GIBS; 120 cuadros por segundo. Costo: ~288 imágenes/día a GIBS, ~90 MB en R2.
