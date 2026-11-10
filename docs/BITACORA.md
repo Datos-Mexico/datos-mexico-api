@@ -1879,3 +1879,25 @@ Endpoints: `GET /api/v1/clima/satelite` (manifiesto) y `GET /api/v1/clima/sateli
 **Medido (prueba local contra GIBS, 10-nov 00:4x UTC).** 13 cuadros (21:40–23:50 UTC; faltan 23:30 y 00:00 del este en GIBS) en 4
 vueltas de 10–12 s; México 233–335 KB, América 244–352 KB. En el navegador: 7 cuadros (uno cada 20 min) en menos de 1 s, el mapa
 arranca a 1 s, cero mosaicos a GIBS; 120 cuadros por segundo. Costo: ~288 imágenes/día a GIBS, ~90 MB en R2.
+
+## 2026-11-10 — Clima: auditoría 002 y avisos oficiales del SMN
+
+**Auditoría 002** (documento en `datos-mexico-dpm/auditorias/2026-11-10-datos-mexico-clima.md`; scripts `scripts/clima/auditar.py`
+y `scripts/clima/auditar_pulso.py`, solo lectura). Medición al peso 698/698 (bytes iguales a otro caché de la OMM, valores
+iguales a ecCodes, marcas iguales); 0 faltantes que estuvieran en la OMM; pulso contra sistema 91/91 minutos; custodia: de la
+publicación en la OMM a guardada y verificada, mediana 17 s, máximo 76 s; entrega 35/35 y peor 1.46 s en pulso y componente;
+puntualidad 124/124; comprobación de la medición 59/59. **Hallazgo:** la cara pública de la entrega contaba el minuto en curso y
+4 de 59 rondas no coincidieron. **Corrección:** cuenta solo minutos cerrados hace más de dos (`src/clima/envivo.ts`).
+
+**Avisos del SMN** (`src/clima/avisos.ts`, `schema_4.sql`). El SMN publica sus avisos en CAP 1.2 con licencia CC BY 4.0 en
+`smn.conagua.gob.mx/tools/PHP/feedsmn/cap.php` (índice Atom, ~418 entradas desde el 22 de septiembre; el registro de la OMM
+apunta a un servidor que ya no existe). Cada 5 minutos (minuto 3, 8, 13…) se lee el índice siempre fresco (el SMN lo sirve con
+caché de un año) y se custodian los mensajes nuevos de las últimas 48 h: el original con su SHA-256 y lo leído (gravedad,
+vigencia, semáforo y categoría de ciclón, entidades y polígonos del SMN, que vienen en «lat,lon»). Vigente = no vencido y no
+actualizado por un mensaje posterior (`<references>`). `GET /api/v1/clima/avisos` (GeoJSON) y `/api/v1/clima/avisos/{sha256}`
+(original). Probado contra el SMN: el original guardado es idéntico byte a byte al del SMN. **Limitación declarada:** el canal no
+trae avisos de frente frío desde el 19 de octubre de 2026 (sí están en el sitio web del SMN, en HTML/PDF); el endpoint da la
+fecha del último de cada tipo y el sitio lo dice. Costo: ~288 lecturas del índice al día (~14 KB comprimido cada una) y unos
+pocos mensajes al día.
+
+**Para publicar (con go):** `wrangler d1 execute datosmexico-api-plataforma --remote --file src/clima/schema_4.sql` → deploy.
