@@ -94,9 +94,12 @@ export class ClimaEnVivo extends DurableObject<Env> {
 
   /** Cara pública de comprobación (protocolo 0.4 §8 bis) y cifras de la página. */
   async cifras(): Promise<{ ultimo_refresco: string | null; refrescos_ultima_hora: number; ocultas_ultima_hora: number; conexiones: number; latencia_24h: { n: number; p50_ms: number | null; p95_ms: number | null; max_ms: number | null }; ultimo_evento: string | null }> {
+    // Cara pública: solo minutos cerrados hace más de dos (auditoría 002). Una entrega del minuto en curso aún no puede estar en el
+    // pulso (se reporta cuando el minuto cierra); contarla hacía que la comprobación viera algo «no reportado» y no coincidiera.
+    const corte = iso(Math.floor(Date.now() / 60_000) * 60_000 - 120_000);
     const hace1h = iso(Date.now() - 3600_000);
-    const h = this.sql.exec<{ u: number | null; n: number | null; o: number | null }>("SELECT MAX(ultimo_ms) AS u, SUM(entregas) AS n, SUM(ocultas) AS o FROM entregas WHERE minuto >= ?", hace1h).one();
-    const u = this.sql.exec<{ u: number | null }>("SELECT MAX(ultimo_ms) AS u FROM entregas").one().u;
+    const h = this.sql.exec<{ u: number | null; n: number | null; o: number | null }>("SELECT MAX(ultimo_ms) AS u, SUM(entregas) AS n, SUM(ocultas) AS o FROM entregas WHERE minuto >= ? AND minuto < ?", hace1h, corte).one();
+    const u = this.sql.exec<{ u: number | null }>("SELECT MAX(ultimo_ms) AS u FROM entregas WHERE minuto < ?", corte).one().u;
     const lat = this.sql.exec<{ l: number }>("SELECT latencia_ms AS l FROM latencias WHERE ms_llegada >= ? ORDER BY latencia_ms", Date.now() - 86400_000).toArray().map((x) => x.l);
     const q = (p: number) => (lat.length ? lat[Math.min(lat.length - 1, Math.floor(p * lat.length))] : null);
     const ev = this.sql.exec<{ e: number | null }>("SELECT MAX(evento_ms) AS e FROM eventos").one().e;
