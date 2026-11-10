@@ -1852,3 +1852,14 @@ Tokio y Sídney iguales a la NOAA. Tamaños: lluvia 275 KB, temperatura 619 KB, 
 
 **Para publicar (con go):** `wrangler d1 execute datosmexico-api-plataforma --remote --file src/clima/schema_3.sql` → deploy →
 esperar la primera corrida de cada malla (≤ 10 min para hallarla, ~9 min para bajarla) → verificar manifiestos y archivos.
+
+## 2026-11-09 — Clima: publicado, y el ritmo de bajada de las mallas
+
+**Publicado (go del CEO «publica»).** API PR #12 (`7e0cafa`, versión `91052c3f`; anterior `f8a75cc7`), `schema_3.sql` en remoto.
+Primera corrida (12 UTC) armada a las 20:44 y la siguiente (18 UTC) sola a las 21:54. Sitio PR #177 en producción (`293e2e7`):
+la vista previa de la rama falló dos veces por el caché de compilación de Cloudflare (tipografía de Google, `layout.tsx`); el mismo
+commit compiló limpio en una rama nueva y la compilación de producción pasó a la primera; guardia posterior en verde. Ficha del
+protocolo: dpm PR #15 (`70f9015`).
+
+**Hallazgo.** Cada corrida se bajaba en una sola vuelta (54 + 18 pedidos a la NOAA en un minuto, bajo su límite de 120) y no a
+seis por minuto como dice arriba: el tope del ciclo se recalculaba con `listas` ya avanzado. Corregido: el tope se fija antes.

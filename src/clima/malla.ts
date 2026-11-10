@@ -112,7 +112,9 @@ async function actualizarMalla(env: Env, cfg: Config, ahora: Date, fetchImpl: ty
     e = (await fila<Estado>(env.DB_PLATAFORMA, "SELECT corrida, horas_listas, estado, fallas FROM clima_malla WHERE malla = ? AND corrida = ?", [cfg.clave, e.corrida])) ?? e;
     // horas_listas = cuántos pasos de la lista de horas ya están en R2.
     let listas = e.horas_listas; let detalle = "";
-    for (let i = listas; i < Math.min(listas + cfg.porVuelta, cfg.horas.length); i++) {
+    // El tope se fija antes del ciclo: `listas` avanza dentro y, si el tope se recalculara, bajaría todo de una vez.
+    const hasta = Math.min(listas + cfg.porVuelta, cfg.horas.length);
+    for (let i = listas; i < hasta; i++) {
       const h = cfg.horas[i];
       const url = `${NOMADS}/cgi-bin/${cfg.filtro}?dir=${encodeURIComponent(dirDe(e.corrida))}&file=${archivoDe(cfg, e.corrida, h)}&var_PRATE=on&var_TMP=on&var_UGRD=on&var_VGRD=on&var_TCDC=on&lev_surface=on&lev_2_m_above_ground=on&lev_10_m_above_ground=on&lev_entire_atmosphere=on${cfg.recorte}`;
       try {
