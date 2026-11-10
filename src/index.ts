@@ -40,9 +40,10 @@ import { AnuiesAgregado, AnuiesCiclos, AnuiesColumnas, AnuiesDescarga, AnuiesEda
 import { UnamAnuarioAgregado, UnamAnuarioCampos, UnamAnuarioCarreras, UnamAnuarioEdades, UnamAnuarioNiveles, UnamAnuarioPlanteles, UnamAnuarioProcedencia, UnamAnuarioSerie, UnamConcursoArchivos, UnamConcursoDistribucion, UnamConcursoEncabezados, UnamConcursoTabla, UnamConcursoUniverso, UnamDescarga, UnamResumen } from "./unam/endpoints";
 import { CuboDatos, CuboFicha, CuboMiembros, CubosCatalogo } from "./cubos/endpoints";
 import { DpmDato, DpmDatoComprobaciones, DpmDatoDeclarar, DpmDatoHistorial, DpmEstado, DpmEvaluar, DpmIngestas, DpmInsignia, DpmResumenes, DpmSistema, DpmSistemaAlta, DpmSistemaLlave, DpmUsuariosLectura, DpmUsuariosReporte, cicloPulso } from "./dpm/endpoints";
-import { ClimaMalla, ClimaMallaArchivo, ClimaSatelite, ClimaSateliteCuadro } from "./clima/endpoints";
+import { ClimaAvisoOriginal, ClimaAvisos, ClimaMalla, ClimaMallaArchivo, ClimaSatelite, ClimaSateliteCuadro } from "./clima/endpoints";
 import { actualizarMallas } from "./clima/malla";
 import { actualizarSatelite } from "./clima/satelite";
+import { custodiarAvisos } from "./clima/avisos";
 import { ClimaActual, ClimaCapital, ClimaComprobacion, ClimaComprobacionEntrega, ClimaComprobacionEstaciones, ClimaEntrega, ClimaErrorModelo, ClimaEstaciones, ClimaLotes, ClimaMedicion, ClimaMensajeOriginal, ClimaSondaEmas } from "./clima/endpoints";
 import { custodiarSinoptica } from "./clima/sinoptica";
 import { custodiarAeropuertos } from "./clima/aeropuerto";
@@ -369,6 +370,8 @@ openapi.get("/api/v1/clima/comprobacion/entrega", ClimaComprobacionEntrega);
 openapi.get("/api/v1/clima/malla/:malla", ClimaMalla);
 openapi.get("/api/v1/clima/malla/:malla/:corrida/:variable", ClimaMallaArchivo);
 openapi.get("/api/v1/clima/satelite", ClimaSatelite);
+openapi.get("/api/v1/clima/avisos", ClimaAvisos);
+openapi.get("/api/v1/clima/avisos/:sha256", ClimaAvisoOriginal);
 openapi.get("/api/v1/clima/satelite/:region/:tiempo", ClimaSateliteCuadro);
 // Entrega en vivo: WebSocket hacia el objeto durable. Solo desde las páginas del observatorio (y desarrollo local): las
 // confirmaciones de los navegadores son la medida de la latencia, no se aceptan de cualquier origen.
@@ -485,6 +488,8 @@ export default {
     // La malla va aparte: sus pedidos a la NOAA tardan segundos y no deben atrasar la evaluación del pulso.
     ctx.waitUntil(malla.catch((e) => console.error("clima malla", e)));
     // Cuadros del satélite (NASA GIBS) cada 5 minutos, también aparte: cada imagen tarda de 3 a 5 segundos en armarse.
+    // Avisos oficiales del SMN (CAP) cada 5 minutos, desfasados del satélite.
+    if (m % 5 === 3) ctx.waitUntil(custodiarAvisos(env, ahora).then((r) => { if (r.nuevos || r.fallas.length) console.log("clima avisos", JSON.stringify(r)); }).catch((e) => console.error("clima avisos", e)));
     if (m % 5 === 1) ctx.waitUntil(actualizarSatelite(env, ahora).then((r) => { if (r !== "nada") console.log("clima satelite", r); }).catch((e) => console.error("clima satelite", e)));
   },
 };
