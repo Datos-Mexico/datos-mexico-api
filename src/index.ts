@@ -40,8 +40,9 @@ import { AnuiesAgregado, AnuiesCiclos, AnuiesColumnas, AnuiesDescarga, AnuiesEda
 import { UnamAnuarioAgregado, UnamAnuarioCampos, UnamAnuarioCarreras, UnamAnuarioEdades, UnamAnuarioNiveles, UnamAnuarioPlanteles, UnamAnuarioProcedencia, UnamAnuarioSerie, UnamConcursoArchivos, UnamConcursoDistribucion, UnamConcursoEncabezados, UnamConcursoTabla, UnamConcursoUniverso, UnamDescarga, UnamResumen } from "./unam/endpoints";
 import { CuboDatos, CuboFicha, CuboMiembros, CubosCatalogo } from "./cubos/endpoints";
 import { DpmDato, DpmDatoComprobaciones, DpmDatoDeclarar, DpmDatoHistorial, DpmEstado, DpmEvaluar, DpmIngestas, DpmInsignia, DpmResumenes, DpmSistema, DpmSistemaAlta, DpmSistemaLlave, DpmUsuariosLectura, DpmUsuariosReporte, cicloPulso } from "./dpm/endpoints";
-import { ClimaMalla, ClimaMallaArchivo } from "./clima/endpoints";
+import { ClimaMalla, ClimaMallaArchivo, ClimaSatelite, ClimaSateliteCuadro } from "./clima/endpoints";
 import { actualizarMallas } from "./clima/malla";
+import { actualizarSatelite } from "./clima/satelite";
 import { ClimaActual, ClimaCapital, ClimaComprobacion, ClimaComprobacionEntrega, ClimaComprobacionEstaciones, ClimaEntrega, ClimaErrorModelo, ClimaEstaciones, ClimaLotes, ClimaMedicion, ClimaMensajeOriginal, ClimaSondaEmas } from "./clima/endpoints";
 import { custodiarSinoptica } from "./clima/sinoptica";
 import { custodiarAeropuertos } from "./clima/aeropuerto";
@@ -367,6 +368,8 @@ openapi.get("/api/v1/clima/comprobacion/estaciones", ClimaComprobacionEstaciones
 openapi.get("/api/v1/clima/comprobacion/entrega", ClimaComprobacionEntrega);
 openapi.get("/api/v1/clima/malla/:malla", ClimaMalla);
 openapi.get("/api/v1/clima/malla/:malla/:corrida/:variable", ClimaMallaArchivo);
+openapi.get("/api/v1/clima/satelite", ClimaSatelite);
+openapi.get("/api/v1/clima/satelite/:region/:tiempo", ClimaSateliteCuadro);
 // Entrega en vivo: WebSocket hacia el objeto durable. Solo desde las páginas del observatorio (y desarrollo local): las
 // confirmaciones de los navegadores son la medida de la latencia, no se aceptan de cualquier origen.
 app.get("/api/v1/clima/en-vivo", async (c) => {
@@ -481,5 +484,7 @@ export default {
     ctx.waitUntil(Promise.allSettled([clima.catch((e) => console.error("clima", e)), sismos.catch((e) => console.error("sismos", e)), oficial.catch((e) => console.error("clima oficial", e)), aeropuertos.catch((e) => console.error("clima aeropuertos", e)), emas.catch((e) => console.error("clima EMAs", e))]).then(() => cicloPulso(env, ahora)).catch((e) => console.error("pulso DPM", e)));
     // La malla va aparte: sus pedidos a la NOAA tardan segundos y no deben atrasar la evaluación del pulso.
     ctx.waitUntil(malla.catch((e) => console.error("clima malla", e)));
+    // Cuadros del satélite (NASA GIBS) cada 5 minutos, también aparte: cada imagen tarda de 3 a 5 segundos en armarse.
+    if (m % 5 === 1) ctx.waitUntil(actualizarSatelite(env, ahora).then((r) => { if (r !== "nada") console.log("clima satelite", r); }).catch((e) => console.error("clima satelite", e)));
   },
 };

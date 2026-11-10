@@ -10,6 +10,7 @@ import { SINOPTICA_FUENTE, SINOPTICA_RELOJ_MS } from "./sinoptica";
 import { AEROPUERTO_FUENTE } from "./aeropuerto";
 import { cifrasEntrega } from "./envivo";
 import { MALLAS, PREFIJO_MALLA, VARIABLES } from "./malla";
+import { PREFIJO_SATELITE, REGIONES } from "./satelite";
 import { TESTIGO_MIN_COTEJOS, TESTIGO_TOLERANCIA_C, TESTIGO_TOLERANCIA_INICIAL_C } from "./verificacion";
 
 const TAG = ["clima"];
@@ -246,5 +247,32 @@ export class ClimaMallaArchivo extends OpenAPIRoute {
     if (!o) throw new ErrorHttp(404, "No existe ese archivo de la malla");
     // El archivo ya está comprimido: se entrega tal cual, sin volver a comprimir.
     return new Response(o.body, { encodeBody: "manual", headers: { "content-type": "application/octet-stream", "content-encoding": "gzip", "content-length": String(o.size) } });
+  }
+}
+
+/** Cuadros del satélite (GOES-Oeste y GOES-Este, color) de las últimas tres horas, cada 20 minutos, para el mapa animado. */
+export class ClimaSatelite extends OpenAPIRoute {
+  schema = {
+    tags: TAG, operationId: "clima_satelite", summary: "Satélite de las últimas tres horas para el mapa animado: un cuadro cada 20 minutos",
+    description: "Manifiesto de los cuadros guardados: GOES-Oeste y GOES-Este en color (GeoColor de la NOAA), pedidos a NASA GIBS una sola vez y guardados por el observatorio. Dos regiones: `mexico` (125° a 75° O, 0° a 37° N) y `america` (180° a 0°, 75° S a 75° N), en Web Mercator con sus esquinas en grados. Es imagen real del satélite, no pronóstico.",
+    responses: { ...ok("Manifiesto.", libre), "404": { description: "Aún no hay cuadros guardados.", ...contentJson(z.object({ detail: z.string() })) }, ...RESP_429 },
+  };
+  async handle(c: AppContext) {
+    const o = await c.env.DATOS.get(`${PREFIJO_SATELITE}/actual.json`);
+    if (!o) throw new ErrorHttp(404, "Aún no hay cuadros del satélite guardados");
+    return JSON.parse(await o.text()) as Record<string, unknown>;
+  }
+}
+export class ClimaSateliteCuadro extends OpenAPIRoute {
+  schema = {
+    tags: TAG, operationId: "clima_satelite_cuadro", summary: "Imagen JPEG de un cuadro del satélite",
+    request: { params: z.object({ region: z.enum(Object.keys(REGIONES) as [string, ...string[]]), tiempo: z.string().regex(/^\d{12}$/) }) },
+    responses: { "200": { description: "JPEG en Web Mercator; sus esquinas están en el manifiesto." }, "404": { description: "No existe.", ...contentJson(z.object({ detail: z.string() })) }, ...RESP_429 },
+  };
+  async handle(c: AppContext) {
+    const d = await this.getValidatedData<typeof this.schema>();
+    const o = await c.env.DATOS.get(`${PREFIJO_SATELITE}/${d.params.region}/${d.params.tiempo}.jpg`);
+    if (!o) throw new ErrorHttp(404, "No existe ese cuadro del satélite (se guardan 26 horas)");
+    return new Response(o.body, { headers: { "content-type": "image/jpeg", "content-length": String(o.size), "x-sha256": o.customMetadata?.sha256 ?? "" } });
   }
 }
