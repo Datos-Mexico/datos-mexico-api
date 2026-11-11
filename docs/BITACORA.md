@@ -2003,3 +2003,71 @@ sitio (#185) no se publicó.
 paralelo, un solo rango cada uno. Se quitó `If-Range`; cada respuesta se valida contra el tamaño total del archivo de esa toma (el
 `/TOTAL` del `Content-Range` de la cabecera): si cambia, otra toma, y se aborta. Probado contra la NOAA (toma 04:31): los dos
 caminos dan el mismo JPEG (misma huella); tramos: 10.3 MB y 1.0 s; sueltos: 2.8 MB y 1.8 s.
+
+## 2026-11-11 — Clima: la ficha de cada capital (lo normal, pronóstico oficial, modelo a 10 días, Sol, aire, constancia)
+
+**Por qué (CEO, «dale todos con rigor»).** Pendientes de la sesión anterior: ficha estilo app (24 h, 10 días, UV, viento,
+amanecer, calidad del aire), comparar el día con lo normal, mostrar qué observatorios del SMN fallan, publicar el acierto del
+pronóstico con 30 días y dejar legible el registro de entregas para la auditoría 003.
+
+**Lo normal** (`scripts/clima/generar_normales.py` → `data/clima/normales.sql`, tablas de `schema_6.sql`; `src/clima/normales.ts`).
+Normal climatológica oficial del observatorio (Base de Datos Climatológica Nacional del SMN, emisión 06-nov-2026) y, de su
+registro diario, la distribución de la máxima y la mínima de cada día del año (ventana de 15 días, percentiles 0–100).
+Medido: 13 de los 32 observatorios no tienen normal 1991-2020 en el catálogo (6 tienen 1981-2010, 7 ninguna; verificado
+también por dirección directa); el registro diario tiene huecos largos 2011-2016 en varios. Regla por estación: 1991-2020 si
+tiene 24 de 30 años con dato (OMM), si no 1981-2010, si no «referencia» con ≥10 años (no es normal y se dice), si no
+«insuficiente» (Chilpancingo, 9 años). Resultado: 21 normal, 10 referencia, 1 insuficiente. Cotejo: la media mensual
+recalculada del diario contra la normal oficial, mismo periodo: diferencias de 0.04 a 0.48 °C (Mexicali 0.85, menos años);
+días con lluvia con umbral 0.1 mm: mediana |dif| 0.03 días/mes (confirma el umbral).
+
+**Hoy frente a lo normal.** La máxima y la mínima del día vienen de los termómetros del observatorio en la sinóptica (BUFR
+012111/012112 con su periodo 004024). Verificado en los mensajes de las 32 capitales (10–11 nov): a las 00 UTC, máxima de
+(−12, 0); a las 12 UTC, mínima de (−12, 0); misma convención en todas. Mientras no llega la máxima: mayor lectura horaria
+desde las 6:00, marcada «hasta ahora». `extraerExtremos` en `sinoptica-extraer.ts` (función pura, sobre lo ya custodiado).
+
+**Pronóstico oficial del SMN** (`src/clima/pronostico-smn.ts`, `municipios-smn.ts` generado por
+`scripts/clima/generar_municipios_smn.py`). Servicio web del SMN: diario a 4 días (method=1, 338 KB gz) y horario a 116 h
+(method=3, 7.5 MB gz → 104 MB: se recorre en flujo sin cargarlo). Medido: una emisión al día (cabecera gzip 12:30 UTC, corrida
+de 00 UTC); `hloc` es hora del centro para TODOS los municipios (Mexicali y Chetumal empiezan en el mismo 20261109T18) y `dh`
+está desfasado (Chihuahua y Mexicali dicen 7): hora UTC = hloc + 6. Las 32 capitales empatan con su municipio a ≤3.3 km. Cada
+hora al minuto 19: HEAD y descarga solo si cambió el tamaño (o pasan 26 h). Se guardan TODAS las emisiones
+(`clima_smn_hora`, ~3,712 filas al día) para medir su acierto por anticipación (`/api/v1/clima/error-smn`).
+
+**Modelo a 10 días** (`src/clima/modelo-ficha.ts`). Open-Meteo, 14 variables (1.4 llamadas ponderadas). El refresco de cada
+5 minutos ya gasta ~9,216 de las 10,000 diarias del plan gratuito: esto solo se pide al abrir una ficha, se sirve guardado una
+hora (vieja → se sirve y se renueva detrás) con tope de 400 llamadas ponderadas al día y candado por capital.
+
+**Sol** (`src/clima/sol.ts`). Calculado (NOAA/Meeus). `scripts/clima/cotejar_sol.ts`: diferencia máxima con Open-Meteo 0.24 min.
+
+**Calidad del aire** (`src/clima/aire.ts`, `aire-estaciones.ts` de `scripts/clima/generar_aire_estaciones.py`). SINAICA (INECC),
+sin API documentada: `lib/libd/cnxn.php` (POST getUltimosEnvios) y `estacion.php?estId=N` (48 h en `conts`), sin sesión;
+datos preliminares sin validar, sin licencia publicada para el tiempo real (el validado está en CC BY 4.0 en datos.gob.mx).
+Cada hora al minuto 42: por capital, la candidata más cercana con envío en 6 h y algún contaminante con dato (≤5 km primero,
+hasta 15 km, dicho con su distancia), más una de ≤5 km si la primera no mide partículas; hasta 3 páginas por capital. Índice
+AIRE Y SALUD de la NOM-172-SEMARNAT-2023 calculado aquí (PM: promedio ponderado de 12 h con horas redondeadas a entero y factor
+0.694/0.714; O3, NO2, SO2 de 1 h; CO de 8 h con 6 de 8; cortes de 2026 como «≤»; la peor categoría manda). Sensor pegado (6 h
+con el mismo valor) se marca y no entra al índice (San Luis Potosí PM2.5 y SO2, Morelia NO2 y SO2 el 11-nov). Banco contra la
+fuente real (11-nov, 00:20 CST): 20 capitales con medición; la categoría calculada coincide con la que publica SINAICA en 9 de
+9 comparables (se guarda la publicada en `clima_aire_sinaica` y se coteja en cada lectura). 11 capitales sin medición: se dice;
+el modelo CAMS de Open-Meteo se apartó de lo medido entre 0.2 y 2.2 veces y no la sustituye.
+
+**Constancia** (`src/clima/constancia.ts`, `/api/v1/clima/constancia?dias=7`). Sobre `clima_lotes` y `clima_medicion`: horas
+vigiladas, llegaron, marcadas, faltaron, rachas, faltas por bloque de 6 h locales, retraso mediano de publicación y una franja
+de una letra por hora. Con los datos del 8–11 nov: Morelia 61 %, Colima y Guadalajara 70 %, Hermosillo 77 %; Colima falta sobre
+todo de 12 a 18 h y Guadalajara y Morelia de madrugada.
+
+**Acierto del pronóstico.** `/api/v1/clima/error-modelo` trae `cobertura` (primera hora 2026-11-09T20Z; completo el 9-dic a las
+20 UTC): antes de 30 días las cifras se marcan «preliminar». `/api/v1/clima/error-smn` mide el pronóstico oficial por
+anticipación (0–24, 24–48, 48–72, 72–120 h) con la misma regla; se acumula desde la primera emisión guardada.
+
+**Registro de entregas legible** (auditoría 002, recomendación 1): `/api/v1/clima/entrega/minutos?horas=` (≤35 días) desde el
+objeto durable (minuto, entregas, ocultas, peor latencia, reportado; sin datos de visitantes). Retención de `entregas` subida de
+8 a 35 días (los minutos solo con ocultas también se podan a los 35).
+
+**Endpoints nuevos:** `/ciudad/{clave}` (todo en un pedido), `/normales/{clave}`, `/normal-hoy`, `/constancia`,
+`/pronostico-smn/{clave}`, `/error-smn`, `/entrega/minutos`.
+
+**Para publicar (con go):** `wrangler d1 execute datosmexico-api-plataforma --remote --file src/clima/schema_6.sql` →
+`… --remote --file data/clima/normales.sql` (generar antes con `python3 scripts/clima/generar_normales.py <caché>`; ~13.8 mil
+filas, una vez) → deploy → verificar: `/normales/09`, `/constancia`, `/ciudad/09`; al minuto 19 la primera emisión del SMN; al
+42 la primera vuelta de SINAICA (comprobar que la red de Cloudflare llega a sinaica.inecc.gob.mx).
