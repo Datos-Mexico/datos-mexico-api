@@ -1929,5 +1929,10 @@ son blanco puro (>240) y más de 30 % negro puro (<15). Probado contra los 30 cu
 y NASA): marca solo los dos de 23:50; ~35 ms por imagen. Se aplica a la NOAA y a GIBS; un tablero cuenta como falla y se
 reintenta en la siguiente vuelta (y GIBS de respaldo después de 40 min).
 
-**Al publicar (con go):** deploy; borrar `clima/satelite/{mexico,america}/202611102350.jpg` de R2 y rehacer el manifiesto (la
-siguiente vuelta lo hace sola al guardar otro cuadro).
+**Caché.** Los cuadros se sirven con caché permanente (Cloudflare y navegador) por dirección; reemplazar el tablero en la misma
+dirección habría dejado el tablero en caché hasta 7 días. Ahora la dirección lleva el inicio de la huella (`?h=`, también en la
+clave de la caché del borde): si una hora se vuelve a guardar con otra imagen, cambia la dirección.
+
+**Al publicar (con go del CEO, «publica la corrección»):** deploy; borrar `clima/satelite/{mexico,america}/202611102350.jpg` de R2;
+la siguiente vuelta que guarde un cuadro rehace el manifiesto (con `?h=`), y la siguiente vuelve a pedir 23:50 (NOAA, o GIBS de
+respaldo si la NOAA sigue sin tenerla).

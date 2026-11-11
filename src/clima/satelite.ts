@@ -167,6 +167,13 @@ export async function actualizarSatelite(env: Env, ahora: Date, fetchImpl: typeo
   return [hechos.length ? `cuadros ${hechos.join(", ")}` : "", fallas.length ? `fallas ${fallas.join("; ")}` : ""].filter(Boolean).join(" · ");
 }
 
+/**
+ * Dirección pública de un cuadro: la hora y, como parámetro, el inicio de su huella. Los cuadros se sirven con caché permanente
+ * (Cloudflare y navegador); si una hora se vuelve a guardar con otra imagen (por ejemplo, el tablero de la NOAA reemplazado por la
+ * imagen buena), su dirección cambia y nadie recibe la versión vieja de una caché.
+ */
+export const rutaCuadro = (region: string, clave: string, sha256: string) => `/api/v1/clima/satelite/${region}/${clave}${sha256 ? `?h=${sha256.slice(0, 12)}` : ""}`;
+
 /** El manifiesto sale de lo que hay en R2 (no de la memoria de una vuelta): dos vueltas a la vez no pueden perder un cuadro. */
 async function rehacerManifiesto(env: Env, ms: number): Promise<void> {
   const porTiempo = new Map<number, Record<string, CuadroGuardado>>();
@@ -185,7 +192,7 @@ async function rehacerManifiesto(env: Env, ms: number): Promise<void> {
   const cuadros = [...porTiempo.entries()]
     .filter(([t, x]) => t >= fin - VENTANA_MS && Object.keys(REGIONES).every((k) => x[k]))
     .sort((a, b) => a[0] - b[0])
-    .map(([t, x]) => ({ t: iso(t), satelites: x.mexico.satelites, fuente: x.mexico.fuente === "noaa" ? "NOAA NESDIS" : "NASA GIBS", regiones: Object.fromEntries(Object.keys(REGIONES).map((k) => [k, { ruta: `/api/v1/clima/satelite/${k}/${claveTiempo(t)}`, bytes: x[k].bytes, sha256: x[k].sha256 }])) }));
+    .map(([t, x]) => ({ t: iso(t), satelites: x.mexico.satelites, fuente: x.mexico.fuente === "noaa" ? "NOAA NESDIS" : "NASA GIBS", regiones: Object.fromEntries(Object.keys(REGIONES).map((k) => [k, { ruta: rutaCuadro(k, claveTiempo(t), x[k].sha256), bytes: x[k].bytes, sha256: x[k].sha256 }])) }));
   const manifiesto: Manifiesto = {
     fuente: "NOAA GOES-Oeste y GOES-Este, producto GeoColor (CIRA); servido por NOAA NESDIS (MERGEDGC, unos 20 min tras la toma) y, de respaldo, por NASA GIBS (WMS); imágenes guardadas por Datos México",
     nota: "Imagen real del satélite, no pronóstico. De día, color natural; de noche, el satélite ve con infrarrojo y las nubes salen en gris sobre un fondo fijo con las luces de las ciudades. Proyección Web Mercator (EPSG:3857); las esquinas van en grados, empezando arriba a la izquierda y en el sentido del reloj.",
