@@ -204,7 +204,7 @@ export async function rehacerManifiesto(env: Env, ms: number): Promise<void> {
     const c = /(\d{12})\.jpg$/.exec(o.key)?.[1]; if (!c) continue;
     const t = msDeClave(c);
     if (ms - t > GUARDAR_MS) { await env.DATOS.delete(o.key); continue; }
-    if (t >= fin - VENTANA_MS) rapidos.push({ t: iso(t), ruta: `/api/v1/clima/satelite/rapido/${c}`, bytes: o.size, sha256: o.customMetadata?.sha256 ?? "" });
+    if (t >= fin - VENTANA_MS) rapidos.push({ t: iso(t), ruta: rutaCuadro("rapido", c, o.customMetadata?.sha256 ?? ""), bytes: o.size, sha256: o.customMetadata?.sha256 ?? "" });
   }
   rapidos.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
   const cuadros = [...porTiempo.entries()]
