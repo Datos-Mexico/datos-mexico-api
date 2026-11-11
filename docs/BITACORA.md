@@ -1936,3 +1936,18 @@ clave de la caché del borde): si una hora se vuelve a guardar con otra imagen, 
 **Al publicar (con go del CEO, «publica la corrección»):** deploy; borrar `clima/satelite/{mexico,america}/202611102350.jpg` de R2;
 la siguiente vuelta que guarde un cuadro rehace el manifiesto (con `?h=`), y la siguiente vuelve a pedir 23:50 (NOAA, o GIBS de
 respaldo si la NOAA sigue sin tenerla).
+## 2026-11-10 — Protocolo DPM 0.5.0: la entrega no depende de que alguien esté mirando
+
+**Por qué (CEO).** Con poco público, `clima-entrega` pasó 16 horas «sin ventana» aunque entregaba en menos de un segundo: el
+nombre del protocolo sugería que el sistema no estaba vivo. Pedido: resolverlo con inteligencia, sin gastar cómputo.
+
+**Qué.** `src/dpm/evaluacion.ts`: en la vía de entrega, si la hora vigente no tiene entregas, se mide la hora más reciente que sí
+las tuvo (60 minutos que terminan con su último minuto con entregas), hasta 24 h atrás (`ENTREGA_ATRAS_MS`); la cota de la fuente
+usa esos mismos resúmenes. Sin entregas en 24 h, sin ventana. Se guarda `ventana_hasta` en `datos` y `clases`
+(`schema_0_5.sql`); la ficha publica `ventana` {desde, hasta, vigente}. `PROTOCOLO_VERSION` = 0.5.0. Costo: una consulta más por
+dato de entrega por minuto, solo cuando la hora vigente está vacía.
+
+**Simulado contra producción (11-nov 00:04 UTC, solo lectura).** Hora vigente sin entregas → hora medida 02:03–03:03 UTC del 10,
+6 entregas, peor 610 ms → DPS (hoy: «sin ventana» desde las 04:03 UTC del 10).
+
+**Para publicar (con go):** `wrangler d1 execute datosmexico-api-dpm --remote --file src/dpm/schema_0_5.sql` → deploy.
