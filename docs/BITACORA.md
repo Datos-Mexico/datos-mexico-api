@@ -1916,3 +1916,18 @@ La NOAA agrega ~185 bytes después del cierre del JPEG: se aceptan hasta 1 KB de
 **Medido (10-nov 19:5x UTC).** Alineación contra GIBS en la misma toma: correlación 0.946 (vecinas a ±10 min: 0.916/0.918),
 desplazamiento ≤ 1 px. En el banco de pruebas: 15 cuadros (12 NOAA, 3 GIBS en huecos de la NOAA), 306–318 KB México y
 455–478 KB América, ~2 s por imagen. Atraso del más nuevo: 25–35 min tras la toma (GIBS: 45–75).
+
+## 2026-11-11 — Clima: incidente del tablero en el satélite (NOAA)
+
+**Qué pasó.** Desde el despliegue de #17 (10-nov 21:05 UTC), la toma de 23:50 UTC llegó al mapa como un tablero de cuadros
+blancos y negros, en México y en América. La NOAA lista en su catálogo una toma que aún no tiene lista y su `exportImage` responde
+200 con un JPEG válido (178 y 415 KB) que es un tablero de relleno: pasó el control (JPEG completo, más de 40 KB). Visto en una
+prueba local del satélite rápido; confirmado en producción revisando los 30 cuadros vigentes: solo 23:50, en las dos regiones.
+
+**Corrección.** `esTablero()` decodifica el JPEG (jpeg-js) y mira una muestra de 1 de cada 49 píxeles: tablero si más de 30 %
+son blanco puro (>240) y más de 30 % negro puro (<15). Probado contra los 30 cuadros de producción (día, atardecer y noche, NOAA
+y NASA): marca solo los dos de 23:50; ~35 ms por imagen. Se aplica a la NOAA y a GIBS; un tablero cuenta como falla y se
+reintenta en la siguiente vuelta (y GIBS de respaldo después de 40 min).
+
+**Al publicar (con go):** deploy; borrar `clima/satelite/{mexico,america}/202611102350.jpg` de R2 y rehacer el manifiesto (la
+siguiente vuelta lo hace sola al guardar otro cuadro).

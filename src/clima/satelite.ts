@@ -12,6 +12,7 @@
 // El mapa toma uno de cada dos (uno cada 20 minutos); guardar todos deja que tome el vecino cuando GIBS tiene un hueco.
 // Costo: unas 288 consultas cortas al día al catálogo de la NOAA, 288 imágenes al día (dos regiones por cuadro) y unos 90 MB
 // en R2 (se guardan 26 horas); GIBS solo cuando hace falta el respaldo.
+import { decode } from "jpeg-js";
 import type { Env } from "../index";
 
 export const PREFIJO_SATELITE = "clima/satelite";
@@ -63,7 +64,9 @@ async function bajarImagen(g: Region, capas: string[], t: number, fetchImpl: typ
   const bbox = [mercX(g.oeste), mercY(g.sur), mercX(g.este), mercY(g.norte)].map((x) => Math.round(x)).join(",");
   const url = `${WMS}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=${capas.join(",")}&STYLES=&CRS=EPSG:3857&BBOX=${bbox}&WIDTH=${g.ancho}&HEIGHT=${altoDe(g)}&FORMAT=image/jpeg&TIME=${iso(t)}`;
   const r = await fetchImpl(url, { headers: AGENTE });
-  return validarJpeg(r, new Uint8Array(await r.arrayBuffer()), "GIBS");
+  const b = validarJpeg(r, new Uint8Array(await r.arrayBuffer()), "GIBS");
+  if (esTablero(b)) throw new Error("GIBS entregó un tablero en lugar de la imagen");
+  return b;
 }
 
 /** Catálogo de la NOAA: número de cada cuadro por su hora de toma (los más recientes). */
@@ -78,7 +81,24 @@ async function bajarNoaa(g: Region, id: number, fetchImpl: typeof fetch): Promis
   const bbox = [mercX(g.oeste), mercY(g.sur), mercX(g.este), mercY(g.norte)].map((x) => Math.round(x)).join(",");
   const mosaico = encodeURIComponent(JSON.stringify({ mosaicMethod: "esriMosaicLockRaster", lockRasterIds: [id] }));
   const r = await fetchImpl(`${NOAA}/exportImage?bbox=${bbox}&bboxSR=3857&imageSR=3857&size=${g.ancho},${altoDe(g)}&format=jpg&mosaicRule=${mosaico}&f=image`, { headers: AGENTE });
-  return validarJpeg(r, new Uint8Array(await r.arrayBuffer()), "la NOAA");
+  const b = validarJpeg(r, new Uint8Array(await r.arrayBuffer()), "la NOAA");
+  if (esTablero(b)) throw new Error("la NOAA entregó un tablero en lugar de la imagen (aún no la tiene lista)");
+  return b;
+}
+/**
+ * La NOAA a veces responde, para una toma que lista pero aún no tiene lista, un tablero de cuadros blancos y negros (10 de
+ * noviembre de 2026: la toma de 23:50 UTC llegó así al mapa). Se decodifica y se mira una muestra de píxeles: en el tablero, casi
+ * la mitad son blanco puro y casi la mitad negro puro. Una imagen de noche es mayormente negra pero casi nunca blanca pura.
+ */
+export function esTablero(jpeg: Uint8Array): boolean {
+  const img = decode(jpeg, { useTArray: true, formatAsRGBA: true, maxResolutionInMP: 4 });
+  let blancos = 0, negros = 0, n = 0;
+  for (let y = 1; y < img.height; y += 7) for (let x = 3; x < img.width; x += 7) {
+    const o = (y * img.width + x) * 4, l = (img.data[o] + img.data[o + 1] + img.data[o + 2]) / 3;
+    if (l > 240) blancos++; else if (l < 15) negros++;
+    n++;
+  }
+  return blancos / n > 0.3 && negros / n > 0.3;
 }
 function validarJpeg(r: Response, b: Uint8Array, quien: string): Uint8Array {
   // A veces responden 200 con un error en texto: se exige un JPEG completo (FFD8 … FFD9) y con datos. La NOAA agrega unos
