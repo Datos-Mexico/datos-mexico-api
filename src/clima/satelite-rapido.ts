@@ -61,7 +61,7 @@ function leerCabecera(b: Uint8Array): Tiff {
 }
 
 /** Separa una respuesta multipart/byteranges en sus pedazos, por posición de inicio en el archivo. */
-function partes(cuerpo: Uint8Array, frontera: string): Map<number, Uint8Array> {
+function partes(cuerpo: Uint8Array, frontera: string, total: number): Map<number, Uint8Array> {
   const out = new Map<number, Uint8Array>();
   const sep = new TextEncoder().encode(`--${frontera}`);
   const txt = new TextDecoder("latin1");
@@ -74,8 +74,9 @@ function partes(cuerpo: Uint8Array, frontera: string): Map<number, Uint8Array> {
     const finCab = (() => { for (let k = j; k < cuerpo.length - 3; k++) if (cuerpo[k] === 13 && cuerpo[k + 1] === 10 && cuerpo[k + 2] === 13 && cuerpo[k + 3] === 10) return k; return -1; })();
     if (finCab < 0) break;
     const cab = txt.decode(cuerpo.subarray(j, finCab));
-    const m = /Content-Range:\s*bytes\s+(\d+)-(\d+)\//i.exec(cab);
+    const m = /Content-Range:\s*bytes\s+(\d+)-(\d+)\/(\d+)/i.exec(cab);
     if (!m) { i = finCab + 4; continue; }
+    if (Number.isFinite(total) && Number(m[3]) !== total) throw new Error("el archivo cambió a media lectura");
     const ini = Number(m[1]), largo = Number(m[2]) - ini + 1;
     out.set(ini, cuerpo.subarray(finCab + 4, finCab + 4 + largo));
     i = finCab + 4 + largo;
@@ -91,7 +92,7 @@ async function inflar(z: Uint8Array): Promise<Uint8Array> {
 export type CuadroRapido = { t: number; jpeg: Uint8Array; descargado: number; filas: number; cubiertos: number };
 
 /** Arma el cuadro rápido de la toma más reciente. Devuelve null si ya se tiene esa toma. */
-export async function armarCuadroRapido(yaTengo: (t: number) => Promise<boolean>, fetchImpl: typeof fetch = fetch): Promise<CuadroRapido | null> {
+export async function armarCuadroRapido(yaTengo: (t: number) => Promise<boolean>, fetchImpl: typeof fetch = fetch, opciones: { soloTramos?: boolean } = {}): Promise<CuadroRapido | null> {
   const s = await fetchImpl(`${STAR_TIFF}.sha256`, { headers: AGENTE, cache: "no-store" });
   if (!s.ok) throw new Error(`la NOAA respondió ${s.status} a la huella`);
   const t = tomaDeNombre(await s.text());
@@ -99,7 +100,8 @@ export async function armarCuadroRapido(yaTengo: (t: number) => Promise<boolean>
   if (await yaTengo(t)) return null;
   const c = await fetchImpl(STAR_TIFF, { headers: { ...AGENTE, range: "bytes=0-65535" }, cache: "no-store" });
   if (c.status !== 206) throw new Error(`la NOAA no dio el rango de la cabecera (${c.status})`);
-  const etiqueta = c.headers.get("etag");
+  // Tamaño total del archivo de esta toma (de «bytes 0-65535/TOTAL»): cada respuesta posterior debe ser del mismo archivo.
+  const total = Number(/\/(\d+)$/.exec(c.headers.get("content-range") ?? "")?.[1] ?? NaN);
   const tiff = leerCabecera(new Uint8Array(await c.arrayBuffer()));
   let descargado = 65536;
 
@@ -118,18 +120,36 @@ export async function armarCuadroRapido(yaTengo: (t: number) => Promise<boolean>
   for (let r = 0; r < H; r++) if (filaDe[r] >= 0 && !tiff.bytes[filaDe[r]]) filaDe[r] = -1;
   const necesarias = [...new Set(filaDe.filter((f) => f >= 0))].sort((a, b) => a - b);
 
-  // Pide las filas en pocos pedidos de rangos sueltos; si el archivo cambia a media lectura (otra toma), se aborta.
+  // Pide las filas. Primero, en pocos pedidos de rangos sueltos (~3 MB). Desde la red de Cloudflare la NOAA responde esos pedidos
+  // con el archivo completo (200, 25 MB): en cuanto pasa, se corta la descarga y se piden pocos tramos continuos con un solo rango
+  // cada uno (~14 MB, sí funciona). Si el archivo cambia a media lectura (otra toma, otro tamaño), se aborta.
   const crudas = new Map<number, Uint8Array>();
-  for (let i = 0; i < necesarias.length; i += RANGOS_POR_PEDIDO) {
+  const mismoArchivo = (r: Response) => { const t = Number(/\/(\d+)$/.exec(r.headers.get("content-range") ?? "")?.[1] ?? NaN); return !Number.isFinite(total) || t === total; };
+  let sueltos = !opciones.soloTramos;
+  for (let i = 0; sueltos && i < necesarias.length; i += RANGOS_POR_PEDIDO) {
     const lote = necesarias.slice(i, i + RANGOS_POR_PEDIDO);
     const rango = lote.map((f) => `${tiff.offsets[f]}-${tiff.offsets[f] + tiff.bytes[f] - 1}`).join(",");
-    const r = await fetchImpl(STAR_TIFF, { headers: { ...AGENTE, range: `bytes=${rango}`, ...(etiqueta ? { "if-range": etiqueta } : {}) }, cache: "no-store" });
-    if (r.status !== 206) { await r.body?.cancel(); throw new Error(`el archivo cambió a media lectura o no dio rangos (${r.status})`); }
-    const cuerpo = new Uint8Array(await r.arrayBuffer()); descargado += cuerpo.length;
+    const r = await fetchImpl(STAR_TIFF, { headers: { ...AGENTE, range: `bytes=${rango}` }, cache: "no-store" });
+    if (r.status !== 206) { await r.body?.cancel(); sueltos = false; break; }
     const tipo = r.headers.get("content-type") ?? "";
     const frontera = /boundary=([^;]+)/i.exec(tipo)?.[1];
-    if (lote.length === 1 || !frontera) crudas.set(tiff.offsets[lote[0]], cuerpo);
-    else for (const [ini, pedazo] of partes(cuerpo, frontera.trim())) crudas.set(ini, pedazo);
+    if (!frontera && !mismoArchivo(r)) { await r.body?.cancel(); throw new Error("el archivo cambió a media lectura"); }
+    const cuerpo = new Uint8Array(await r.arrayBuffer()); descargado += cuerpo.length;
+    if (!frontera) crudas.set(tiff.offsets[lote[0]], cuerpo);
+    else for (const [ini, pedazo] of partes(cuerpo, frontera.trim(), total)) crudas.set(ini, pedazo);
+  }
+  if (!sueltos) {
+    crudas.clear();
+    const TRAMOS = 4;
+    const tam = Math.ceil(necesarias.length / TRAMOS);
+    const tramos = Array.from({ length: TRAMOS }, (_, k) => necesarias.slice(k * tam, (k + 1) * tam)).filter((x) => x.length);
+    await Promise.all(tramos.map(async (filasTramo) => {
+      const ini = tiff.offsets[filasTramo[0]], fin = tiff.offsets[filasTramo[filasTramo.length - 1]] + tiff.bytes[filasTramo[filasTramo.length - 1]] - 1;
+      const r = await fetchImpl(STAR_TIFF, { headers: { ...AGENTE, range: `bytes=${ini}-${fin}` }, cache: "no-store" });
+      if (r.status !== 206 || !mismoArchivo(r)) { await r.body?.cancel(); throw new Error(`el archivo cambió a media lectura o no dio el tramo (${r.status})`); }
+      const cuerpo = new Uint8Array(await r.arrayBuffer()); descargado += cuerpo.length;
+      for (const f of filasTramo) crudas.set(tiff.offsets[f], cuerpo.subarray(tiff.offsets[f] - ini, tiff.offsets[f] - ini + tiff.bytes[f]));
+    }));
   }
 
   // Descomprime cada fila y toma las columnas de la ventana. Fuera de la toma (alfa 0) queda negro: el mapa lo vuelve transparente.
