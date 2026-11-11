@@ -125,7 +125,12 @@ export class ClimaErrorModelo extends OpenAPIRoute {
     const porHora = await filas(db, `SELECT CAST(strftime('%H', datetime(hora, '-6 hours')) AS INTEGER) AS hora_local, ${AGG} FROM clima_error_modelo WHERE hora >= ? GROUP BY hora_local ORDER BY hora_local`, [desde]);
     const porMes = await filas(db, `SELECT strftime('%Y-%m', datetime(hora, '-6 hours')) AS mes, ${AGG} FROM clima_error_modelo GROUP BY mes ORDER BY mes`);
     const nombres = new Map(ESTACIONES.map((e) => [e.clave, e.capital]));
-    return { desde, definicion: REGLAS.fuentes[2].nota, por_capital: porCapital.map((r) => ({ ...r, capital: nombres.get(r.clave) })), por_hora_local: porHora, por_mes: porMes };
+    // Regla de publicación: el indicador se presenta como tal con 30 días completos de comparación; antes, se dice cuántos van.
+    const p0 = await fila<{ h: string | null }>(db, "SELECT MIN(hora) AS h FROM clima_error_modelo");
+    const t0 = p0?.h ? Date.parse(p0.h) : null;
+    const dias = t0 ? Math.floor((Date.now() - t0) / 86400_000) : 0;
+    const cobertura = { primera_hora: p0?.h ?? null, dias_cubiertos: dias, dias_para_publicar: 30, completo: dias >= 30, completo_desde: t0 ? iso(t0 + 30 * 86400_000) : null };
+    return { desde, definicion: REGLAS.fuentes[2].nota, cobertura, por_capital: porCapital.map((r) => ({ ...r, capital: nombres.get(r.clave) })), por_hora_local: porHora, por_mes: porMes };
   }
 }
 

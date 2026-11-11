@@ -54,7 +54,8 @@ export class ClimaEnVivo extends DurableObject<Env> {
     const hace2d = Date.now() - 2 * 86400_000;
     this.sql.exec("DELETE FROM eventos WHERE enviado_ms < ?", hace2d);
     this.sql.exec("DELETE FROM latencias WHERE ms_llegada < ?", hace2d);
-    this.sql.exec("DELETE FROM entregas WHERE minuto < ? AND reportado = 1", iso(Date.now() - 8 * 86400_000));
+    // Se conservan 35 días: el registro de entregas es de lectura pública (auditorías del Protocolo DPM).
+    this.sql.exec("DELETE FROM entregas WHERE minuto < ? AND (reportado = 1 OR entregas = 0)", iso(Date.now() - 35 * 86400_000));
     return { id, destinatarios: enviados };
   }
 
@@ -92,6 +93,15 @@ export class ClimaEnVivo extends DurableObject<Env> {
     for (const m of minutos) this.sql.exec("UPDATE entregas SET reportado = 1 WHERE minuto = ?", m);
   }
 
+  /**
+   * Registro de entregas, de solo lectura (recomendación 1 de la auditoría 002): un renglón por minuto cerrado hace más de dos,
+   * con entregas, ocultas, la peor latencia y si ya se reportó al pulso. Sin datos de visitantes: ni conexiones ni direcciones.
+   */
+  async minutos(desde: string, hasta: string): Promise<{ minuto: string; entregas: number; ocultas: number; latencia_max_ms: number; reportado: number }[]> {
+    const corte = iso(Math.floor(Date.now() / 60_000) * 60_000 - 120_000);
+    return this.sql.exec<{ minuto: string; entregas: number; ocultas: number; latencia_max_ms: number; reportado: number }>("SELECT minuto, entregas, ocultas, latencia_max_ms, reportado FROM entregas WHERE minuto >= ? AND minuto < ? AND minuto < ? ORDER BY minuto", desde, hasta, corte).toArray();
+  }
+
   /** Cara pública de comprobación (protocolo 0.4 §8 bis) y cifras de la página. */
   async cifras(): Promise<{ ultimo_refresco: string | null; refrescos_ultima_hora: number; ocultas_ultima_hora: number; conexiones: number; latencia_24h: { n: number; p50_ms: number | null; p95_ms: number | null; max_ms: number | null }; ultimo_evento: string | null }> {
     // Cara pública: solo minutos cerrados hace más de dos (auditoría 002). Una entrega del minuto en curso aún no puede estar en el
@@ -119,4 +129,5 @@ export async function difundir(env: Env, e: Evento): Promise<{ id: string; desti
 export const pendientesEntregas = (env: Env, antesDe: string) => stub(env).pendientes(antesDe);
 export const marcarEntregasReportadas = (env: Env, minutos: string[]) => stub(env).marcarReportados(minutos);
 export const cifrasEntrega = (env: Env) => stub(env).cifras();
+export const minutosEntrega = (env: Env, desde: string, hasta: string) => stub(env).minutos(desde, hasta);
 export const conectarEnVivo = (env: Env, req: Request) => stub(env).fetch(req);

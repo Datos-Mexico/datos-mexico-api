@@ -52,3 +52,25 @@ export function extraerSinoptica(m: MensajeBufr): ObsSinoptica {
     visibilidad_m: primero("020001"), nubosidad_pct: primero("020010"),
   };
 }
+
+/** Extremo de temperatura del termómetro de máxima o de mínima, con su periodo en horas respecto de la hora del mensaje. */
+export type ExtremoSinoptica = { tipo: "maxima" | "minima"; valor_c: number; desde_h: number; hasta_h: number };
+
+/**
+ * Máximas (012111) y mínimas (012112) que trae el mensaje, cada una con el periodo que la antecede en la secuencia 307096:
+ * dos 004024 seguidos (inicio y fin, en horas, negativos hacia atrás). Los 012111/012112 sin valor o cuyo periodo no viene en
+ * horas (los de 004025, en minutos, que el SMN deja vacíos) se ignoran. En los mensajes del SMN: a las 00 UTC, máxima de las
+ * últimas 12 h (12–00 UTC: el día); a las 12 UTC, mínima de las últimas 12 h (00–12 UTC: la noche). Función pura.
+ */
+export function extraerExtremos(m: MensajeBufr): ExtremoSinoptica[] {
+  const el = m.elementos;
+  const out: ExtremoSinoptica[] = [];
+  for (let i = 2; i < el.length; i++) {
+    const e = el[i];
+    if ((e.fxy !== "012111" && e.fxy !== "012112") || typeof e.valor !== "number") continue;
+    const a = el[i - 2], b = el[i - 1];
+    if (a.fxy !== "004024" || b.fxy !== "004024" || typeof a.valor !== "number" || typeof b.valor !== "number") continue;
+    out.push({ tipo: e.fxy === "012111" ? "maxima" : "minima", valor_c: Math.round((e.valor - 273.15) * 100) / 100, desde_h: a.valor, hasta_h: b.valor });
+  }
+  return out;
+}

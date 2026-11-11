@@ -44,6 +44,9 @@ import { ClimaAvisoOriginal, ClimaAvisos, ClimaMalla, ClimaMallaArchivo, ClimaSa
 import { actualizarMallas } from "./clima/malla";
 import { actualizarSatelite } from "./clima/satelite";
 import { custodiarAvisos } from "./clima/avisos";
+import { ClimaCiudad, ClimaConstancia, ClimaEntregaMinutos, ClimaErrorSmn, ClimaNormales, ClimaNormalHoy, ClimaPronosticoSmn } from "./clima/endpoints-ficha";
+import { actualizarPronosticoSmn } from "./clima/pronostico-smn";
+import { custodiarAire } from "./clima/aire";
 import { ClimaActual, ClimaCapital, ClimaComprobacion, ClimaComprobacionEntrega, ClimaComprobacionEstaciones, ClimaEntrega, ClimaErrorModelo, ClimaEstaciones, ClimaLotes, ClimaMedicion, ClimaMensajeOriginal, ClimaSondaEmas } from "./clima/endpoints";
 import { custodiarSinoptica } from "./clima/sinoptica";
 import { custodiarAeropuertos } from "./clima/aeropuerto";
@@ -362,9 +365,16 @@ openapi.get("/api/v1/clima/medicion", ClimaMedicion);
 openapi.get("/api/v1/clima/capitales/:clave", ClimaCapital);
 openapi.get("/api/v1/clima/capitales/:clave/mensaje-original", ClimaMensajeOriginal);
 openapi.get("/api/v1/clima/error-modelo", ClimaErrorModelo);
+openapi.get("/api/v1/clima/error-smn", ClimaErrorSmn);
+openapi.get("/api/v1/clima/ciudad/:clave", ClimaCiudad);
+openapi.get("/api/v1/clima/normales/:clave", ClimaNormales);
+openapi.get("/api/v1/clima/normal-hoy", ClimaNormalHoy);
+openapi.get("/api/v1/clima/constancia", ClimaConstancia);
+openapi.get("/api/v1/clima/pronostico-smn/:clave", ClimaPronosticoSmn);
 openapi.get("/api/v1/clima/lotes", ClimaLotes);
 openapi.get("/api/v1/clima/sonda-emas", ClimaSondaEmas);
 openapi.get("/api/v1/clima/entrega", ClimaEntrega);
+openapi.get("/api/v1/clima/entrega/minutos", ClimaEntregaMinutos);
 openapi.get("/api/v1/clima/comprobacion/estaciones", ClimaComprobacionEstaciones);
 openapi.get("/api/v1/clima/comprobacion/entrega", ClimaComprobacionEntrega);
 openapi.get("/api/v1/clima/malla/:malla", ClimaMalla);
@@ -490,6 +500,10 @@ export default {
     // Cuadros del satélite (NASA GIBS) cada 5 minutos, también aparte: cada imagen tarda de 3 a 5 segundos en armarse.
     // Avisos oficiales del SMN (CAP) cada 5 minutos, desfasados del satélite.
     if (m % 5 === 3) ctx.waitUntil(custodiarAvisos(env, ahora).then((r) => { if (r.nuevos || r.fallas.length) console.log("clima avisos", JSON.stringify(r)); }).catch((e) => console.error("clima avisos", e)));
+    // Pronóstico oficial del SMN por municipio: se revisa cada hora (minuto 19) y se descarga solo si cambió (una vez al día).
+    // Calidad del aire (SINAICA): cada hora al minuto 42, cuando ya enviaron casi todas las redes (la mayoría a los :10, CDMX a los :31).
+    if (m === 42) ctx.waitUntil(custodiarAire(env, ahora).then((r) => console.log("clima aire", JSON.stringify(r))).catch((e) => console.error("clima aire", e)));
+    if (m === 19) ctx.waitUntil(actualizarPronosticoSmn(env, ahora).then((r) => { if (r.some((x) => x.estado !== "sin cambio")) console.log("clima pronostico smn", JSON.stringify(r)); }).catch((e) => console.error("clima pronostico smn", e)));
     if (m % 5 === 1) ctx.waitUntil(actualizarSatelite(env, ahora).then((r) => { if (r !== "nada") console.log("clima satelite", r); }).catch((e) => console.error("clima satelite", e)));
   },
 };
