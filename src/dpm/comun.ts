@@ -5,7 +5,9 @@ import { fila } from "../lib/db";
 import { ErrorHttp } from "../lib/errores";
 import type { Detalle } from "../lib/validacion";
 
-export const PROTOCOLO_VERSION = "0.4.1";
+export const PROTOCOLO_VERSION = "0.5.0";
+/** 0.5.0: hasta dónde busca el pulso la hora más reciente con entregas de un dato por entrega sin entregas en la hora. */
+export const ENTREGA_ATRAS_MS = 24 * 3600_000;
 export const COMPROBACION_CADA_MIN = 10;
 export const COMPROBACION_PLAZO_MS = 10_000;
 export const COMPROBACION_TOLERANCIA_MS = 300_000;
