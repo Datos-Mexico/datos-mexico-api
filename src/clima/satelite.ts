@@ -141,18 +141,26 @@ export async function actualizarSatelite(env: Env, ahora: Date, fetchImpl: typeo
       await env.DATOS.put(`${PREFIJO_SATELITE}/${claves[i]}/${claveTiempo(t)}.jpg`, imgs[i], { httpMetadata: { contentType: "image/jpeg" }, customMetadata: { satelites: satelites.join(","), fuente, sha256: huella } });
     }
   };
+  // Si la NOAA entrega un tablero (o falla) en una vuelta, el resto de la vuelta ya no se le pide: suele ser todo el archivo a la
+  // vez (11 de noviembre de 2026: todas sus tomas desde las 00:30 UTC), y pedirle cada hora solo la satura sin dar nada.
+  let noaaSirve = !!noaa;
   for (const t of faltan) {
     if (hechos.length >= POR_VUELTA) break;
-    const id = noaa?.get(t);
-    try {
-      if (id !== undefined) {
+    const id = noaaSirve ? noaa?.get(t) : undefined;
+    if (id !== undefined) {
+      try {
         const imgs = await Promise.all(Object.values(REGIONES).map((g) => bajarNoaa(g, id, fetchImpl)));
         await guardar(t, imgs, SATELITES.map((s) => s.nombre), "noaa");
         hechos.push(`${iso(t).slice(11, 16)} (NOAA, ${imgs.map((b) => Math.round(b.length / 1024)).join("/")} KB)`);
         continue;
+      } catch (e) {
+        fallas.push(`${iso(t).slice(11, 16)} NOAA: ${e instanceof Error ? e.message : String(e)}`);
+        noaaSirve = false; // y para esta misma hora, el respaldo
       }
-      // Respaldo: GIBS, solo si la NOAA no tiene esa hora (o no respondió) y ya pudo publicarla GIBS.
-      if (ms - t < PUBLICA_GIBS_MS) continue;
+    }
+    // Respaldo: GIBS, cuando la NOAA no tiene esa hora, no respondió o entregó un tablero, y ya pudo publicarla GIBS.
+    if (ms - t < PUBLICA_GIBS_MS) continue;
+    try {
       const [oeste, este] = await horasGibs();
       if (!este.has(t)) continue; // el del este es la base: sin él no hay cuadro
       if (!oeste.has(t) && ms - t < ESPERA_OESTE_MS) continue;
@@ -160,7 +168,7 @@ export async function actualizarSatelite(env: Env, ahora: Date, fetchImpl: typeo
       const imgs = await Promise.all(Object.values(REGIONES).map((g) => bajarImagen(g, sats.map((s) => s.capa), t, fetchImpl)));
       await guardar(t, imgs, sats.map((s) => s.nombre), "gibs");
       hechos.push(`${iso(t).slice(11, 16)} (GIBS ${sats.map((s) => s.id).join("+")}, ${imgs.map((b) => Math.round(b.length / 1024)).join("/")} KB)`);
-    } catch (e) { fallas.push(`${iso(t).slice(11, 16)}: ${e instanceof Error ? e.message : String(e)}`); }
+    } catch (e) { fallas.push(`${iso(t).slice(11, 16)} GIBS: ${e instanceof Error ? e.message : String(e)}`); }
   }
   if (hechos.length) await rehacerManifiesto(env, ms);
   if (!hechos.length && !fallas.length) return "nada";
