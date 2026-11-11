@@ -1951,3 +1951,11 @@ dato de entrega por minuto, solo cuando la hora vigente está vacía.
 6 entregas, peor 610 ms → DPS (hoy: «sin ventana» desde las 04:03 UTC del 10).
 
 **Para publicar (con go):** `wrangler d1 execute datosmexico-api-dpm --remote --file src/dpm/schema_0_5.sql` → deploy.
+
+## 2026-11-11 — Protocolo DPM 0.6.0: la entrega estable se ve estable
+
+**Por qué (CEO).** Con la 0.5.0, un día sin visitas devolvía `clima-entrega` a «sin ventana»: «aunque nadie entre debe verse que
+siempre ha sido estable». **Qué.** Sin límite de antigüedad para la hora más reciente con entregas (se quita
+`ENTREGA_ATRAS_MS`); la clase cae con la primera entrega tardía y la sostiene que el sistema siga vivo (§7 bis: tres comprobaciones
+seguidas fallidas sacan de clase, sin cambios). `PROTOCOLO_VERSION` = 0.6.0. El sitio muestra «estable desde …» (`clase_desde`) y
+deja la hora medida como detalle. Costo: cero. El historial ya publicado no se toca.

@@ -2,7 +2,7 @@
 // Corre una vez por minuto desde el disparador programado del worker y a demanda desde /dpm/v1/admin/evaluar.
 import type { Env } from "../index";
 import { fila, filas } from "../lib/db";
-import { type Clase, COMPROBACION_CADA_MIN, ENTREGA_ATRAS_MS, COMPROBACION_FALLAS, COMPROBACION_PLAZO_MS, COMPROBACION_TOLERANCIA_MS, DIAS_PARA_VERIFICADA, GRACIA_MS, VENTANA_MS, clasePorIntervalo, fechaMx, iso, menosFina, pisoMinuto, rangoUtcDeFechaMx, sumarDias } from "./comun";
+import { type Clase, COMPROBACION_CADA_MIN, COMPROBACION_FALLAS, COMPROBACION_PLAZO_MS, COMPROBACION_TOLERANCIA_MS, DIAS_PARA_VERIFICADA, GRACIA_MS, VENTANA_MS, clasePorIntervalo, fechaMx, iso, menosFina, pisoMinuto, rangoUtcDeFechaMx, sumarDias } from "./comun";
 
 type DatoFila = { sistema: string; dato: string; reloj_fuente_ms: number | null; fuente_tipo: "calendario" | "evento"; latencia_fuente_ms: number | null; via: "consulta" | "entrega"; url_comprobacion: string | null; nombre: string; fuente: string; modo: string; ultima_verificacion: string | null; clase: Clase };
 type Resumen = { primero: string; ultimo: string; intervalo_max_ms: number; eventos: number | null; latencia_fuente_max_ms: number | null; entregas: number | null; latencia_entrega_max_ms: number | null };
@@ -23,16 +23,17 @@ export async function evaluarClases(env: Env, ahora: Date): Promise<{ instante_e
   for (const d of datos) {
     const cubetas = await filas<Resumen>(env.DB_DPM, `SELECT ${COLS} FROM resumenes WHERE sistema = ? AND dato = ? AND puntual = 1 AND minuto >= ? AND minuto < ? ORDER BY minuto`, [d.sistema, d.dato, sIso, tIso]);
     let nueva: Clase; let w: number | null = null;
-    let ventanaHasta: string | null = null; // 0.5.0: fin de la hora medida cuando no es la vigente (vía de entrega)
+    let ventanaHasta: string | null = null; // 0.5.0/0.6.0: fin de la hora medida cuando no es la vigente (vía de entrega)
     let medidas = cubetas;
     // §7.4 clase por reloj, según la vía.
     if (d.via === "entrega") {
       // Vía de entrega: W es la peor latencia de extremo a extremo de las entregas de la ventana.
       let conEntregas = cubetas.filter((b) => (b.entregas ?? 0) > 0 && b.latencia_entrega_max_ms !== null);
       if (conEntregas.length === 0) {
-        // 0.5.0: sin nadie a quien entregar no hay nada que envejezca. Se toma la hora más reciente que sí tuvo entregas, hasta 24
-        // horas atrás, y se dice cuál; sin entregas en 24 horas, sin ventana.
-        const ultima = await fila<{ minuto: string }>(env.DB_DPM, "SELECT minuto FROM resumenes WHERE sistema = ? AND dato = ? AND puntual = 1 AND entregas > 0 AND latencia_entrega_max_ms IS NOT NULL AND minuto < ? AND minuto >= ? ORDER BY minuto DESC LIMIT 1", [d.sistema, d.dato, sIso, iso(T.getTime() - ENTREGA_ATRAS_MS)]);
+        // 0.6.0: sin nadie a quien entregar no hay nada que envejezca. Se toma la hora más reciente que sí tuvo entregas, sin límite
+        // de antigüedad, y la ficha dice cuál. La clase se sostiene mientras el sistema siga vivo: la regla de §7 bis (tres
+        // comprobaciones seguidas fallidas sacan de clase) aplica igual. Sin ninguna entrega en toda su historia, sin ventana.
+        const ultima = await fila<{ minuto: string }>(env.DB_DPM, "SELECT minuto FROM resumenes WHERE sistema = ? AND dato = ? AND puntual = 1 AND entregas > 0 AND latencia_entrega_max_ms IS NOT NULL AND minuto < ? ORDER BY minuto DESC LIMIT 1", [d.sistema, d.dato, sIso]);
         if (ultima) {
           const hasta = new Date(Date.parse(ultima.minuto) + 60_000), desde = new Date(hasta.getTime() - VENTANA_MS);
           medidas = await filas<Resumen>(env.DB_DPM, `SELECT ${COLS} FROM resumenes WHERE sistema = ? AND dato = ? AND puntual = 1 AND minuto >= ? AND minuto < ? ORDER BY minuto`, [d.sistema, d.dato, iso(desde), iso(hasta)]);
