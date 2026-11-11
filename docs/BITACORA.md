@@ -1991,3 +1991,15 @@ verificada con luces de ciudades: Monterrey, Guadalajara, Houston, Dallas, Miami
 metropolitanas grandes a ~6 px. Cobertura: México hasta ~14.6° N (norte de Chiapas).
 
 **Para publicar (con go):** `wrangler d1 execute datosmexico-api-plataforma --remote --file src/clima/schema_5.sql` → deploy → sitio.
+
+## 2026-11-11 — Clima: el satélite rápido en producción pide tramos continuos
+
+**Qué pasó.** Publicado #22 (04:34 UTC, versión `e7a8839b`), ningún cuadro rápido se armó: «el archivo cambió a media lectura o no
+dio rangos (200)». Desde la red de Cloudflare, la NOAA responde los pedidos de muchos rangos sueltos con el archivo completo (200)
+—en local, desde fuera de Cloudflare, sí respondía 206 multiparte—. Sin efecto visible: el mapa siguió con sus cuadros normales; el
+sitio (#185) no se publicó.
+
+**Corrección.** Se intentan los rangos sueltos; si la respuesta no es 206, se corta la descarga y se piden 4 tramos continuos en
+paralelo, un solo rango cada uno. Se quitó `If-Range`; cada respuesta se valida contra el tamaño total del archivo de esa toma (el
+`/TOTAL` del `Content-Range` de la cabecera): si cambia, otra toma, y se aborta. Probado contra la NOAA (toma 04:31): los dos
+caminos dan el mismo JPEG (misma huella); tramos: 10.3 MB y 1.0 s; sueltos: 2.8 MB y 1.8 s.
