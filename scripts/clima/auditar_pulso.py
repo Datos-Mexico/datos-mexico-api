@@ -8,6 +8,9 @@ Solo lee (SELECT) las tablas de producción con `wrangler d1 execute --remote`; 
      verificada y guardada (`llegado_en`), para las que llegaron en su hora (no las del repaso de horas viejas).
   3. Entrega en vivo (`clima-entrega`): la suma de entregas y la peor latencia del pulso en las últimas 24 h contra las cifras que
      el objeto de la entrega publica por su lado (`/api/v1/clima/entrega`), que se calculan desde su propia tabla.
+  3 bis. Registro contra pulso, minuto a minuto (desde la auditoría 003): el registro de la entrega, de solo lectura
+     (`/api/v1/clima/entrega/minutos`, 35 días), contra los resúmenes del pulso: cada minuto reportado debe estar en el pulso
+     con las mismas entregas y la misma peor latencia, y cada minuto del pulso debe estar en el registro.
   4. Puntualidad: proporción de resúmenes que el pulso recibió dentro de los cinco minutos del cierre del minuto.
   5. Comprobación de cara pública y clases: todas las rondas y todos los cambios de clase del periodo.
 Uso:
@@ -92,6 +95,31 @@ def main():
         "ultimas_24h_pulso": {"entregas": sum(e["entregas"] or 0 for e in ent24), "peor_ms": max((e["latencia_entrega_max_ms"] or 0 for e in ent24), default=None)},
         "ultimas_24h_objeto": {"n": cifras["latencia_24h"]["n"], "max_ms": cifras["latencia_24h"]["max_ms"], "p50_ms": cifras["latencia_24h"]["p50_ms"], "p95_ms": cifras["latencia_24h"]["p95_ms"]},
         "nota": "Las 24 h del pulso cuentan por minuto reportado y las del objeto por instante de entrega: en el borde de la ventana pueden diferir por una entrega.",
+    }
+
+    # 3 bis · Registro contra pulso, minuto a minuto.
+    horas = max(1, min(840, int((datetime.now(timezone.utc) - t(d)).total_seconds() // 3600) + 1))
+    req = urllib.request.Request(f"{API}/entrega/minutos?horas={horas}", headers={"user-agent": "datosmexico.org (auditoría del clima)"})
+    reg = [m for m in json.loads(urllib.request.urlopen(req, timeout=60).read())["minutos"] if d <= m["minuto"].replace(".000Z", "Z") < h]
+    pul = {minuto(e["minuto"]): e for e in ent}
+    regm = {minuto(m["minuto"]): m for m in reg if m["entregas"] > 0}
+    iguales, distintos, sin_pulso, sin_registro = 0, [], [], []
+    for k, m in regm.items():
+        p = pul.get(k)
+        if not p:
+            (sin_pulso if m["reportado"] else []).append(k.isoformat())
+            continue
+        if p["entregas"] == m["entregas"] and p["latencia_entrega_max_ms"] == m["latencia_max_ms"]: iguales += 1
+        else: distintos.append({"minuto": k.isoformat(), "registro": [m["entregas"], m["latencia_max_ms"]], "pulso": [p["entregas"], p["latencia_entrega_max_ms"]]})
+    for k in pul:
+        if k not in regm: sin_registro.append(k.isoformat())
+    inf["registro_contra_pulso"] = {
+        "minutos_en_registro_con_entregas": len(regm), "minutos_en_pulso": len(pul), "iguales": iguales,
+        "distintos": distintos[:20], "n_distintos": len(distintos), "reportados_sin_pulso": sin_pulso[:20], "n_reportados_sin_pulso": len(sin_pulso),
+        "en_pulso_sin_registro": sin_registro[:20], "n_en_pulso_sin_registro": len(sin_registro),
+        "sin_reportar_aun": sum(1 for m in regm.values() if not m["reportado"]),
+        "ocultas_periodo": sum(m["ocultas"] for m in reg),
+        "nota": "El registro conserva 35 días. Un minuto con entregas aún sin reportar no es falla si es reciente (se reporta al cerrar el minuto); uno viejo sin reportar sí.",
     }
 
     # 4 · Puntualidad.
