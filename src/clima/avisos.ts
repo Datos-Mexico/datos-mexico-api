@@ -6,6 +6,7 @@
 // su sitio web); el endpoint dice cuándo fue el último de cada tipo.
 import type { Env } from "../index";
 import { filas } from "../lib/db";
+import { anotarFallas, motivo, pedirSmn, type Intento } from "./smn-red";
 
 export const AVISOS_INDICE = "https://smn.conagua.gob.mx/tools/PHP/feedsmn/cap.php";
 export const AVISOS_FUENTE = "Servicio Meteorológico Nacional (CONAGUA), avisos en CAP 1.2, licencia CC BY 4.0";
@@ -69,8 +70,13 @@ export type ResultadoAvisos = { indice: number; recientes: number; nuevos: numbe
 /** Una vuelta: lee el índice y custodia los mensajes nuevos de las últimas 48 horas. */
 export async function custodiarAvisos(env: Env, ahora: Date, fetchImpl: typeof fetch = fetch): Promise<ResultadoAvisos> {
   // El SMN sirve el índice con caché de un año: se pide siempre fresco.
-  const r = await fetchImpl(`${AVISOS_INDICE}?t=${ahora.getTime()}`, { headers: AGENTE, cache: "no-store" });
-  if (!r.ok) throw new Error(`el índice de avisos del SMN respondió ${r.status}`);
+  // Sin reintento (la vuelta siguiente llega en 5 minutos), pero cada falla queda en clima_consultas (fuente `avisos_falla`).
+  const intentos: Intento[] = [];
+  const r = await pedirSmn(`${AVISOS_INDICE}?t=${ahora.getTime()}`, { headers: AGENTE, cache: "no-store" }, intentos, { fetchImpl, reintentos: 0 });
+  if (!r?.ok) {
+    await anotarFallas(env, iso(ahora.getTime()), "avisos", intentos);
+    throw new Error(`índice de avisos: ${motivo(intentos)}`);
+  }
   const indice = leerIndice(await r.text());
   const ultimo_por_tipo: Record<string, string> = {};
   for (const e of indice) { const t = tipoDe(e.url); if (!ultimo_por_tipo[t] || e.actualizado > Date.parse(ultimo_por_tipo[t])) ultimo_por_tipo[t] = iso(e.actualizado); }
