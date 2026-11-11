@@ -10,10 +10,14 @@
 // - `hloc` NO es la hora local de cada municipio: es la hora del centro (UTC−6) para todos (Mexicali, Chetumal y la Ciudad de
 //   México empiezan en el mismo 20261109T18). El campo `dh` está desfasado en varias entidades (Chihuahua y Mexicali dicen 7).
 //   Por eso: hora UTC = hloc + 6 h, para todos.
+// - Desde la red de Cloudflare el servidor del SMN falla a ratos (HTTP 530 a las 07:19 y 08:19 UTC del 11-nov; volvió a las
+//   10:19 sin perder emisiones). Cada pedido pasa por `pedirSmn` (un reintento a los 15 s ante 5xx o falla de red) y cada vuelta
+//   queda en clima_consultas (fuente `pronostico_smn`) con su resultado y, si algo falló, el detalle de cada intento.
 // - Unidades (documentación del servicio): temperatura °C, viento y rachas km/h, precipitación l/m² (= mm), nubes %.
 import type { Env } from "../index";
 import { fila, filas } from "../lib/db";
 import { MUNICIPIOS_SMN } from "./municipios-smn";
+import { fallo, motivo, pedirSmn, type Intento } from "./smn-red";
 
 export const SMN_PRONOSTICO_FUENTE = "Servicio Meteorológico Nacional (CONAGUA), Pronóstico por municipios (servicio web)";
 const URL = (metodo: number) => `https://smn.conagua.gob.mx/tools/GUI/webservices/?method=${metodo}`;
@@ -61,16 +65,17 @@ async function sha256(b: Uint8Array): Promise<string> {
   return [...new Uint8Array(await crypto.subtle.digest("SHA-256", b))].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
-async function bajarSiCambio(env: Env, tipo: "dia" | "hora", metodo: number, ahora: Date, fetchImpl: typeof fetch): Promise<{ gz: Uint8Array; emision: string } | string> {
+async function bajarSiCambio(env: Env, tipo: "dia" | "hora", metodo: number, ahora: Date, red: { fetchImpl: typeof fetch; esperaMs?: number }, intentos: Intento[]): Promise<{ gz: Uint8Array; emision: string } | string> {
   const ultima = await fila<{ emision: string; bytes: number; descargado_en: string }>(env.DB_PLATAFORMA, "SELECT emision, bytes, descargado_en FROM clima_smn_emision WHERE tipo = ? ORDER BY emision DESC LIMIT 1", [tipo]);
   if (ultima) {
-    const h = await fetchImpl(URL(metodo), { method: "HEAD", headers: AGENTE });
-    const largo = Number(h.headers.get("content-length"));
+    // La cabecera no se reintenta: si falla, se pasa directo a la descarga (que sí se reintenta).
+    const h = await pedirSmn(URL(metodo), { method: "HEAD", headers: AGENTE }, intentos, { ...red, reintentos: 0 });
+    const largo = Number(h?.headers.get("content-length"));
     const vieja = ahora.getTime() - Date.parse(ultima.emision) > 26 * 3600_000;
-    if (h.ok && largo === ultima.bytes && !vieja) return "sin cambio";
+    if (h?.ok && largo === ultima.bytes && !vieja) return "sin cambio";
   }
-  const r = await fetchImpl(URL(metodo), { headers: AGENTE });
-  if (!r.ok) return `el SMN respondió ${r.status}`;
+  const r = await pedirSmn(URL(metodo), { headers: AGENTE }, intentos, red);
+  if (!r?.ok) return motivo(intentos);
   const gz = new Uint8Array(await r.arrayBuffer());
   const emision = emisionGzip(gz);
   if (!emision) return "el archivo no es gzip o no trae fecha";
@@ -81,12 +86,13 @@ async function bajarSiCambio(env: Env, tipo: "dia" | "hora", metodo: number, aho
   return { gz, emision };
 }
 
-/** Una vuelta: revisa las dos series y guarda lo nuevo. Nunca lanza. */
-export async function actualizarPronosticoSmn(env: Env, ahora: Date, fetchImpl: typeof fetch = fetch): Promise<Resultado[]> {
+/** Una vuelta: revisa las dos series, guarda lo nuevo y deja constancia de la vuelta. Nunca lanza. */
+export async function actualizarPronosticoSmn(env: Env, ahora: Date, fetchImpl: typeof fetch = fetch, esperaMs?: number): Promise<Resultado[]> {
   const out: Resultado[] = [];
+  const intentos: Record<"dia" | "hora", Intento[]> = { dia: [], hora: [] };
   for (const [tipo, metodo] of [["dia", 1], ["hora", 3]] as const) {
     try {
-      const b = await bajarSiCambio(env, tipo, metodo, ahora, fetchImpl);
+      const b = await bajarSiCambio(env, tipo, metodo, ahora, { fetchImpl, esperaMs }, intentos[tipo]);
       if (typeof b === "string") { out.push({ tipo, estado: b }); continue; }
       const filasSql: string[] = [];
       const vistas = new Set<string>();
@@ -119,7 +125,19 @@ export async function actualizarPronosticoSmn(env: Env, ahora: Date, fetchImpl: 
       out.push({ tipo, estado: `error: ${String(e).slice(0, 160)}` });
     }
   }
+  await anotarVuelta(env, ahora, out, intentos);
   return out;
+}
+
+/** Una fila por vuelta en clima_consultas: qué pasó con cada serie y, si algún pedido falló, todos los intentos de esa serie. */
+async function anotarVuelta(env: Env, ahora: Date, out: Resultado[], intentos: Record<"dia" | "hora", Intento[]>): Promise<void> {
+  const detalle: Record<string, unknown> = Object.fromEntries(out.map((r) => [r.tipo, r.emision ? `${r.estado} ${r.emision}` : r.estado]));
+  const conFalla = Object.fromEntries(Object.entries(intentos).filter(([, v]) => v.some(fallo)));
+  if (Object.keys(conFalla).length) detalle.intentos = conFalla;
+  try {
+    await env.DB_PLATAFORMA.prepare("INSERT OR REPLACE INTO clima_consultas (instante, fuente, pedidos, nuevas, detalle) VALUES (?, 'pronostico_smn', ?, ?, ?)")
+      .bind(new Date(Math.floor(ahora.getTime() / 60_000) * 60_000).toISOString(), intentos.dia.length + intentos.hora.length, out.filter((r) => r.estado === "nueva").length, JSON.stringify(detalle).slice(0, 8000)).run();
+  } catch { /* sin tabla: el resultado igual queda en el registro del Worker */ }
 }
 
 /** El pronóstico vigente del SMN para una capital: las horas desde la hora en curso y los días desde hoy (hora del centro). */

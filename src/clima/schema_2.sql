@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS clima_sonda_emas (
 
 -- Bitácora de consultas a las fuentes (para el pulso y la cara pública de comprobación).
 CREATE TABLE IF NOT EXISTS clima_consultas (
-  instante TEXT NOT NULL, fuente TEXT NOT NULL,   -- sinoptica | aeropuerto | modelo | emas
+  instante TEXT NOT NULL, fuente TEXT NOT NULL,   -- sinoptica | aeropuerto | modelo | emas | avisos | aire | pronostico_smn | avisos_falla
   pedidos INTEGER NOT NULL, nuevas INTEGER NOT NULL, detalle TEXT,
   PRIMARY KEY (instante, fuente)
 );

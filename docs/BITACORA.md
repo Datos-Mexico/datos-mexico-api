@@ -2071,3 +2071,28 @@ objeto durable (minuto, entregas, ocultas, peor latencia, reportado; sin datos d
 `… --remote --file data/clima/normales.sql` (generar antes con `python3 scripts/clima/generar_normales.py <caché>`; ~13.8 mil
 filas, una vez) → deploy → verificar: `/normales/09`, `/constancia`, `/ciudad/09`; al minuto 19 la primera emisión del SMN; al
 42 la primera vuelta de SINAICA (comprobar que la red de Cloudflare llega a sinaica.inecc.gob.mx).
+
+## 2026-11-11 — Clima: el servidor del SMN falla a ratos desde Cloudflare; cada falla queda registrada
+
+**Qué pasó.** Tras el despliegue de la ficha, el pronóstico por municipios del SMN respondió HTTP 530 a las 07:19 y a las 08:19
+UTC (las dos series); a las 10:19 entró la emisión del 10-nov y a las 12:19 la del 11-nov, completas (32 capitales, 128 días y
+3,712 horas por emisión), así que no se perdió ninguna. Desde fuera de Cloudflare el mismo servicio respondía 200 con cualquier
+identificación. No es exclusivo de esa ruta: el índice de avisos (mismo servidor, cada 5 minutos) tiene huecos en el mismo lapso
+(05:28, 05:48, 06:38, 07:23, 08:18, 08:38, 09:03, 10:23) y después (11:08, 11:23, 14:48, 16:13, 16:53): ~12 % de las vueltas
+entre el 10 y el 11 de noviembre. Lo que no se sabía era quién fallaba: el código no guardaba el cuerpo ni las cabeceras.
+
+**Corrección.** `src/clima/smn-red.ts` (`pedirSmn`): cada pedido al SMN anota su intento; ante falla de red o 5xx guarda código,
+cabeceras y los primeros 400 bytes del cuerpo (un `cf-ray` con «error code: 1xxx» es del borde de Cloudflare; una página de
+Apache es del SMN). El pronóstico reintenta una vez a los 15 s (la cabecera HEAD no se reintenta: si falla, se pasa a la descarga)
+y deja una fila por vuelta en `clima_consultas` (fuente `pronostico_smn`: resultado de cada serie y, si algo falló, los intentos
+de esa serie). El índice de avisos no se reintenta (la vuelta siguiente llega en 5 minutos), pero cada falla queda en
+`clima_consultas` (fuente `avisos_falla`); la fila normal `avisos` sigue siendo solo de vueltas buenas. Se descartó pedir por otro
+nombre (`wwwsmn.conagua.gob.mx`) o por `http`: los huecos de avisos muestran que falla el servidor entero a ratos, no una ruta.
+
+**Medido.** Seis casos con red simulada (530→200, 530×2, falla de red→200, 404 sin reintento, HEAD 530→descarga, avisos 530 y
+200) y una vuelta real contra el SMN desde fuera de Cloudflare (dos series nuevas, 128 + 3,712 filas, 2 pedidos). Las tallas del
+archivo de las 12:30 son idénticas a las de las 11:30 (340,883 y 7,571,194 bytes): el SMN vuelve a comprimir el mismo contenido
+con otra hora en la cabecera gzip, y la revisión por tamaño lo trata, con razón, como «sin cambio».
+
+**Para revisar:** `SELECT instante, detalle FROM clima_consultas WHERE fuente IN ('pronostico_smn', 'avisos_falla') ORDER BY
+instante DESC` — si las fallas traen `cf-ray` y «error code», se escala con Cloudflare; si traen página del SMN, con el SMN.
