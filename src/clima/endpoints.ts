@@ -273,7 +273,9 @@ export class ClimaSateliteCuadro extends OpenAPIRoute {
   async handle(c: AppContext) {
     const d = await this.getValidatedData<typeof this.schema>();
     // La imagen de una hora pasada no cambia: se guarda en la caché del borde de Cloudflare y las siguientes visitas no esperan a R2.
-    const clave = new Request(new URL(c.req.url).origin + new URL(c.req.url).pathname);
+    // La clave de la caché lleva la huella (?h=): si una hora se vuelve a guardar con otra imagen, es otra entrada.
+    const u = new URL(c.req.url), h = u.searchParams.get("h");
+    const clave = new Request(u.origin + u.pathname + (h && /^[0-9a-f]{12}$/.test(h) ? `?h=${h}` : ""));
     const enCache = await caches.default.match(clave);
     if (enCache) return new Response(enCache.body, enCache);
     const o = await c.env.DATOS.get(`${PREFIJO_SATELITE}/${d.params.region}/${d.params.tiempo}.jpg`);

@@ -12,6 +12,7 @@
 // El mapa toma uno de cada dos (uno cada 20 minutos); guardar todos deja que tome el vecino cuando GIBS tiene un hueco.
 // Costo: unas 288 consultas cortas al día al catálogo de la NOAA, 288 imágenes al día (dos regiones por cuadro) y unos 90 MB
 // en R2 (se guardan 26 horas); GIBS solo cuando hace falta el respaldo.
+import { decode } from "jpeg-js";
 import type { Env } from "../index";
 
 export const PREFIJO_SATELITE = "clima/satelite";
@@ -63,7 +64,9 @@ async function bajarImagen(g: Region, capas: string[], t: number, fetchImpl: typ
   const bbox = [mercX(g.oeste), mercY(g.sur), mercX(g.este), mercY(g.norte)].map((x) => Math.round(x)).join(",");
   const url = `${WMS}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=${capas.join(",")}&STYLES=&CRS=EPSG:3857&BBOX=${bbox}&WIDTH=${g.ancho}&HEIGHT=${altoDe(g)}&FORMAT=image/jpeg&TIME=${iso(t)}`;
   const r = await fetchImpl(url, { headers: AGENTE });
-  return validarJpeg(r, new Uint8Array(await r.arrayBuffer()), "GIBS");
+  const b = validarJpeg(r, new Uint8Array(await r.arrayBuffer()), "GIBS");
+  if (esTablero(b)) throw new Error("GIBS entregó un tablero en lugar de la imagen");
+  return b;
 }
 
 /** Catálogo de la NOAA: número de cada cuadro por su hora de toma (los más recientes). */
@@ -78,7 +81,24 @@ async function bajarNoaa(g: Region, id: number, fetchImpl: typeof fetch): Promis
   const bbox = [mercX(g.oeste), mercY(g.sur), mercX(g.este), mercY(g.norte)].map((x) => Math.round(x)).join(",");
   const mosaico = encodeURIComponent(JSON.stringify({ mosaicMethod: "esriMosaicLockRaster", lockRasterIds: [id] }));
   const r = await fetchImpl(`${NOAA}/exportImage?bbox=${bbox}&bboxSR=3857&imageSR=3857&size=${g.ancho},${altoDe(g)}&format=jpg&mosaicRule=${mosaico}&f=image`, { headers: AGENTE });
-  return validarJpeg(r, new Uint8Array(await r.arrayBuffer()), "la NOAA");
+  const b = validarJpeg(r, new Uint8Array(await r.arrayBuffer()), "la NOAA");
+  if (esTablero(b)) throw new Error("la NOAA entregó un tablero en lugar de la imagen (aún no la tiene lista)");
+  return b;
+}
+/**
+ * La NOAA a veces responde, para una toma que lista pero aún no tiene lista, un tablero de cuadros blancos y negros (10 de
+ * noviembre de 2026: la toma de 23:50 UTC llegó así al mapa). Se decodifica y se mira una muestra de píxeles: en el tablero, casi
+ * la mitad son blanco puro y casi la mitad negro puro. Una imagen de noche es mayormente negra pero casi nunca blanca pura.
+ */
+export function esTablero(jpeg: Uint8Array): boolean {
+  const img = decode(jpeg, { useTArray: true, formatAsRGBA: true, maxResolutionInMP: 4 });
+  let blancos = 0, negros = 0, n = 0;
+  for (let y = 1; y < img.height; y += 7) for (let x = 3; x < img.width; x += 7) {
+    const o = (y * img.width + x) * 4, l = (img.data[o] + img.data[o + 1] + img.data[o + 2]) / 3;
+    if (l > 240) blancos++; else if (l < 15) negros++;
+    n++;
+  }
+  return blancos / n > 0.3 && negros / n > 0.3;
 }
 function validarJpeg(r: Response, b: Uint8Array, quien: string): Uint8Array {
   // A veces responden 200 con un error en texto: se exige un JPEG completo (FFD8 … FFD9) y con datos. La NOAA agrega unos
@@ -147,6 +167,13 @@ export async function actualizarSatelite(env: Env, ahora: Date, fetchImpl: typeo
   return [hechos.length ? `cuadros ${hechos.join(", ")}` : "", fallas.length ? `fallas ${fallas.join("; ")}` : ""].filter(Boolean).join(" · ");
 }
 
+/**
+ * Dirección pública de un cuadro: la hora y, como parámetro, el inicio de su huella. Los cuadros se sirven con caché permanente
+ * (Cloudflare y navegador); si una hora se vuelve a guardar con otra imagen (por ejemplo, el tablero de la NOAA reemplazado por la
+ * imagen buena), su dirección cambia y nadie recibe la versión vieja de una caché.
+ */
+export const rutaCuadro = (region: string, clave: string, sha256: string) => `/api/v1/clima/satelite/${region}/${clave}${sha256 ? `?h=${sha256.slice(0, 12)}` : ""}`;
+
 /** El manifiesto sale de lo que hay en R2 (no de la memoria de una vuelta): dos vueltas a la vez no pueden perder un cuadro. */
 async function rehacerManifiesto(env: Env, ms: number): Promise<void> {
   const porTiempo = new Map<number, Record<string, CuadroGuardado>>();
@@ -165,7 +192,7 @@ async function rehacerManifiesto(env: Env, ms: number): Promise<void> {
   const cuadros = [...porTiempo.entries()]
     .filter(([t, x]) => t >= fin - VENTANA_MS && Object.keys(REGIONES).every((k) => x[k]))
     .sort((a, b) => a[0] - b[0])
-    .map(([t, x]) => ({ t: iso(t), satelites: x.mexico.satelites, fuente: x.mexico.fuente === "noaa" ? "NOAA NESDIS" : "NASA GIBS", regiones: Object.fromEntries(Object.keys(REGIONES).map((k) => [k, { ruta: `/api/v1/clima/satelite/${k}/${claveTiempo(t)}`, bytes: x[k].bytes, sha256: x[k].sha256 }])) }));
+    .map(([t, x]) => ({ t: iso(t), satelites: x.mexico.satelites, fuente: x.mexico.fuente === "noaa" ? "NOAA NESDIS" : "NASA GIBS", regiones: Object.fromEntries(Object.keys(REGIONES).map((k) => [k, { ruta: rutaCuadro(k, claveTiempo(t), x[k].sha256), bytes: x[k].bytes, sha256: x[k].sha256 }])) }));
   const manifiesto: Manifiesto = {
     fuente: "NOAA GOES-Oeste y GOES-Este, producto GeoColor (CIRA); servido por NOAA NESDIS (MERGEDGC, unos 20 min tras la toma) y, de respaldo, por NASA GIBS (WMS); imágenes guardadas por Datos México",
     nota: "Imagen real del satélite, no pronóstico. De día, color natural; de noche, el satélite ve con infrarrojo y las nubes salen en gris sobre un fondo fijo con las luces de las ciudades. Proyección Web Mercator (EPSG:3857); las esquinas van en grados, empezando arriba a la izquierda y en el sentido del reloj.",
