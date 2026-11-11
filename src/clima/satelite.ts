@@ -116,6 +116,8 @@ export type Manifiesto = {
   fuente: string; nota: string; generado_en: string; paso_min: number;
   regiones: Record<string, { esquinas: [number, number][]; ancho: number; alto: number }>;
   cuadros: { t: string; satelites: string[]; fuente: string; regiones: Record<string, { ruta: string; bytes: number; sha256: string }> }[];
+  /** Satélite rápido (NOAA STAR, cada 5 minutos, solo la región de México y hasta el norte de Chiapas): las tomas más nuevas. */
+  rapidos: { t: string; ruta: string; bytes: number; sha256: string }[];
 };
 
 /** Una vuelta: pide los cuadros que faltan de las últimas tres horas (a la NOAA; a GIBS lo que la NOAA no tenga) y rehace el manifiesto. */
@@ -183,7 +185,7 @@ export async function actualizarSatelite(env: Env, ahora: Date, fetchImpl: typeo
 export const rutaCuadro = (region: string, clave: string, sha256: string) => `/api/v1/clima/satelite/${region}/${clave}${sha256 ? `?h=${sha256.slice(0, 12)}` : ""}`;
 
 /** El manifiesto sale de lo que hay en R2 (no de la memoria de una vuelta): dos vueltas a la vez no pueden perder un cuadro. */
-async function rehacerManifiesto(env: Env, ms: number): Promise<void> {
+export async function rehacerManifiesto(env: Env, ms: number): Promise<void> {
   const porTiempo = new Map<number, Record<string, CuadroGuardado>>();
   for (const clave of Object.keys(REGIONES)) {
     const lista = await env.DATOS.list({ prefix: `${PREFIJO_SATELITE}/${clave}/`, include: ["customMetadata"] });
@@ -197,6 +199,14 @@ async function rehacerManifiesto(env: Env, ms: number): Promise<void> {
     }
   }
   const fin = Math.floor(ms / PASO_MS) * PASO_MS;
+  const rapidos: Manifiesto["rapidos"] = [];
+  for (const o of (await env.DATOS.list({ prefix: `${PREFIJO_SATELITE}/rapido/`, include: ["customMetadata"] })).objects) {
+    const c = /(\d{12})\.jpg$/.exec(o.key)?.[1]; if (!c) continue;
+    const t = msDeClave(c);
+    if (ms - t > GUARDAR_MS) { await env.DATOS.delete(o.key); continue; }
+    if (t >= fin - VENTANA_MS) rapidos.push({ t: iso(t), ruta: rutaCuadro("rapido", c, o.customMetadata?.sha256 ?? ""), bytes: o.size, sha256: o.customMetadata?.sha256 ?? "" });
+  }
+  rapidos.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
   const cuadros = [...porTiempo.entries()]
     .filter(([t, x]) => t >= fin - VENTANA_MS && Object.keys(REGIONES).every((k) => x[k]))
     .sort((a, b) => a[0] - b[0])
@@ -206,7 +216,7 @@ async function rehacerManifiesto(env: Env, ms: number): Promise<void> {
     nota: "Imagen real del satélite, no pronóstico. De día, color natural; de noche, el satélite ve con infrarrojo y las nubes salen en gris sobre un fondo fijo con las luces de las ciudades. Proyección Web Mercator (EPSG:3857); las esquinas van en grados, empezando arriba a la izquierda y en el sentido del reloj.",
     generado_en: iso(ms), paso_min: PASO_MS / 60_000,
     regiones: Object.fromEntries(Object.entries(REGIONES).map(([k, g]) => [k, { esquinas: [[g.oeste, g.norte], [g.este, g.norte], [g.este, g.sur], [g.oeste, g.sur]], ancho: g.ancho, alto: altoDe(g) }])),
-    cuadros,
+    cuadros, rapidos,
   };
   await env.DATOS.put(`${PREFIJO_SATELITE}/actual.json`, JSON.stringify(manifiesto), { httpMetadata: { contentType: "application/json" } });
 }

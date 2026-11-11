@@ -12,6 +12,7 @@ import { cifrasEntrega } from "./envivo";
 import { MALLAS, PREFIJO_MALLA, VARIABLES } from "./malla";
 import { AVISOS_FUENTE, AVISOS_INDICE, avisosVigentes } from "./avisos";
 import { PREFIJO_SATELITE, REGIONES } from "./satelite";
+import { actualizarRapido } from "./satelite-rapido";
 import { TESTIGO_MIN_COTEJOS, TESTIGO_TOLERANCIA_C, TESTIGO_TOLERANCIA_INICIAL_C } from "./verificacion";
 
 const TAG = ["clima"];
@@ -261,13 +262,19 @@ export class ClimaSatelite extends OpenAPIRoute {
   async handle(c: AppContext) {
     const o = await c.env.DATOS.get(`${PREFIJO_SATELITE}/actual.json`);
     if (!o) throw new ErrorHttp(404, "Aún no hay cuadros del satélite guardados");
-    return JSON.parse(await o.text()) as Record<string, unknown>;
+    const m = JSON.parse(await o.text()) as { rapidos?: { t: string }[] } & Record<string, unknown>;
+    // Satélite rápido a demanda: alguien está viendo el mapa. La NOAA publica cada toma unos 5 minutos después y hay una cada 5;
+    // si el último rápido tiene menos de 10 minutos, aún no puede haber uno nuevo y no se toca nada.
+    const ultimo = m.rapidos?.length ? Date.parse(m.rapidos[m.rapidos.length - 1].t) : 0;
+    const actualizando = Date.now() - ultimo >= 10 * 60_000;
+    if (actualizando) c.executionCtx.waitUntil(actualizarRapido(c.env, Date.now()).then((r) => { if (r !== "nada" && r !== "otro ya lo revisa") console.log("clima satelite rapido", r); }).catch((e) => console.error("clima satelite rapido", e)));
+    return { ...m, rapidos: m.rapidos ?? [], actualizando };
   }
 }
 export class ClimaSateliteCuadro extends OpenAPIRoute {
   schema = {
     tags: TAG, operationId: "clima_satelite_cuadro", summary: "Imagen JPEG de un cuadro del satélite",
-    request: { params: z.object({ region: z.enum(Object.keys(REGIONES) as [string, ...string[]]), tiempo: z.string().regex(/^\d{12}$/) }) },
+    request: { params: z.object({ region: z.enum(["rapido", ...Object.keys(REGIONES)] as [string, ...string[]]), tiempo: z.string().regex(/^\d{12}$/) }) },
     responses: { "200": { description: "JPEG en Web Mercator; sus esquinas están en el manifiesto." }, "404": { description: "No existe.", ...contentJson(z.object({ detail: z.string() })) }, ...RESP_429 },
   };
   async handle(c: AppContext) {

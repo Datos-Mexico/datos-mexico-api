@@ -1970,3 +1970,24 @@ vuelta pedía ~17 tomas a la NOAA (34 imágenes) para nada.
 **Corrección.** Si la NOAA falla o da tablero en una vuelta, para esa hora se usa GIBS y el resto de la vuelta ya no se le pide a
 la NOAA. Probado en banco contra las fuentes reales (03:44 UTC): una sola petición a la NOAA por vuelta y 15 cuadros de GIBS de
 00:40 a 03:00 en cuatro vueltas.
+## 2026-11-11 — Clima: satélite rápido a demanda (NOAA STAR, cada 5 minutos)
+
+**Por qué.** El CEO pidió acercar el satélite a «ahora» sin gastar si nadie mira. NOAA NESDIS (MERGEDGC) va 25–55 min atrás y
+GIBS 45–75; NOAA STAR publica GeoColor de GOES-Este para EE. UU. y México cada 5 minutos, ~5 minutos después de la toma, en un
+BigTIFF de 11000 × 4660 (0.009°, WGS84, RGBA, deflate sin predictor, una fila por bloque; 25.8 MB) que se reescribe en cada toma;
+su vecino `.sha256` (117 bytes) dice la toma (`AAAADDDHHMM`).
+
+**Qué.** `src/clima/satelite-rapido.ts`: lee la cabecera (64 KB, rango), calcula las ~650 filas que necesita la ventana de México
+(125°–75° O, 0°–37° N, Web Mercator 1280 × 1021) y las pide en pedidos de hasta 200 rangos sueltos (`multipart/byteranges`, con
+`If-Range` por si el archivo cambia a media lectura); las filas vacías (fuera de la toma, posición 0) no se piden. Descomprime cada
+fila (DecompressionStream), toma la columna de cada píxel de salida y codifica JPEG (jpeg-js, calidad 82). Fuera de la toma queda
+negro: el mapa lo vuelve transparente y ahí se ve el cuadro normal más reciente. A DEMANDA: lo dispara `GET /api/v1/clima/satelite`
+si el último rápido tiene 10 min o más, con candado en `clima_bloqueos` (`schema_5.sql`); la respuesta dice `actualizando` y el
+mapa vuelve a preguntar a los 15 s. Sin visitas no se descarga nada. Se guardan en `clima/satelite/rapido/` (26 h) y el manifiesto
+los lista (`rapidos`, con `?h=`).
+
+**Medido.** Por cuadro: ~3.2 MB bajados, 1.7 s de reloj, ~0.4 s de CPU (Node), JPEG ~235 KB; ~7 min tras la toma. Ubicación
+verificada con luces de ciudades: Monterrey, Guadalajara, Houston, Dallas, Miami, Puebla, Chihuahua a 1–3 px (4–13 km); manchas
+metropolitanas grandes a ~6 px. Cobertura: México hasta ~14.6° N (norte de Chiapas).
+
+**Para publicar (con go):** `wrangler d1 execute datosmexico-api-plataforma --remote --file src/clima/schema_5.sql` → deploy → sitio.
