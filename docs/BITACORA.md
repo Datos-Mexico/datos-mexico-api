@@ -1959,3 +1959,14 @@ siempre ha sido estable». **Qué.** Sin límite de antigüedad para la hora má
 `ENTREGA_ATRAS_MS`); la clase cae con la primera entrega tardía y la sostiene que el sistema siga vivo (§7 bis: tres comprobaciones
 seguidas fallidas sacan de clase, sin cambios). `PROTOCOLO_VERSION` = 0.6.0. El sitio muestra «estable desde …» (`clase_desde`) y
 deja la hora medida como detalle. Costo: cero. El historial ya publicado no se toca.
+
+## 2026-11-11 — Clima: el respaldo de GIBS también cubre los tableros de la NOAA
+
+**Qué pasó.** Desde las 00:30 UTC la NOAA (MERGEDGC) entrega tableros para TODAS sus tomas, no solo las más nuevas. El rechazo de
+#19 funcionaba, pero el respaldo de GIBS solo se usaba cuando la NOAA no listaba la hora: si la listaba y daba tablero, esa hora
+se quedaba vacía. A las 03:44 UTC producción tenía 5 cuadros (00:10–02:00, todos GIBS) y el más nuevo con 104 min; además cada
+vuelta pedía ~17 tomas a la NOAA (34 imágenes) para nada.
+
+**Corrección.** Si la NOAA falla o da tablero en una vuelta, para esa hora se usa GIBS y el resto de la vuelta ya no se le pide a
+la NOAA. Probado en banco contra las fuentes reales (03:44 UTC): una sola petición a la NOAA por vuelta y 15 cuadros de GIBS de
+00:40 a 03:00 en cuatro vueltas.
